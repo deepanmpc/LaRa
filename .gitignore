@@ -1,0 +1,7 @@
+whisper.cpp
+.venv
+__pycache__
+
+
+
+model/
