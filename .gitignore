@@ -4,4 +4,7 @@ __pycache__
 
 
 
-model/
+model/vosk-model-small-en-us-0.15
+
+model/kokoro-v1.0.onnx
+model/voices-v1.0.bin
