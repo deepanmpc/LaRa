@@ -40,8 +40,9 @@ This repo is configured to auto-deploy on every push to `main` using GitHub Acti
 One-time setup in GitHub:
 
 1. Open `Settings` -> `Pages`.
-2. Set `Source` to `GitHub Actions`.
-3. Push your changes to `main`.
+2. Set `Source` to `Deploy from a branch`.
+3. Select branch `gh-pages` and folder `/ (root)`.
+4. Push your changes to `main`.
 
 Public URL:
 
