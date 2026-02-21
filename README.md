@@ -32,3 +32,17 @@ Default dev server URL:
 - TypeScript
 - Tailwind CSS
 - shadcn/ui
+
+## Global deployment (GitHub Pages)
+
+This repo is configured to auto-deploy on every push to `main` using GitHub Actions.
+
+One-time setup in GitHub:
+
+1. Open `Settings` -> `Pages`.
+2. Set `Source` to `GitHub Actions`.
+3. Push your changes to `main`.
+
+Public URL:
+
+- https://visala-paladagu.github.io/lara_3d/
