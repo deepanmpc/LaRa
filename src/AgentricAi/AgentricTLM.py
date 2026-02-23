@@ -10,9 +10,9 @@ if base_path not in sys.path:
     sys.path.append(base_path)
 
 try:
-    from audio_pipeline import AudioPipeline
+    from simple_audio_pipeline import SimpleAudioPipeline
 except ImportError:
-    AudioPipeline = None
+    SimpleAudioPipeline = None
 
 # Configure logging for caregiver review
 logging.basicConfig(
@@ -45,14 +45,15 @@ class AgentricAI:
         self.audio_pipeline = None
 
     def initialize_audio_pipeline(self):
-        """Lazy load the massive audio pipeline models when first needed."""
+        """Lazy load the simple audio pipeline model when first needed to save memory."""
         if self.audio_pipeline is None:
-            if AudioPipeline is None:
-                logging.error("AudioPipeline module not found or failed to import.")
+            if SimpleAudioPipeline is None:
+                logging.error("SimpleAudioPipeline module not found or failed to import.")
                 print("Error: Could not load the audio pipeline components.")
                 return False
-            self.audio_pipeline = AudioPipeline()
-            self.audio_pipeline._load_models()
+            self.audio_pipeline = SimpleAudioPipeline(device="cpu", compute_type="int8")
+            # Defer full whisper load until actually processing to reduce footprint,
+            # or load immediately if preferred. We'll let process_audio handle the _load_models() automatically.
         return True
 
     def generate_response_stream(self, prompt):
@@ -105,41 +106,42 @@ class AgentricAI:
             response = requests.post(self.url, json=payload)
             response.raise_for_status()
             res_text = response.json().get("response", "")
-            logging.info(f"Interaction - User: {prompt} | LaRa: {res_text}")
+            return res_text
+        except Exception as e:
             logging.error(f"Ollama Error: {e}")
             return "I am here with you. Let us take a deep breath."
 
-    def handle_audio_input(self, audio_file_path: str, target_speaker_sample: str):
+    def handle_audio_input(self, audio_file_path: str):
         """
-        Processes an audio file through the 7-stage advanced audio pipeline,
-        extracts the clean, punctuated text of the target speaker,
-        and streams the LLM response back.
+        Processes an audio file through the fast WhisperX pipeline.
+        Extracts clean text securely, prioritizing emotional safety and low latency.
+         Streams the LLM response back.
         """
-        # 1. Pipeline execution
         if not self.initialize_audio_pipeline():
+            # Safe Fallback: gentle response if audio system fails
             yield "There is a problem hearing your voice. Let us type for now."
             return
             
         try:
-            print(f"Feeding {audio_file_path} to Audio Pipeline...")
-            transcribed_text = self.audio_pipeline.process(audio_file_path, target_speaker_sample)
+            print(f"Listening to nicely to {audio_file_path}...")
+            transcribed_text = self.audio_pipeline.process_audio(audio_file_path)
             
-            if not transcribed_text:
-                yield "I could not hear you properly. Could we try again?"
+            # Constraints: If detection is low or empty -> default to neutral supportive behavior
+            if not transcribed_text or len(transcribed_text.strip()) < 2:
+                yield "I am here with you. Can you say that one more time?"
                 return
                 
             print(f"Transcribed Text for LLM: '{transcribed_text}'")
             logging.info(f"Audio Processing Output -> LLM Input: {transcribed_text}")
             
-            # 2. Feed text into LLM stream
+            # Ask the LLM to generate the safe, structured response
             for chunk in self.generate_response_stream(transcribed_text):
                 yield chunk
                 
         except Exception as e:
+            # Constraints: Never escalate intensity automatically on failure
             logging.error(f"Pipeline Error: {e}")
-            yield "Sorry, my ears got a bit confused. Let us try speaking again."
-            logging.error(f"Ollama Error: {e}")
-            return "I am here with you. Let us take a deep breath."
+            yield "I am listening, but it is a bit noisy. Let us take our time."
 
 if __name__ == "__main__":
     agent = AgentricAI()
