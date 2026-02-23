@@ -18,9 +18,10 @@ logging.basicConfig(
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 try:
-    from AgentricAi.AgentricAI_TLM_latest import AgentricAI
-except ImportError:
-    logging.critical("Could not import AgentricAI.")
+    from AgentricAi.AgentricTLM import AgentricAI
+except ImportError as e:
+    logging.critical(f"Could not import AgentricAI: {e}")
+    print(f"Error: Could not import AgentricAI. Check lara_system.log for details: {e}")
     sys.exit(1)
 
 # --- Configuration ---
@@ -28,7 +29,7 @@ SAMPLE_RATE = 16000
 FRAME_DURATION_MS = 30
 FRAME_SIZE = int(SAMPLE_RATE * FRAME_DURATION_MS / 1000)
 VAD_MODE = 3
-SILENCE_DURATION_MS = 1200 # Balanced for patient interaction
+SILENCE_DURATION_MS = 2500 # Rule 1 & 10: Gentle pacing, wait 2.5s for slow/paused speech
 CHANNELS = 1
 
 # Noise clearance threshold (Energy-based gate)
@@ -49,7 +50,10 @@ def main():
     clear_console()
     print("\033[94m[System]\033[0m Initializing LaRa AI...")
     
-    whisper_model = Model('small.en', n_threads=6, print_progress=False)
+    # Point to the local models_dir for offline reference
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    models_dir = os.path.join(base_dir, 'model')
+    whisper_model = Model('small.en', models_dir=models_dir, n_threads=6, print_progress=False)
     agent = AgentricAI()
     
     clear_console()
@@ -102,6 +106,7 @@ def main():
                             
                             # Transcribe
                             full_audio = np.concatenate(utterance_frames).flatten().astype(np.float32)
+                            
                             # Normalize audio for clearer transcription
                             if np.max(np.abs(full_audio)) > 0:
                                 full_audio = full_audio / np.max(np.abs(full_audio))
@@ -120,7 +125,9 @@ def main():
                             if not is_awake:
                                 if "model wake up" in text.lower():
                                     is_awake = True
-                                    print(f"\n\033[92m[System]\033[0m LaRa is now awake.")
+                                    msg = "\n\033[92m[System Transition]\033[0m LaRa is now AWAKE."
+                                    print(msg)
+                                    logging.info("[SYSTEM_STATE] Transitioned to AWAKE")
                                     print(f"\033[95mLaRa:\033[0m Hello! I am here to play and learn with you.")
                                 else:
                                     # Subtle notification in-place
@@ -158,9 +165,10 @@ def main():
                                 print("\n" + "-"*30)
                             
     except KeyboardInterrupt:
-        print("\n\n\033[91m[System]\033[0m Stopping gently...")
+        print("\n\n\033[91m[System Transition]\033[0m Stopping gently...")
+        logging.info("[SYSTEM_STATE] Transitioned to SHUTDOWN (KeyboardInterrupt)")
     except Exception as e:
-        logging.critical(f"Error: {e}")
+        logging.critical(f"System Error: {e}")
         print(f"\n\033[91mError:\033[0m {e}")
 
 if __name__ == "__main__":

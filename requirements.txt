@@ -1,2 +1,8 @@
-vosk pyaudio
-
+numpy<2
+sounddevice
+webrtcvad
+pywhispercpp
+requests
+torch
+vosk
+pyaudio

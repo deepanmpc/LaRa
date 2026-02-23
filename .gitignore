@@ -19,6 +19,7 @@ Thumbs.db
 # Project-specific
 LOGS/*.docx
 installations/*.png
+lara_*.log
 resources/*.png
 model/
 !model/.gitkeep
