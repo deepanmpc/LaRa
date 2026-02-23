@@ -1,6 +1,18 @@
 import requests
 import json
 import logging
+import sys
+import os
+
+# Ensure the audiopipeline can be imported
+base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if base_path not in sys.path:
+    sys.path.append(base_path)
+
+try:
+    from audio_pipeline import AudioPipeline
+except ImportError:
+    AudioPipeline = None
 
 # Configure logging for caregiver review
 logging.basicConfig(
@@ -29,6 +41,19 @@ class AgentricAI:
         
         print(f"Initializing LaRa Assistant (Model: {self.model_name})...")
         logging.info(f"System initialized with model: {self.model_name}")
+        
+        self.audio_pipeline = None
+
+    def initialize_audio_pipeline(self):
+        """Lazy load the massive audio pipeline models when first needed."""
+        if self.audio_pipeline is None:
+            if AudioPipeline is None:
+                logging.error("AudioPipeline module not found or failed to import.")
+                print("Error: Could not load the audio pipeline components.")
+                return False
+            self.audio_pipeline = AudioPipeline()
+            self.audio_pipeline._load_models()
+        return True
 
     def generate_response_stream(self, prompt):
         """Generates a streaming response following LaRa's behavioral constraints."""
@@ -81,8 +106,38 @@ class AgentricAI:
             response.raise_for_status()
             res_text = response.json().get("response", "")
             logging.info(f"Interaction - User: {prompt} | LaRa: {res_text}")
-            return res_text
+            logging.error(f"Ollama Error: {e}")
+            return "I am here with you. Let us take a deep breath."
+
+    def handle_audio_input(self, audio_file_path: str, target_speaker_sample: str):
+        """
+        Processes an audio file through the 7-stage advanced audio pipeline,
+        extracts the clean, punctuated text of the target speaker,
+        and streams the LLM response back.
+        """
+        # 1. Pipeline execution
+        if not self.initialize_audio_pipeline():
+            yield "There is a problem hearing your voice. Let us type for now."
+            return
+            
+        try:
+            print(f"Feeding {audio_file_path} to Audio Pipeline...")
+            transcribed_text = self.audio_pipeline.process(audio_file_path, target_speaker_sample)
+            
+            if not transcribed_text:
+                yield "I could not hear you properly. Could we try again?"
+                return
+                
+            print(f"Transcribed Text for LLM: '{transcribed_text}'")
+            logging.info(f"Audio Processing Output -> LLM Input: {transcribed_text}")
+            
+            # 2. Feed text into LLM stream
+            for chunk in self.generate_response_stream(transcribed_text):
+                yield chunk
+                
         except Exception as e:
+            logging.error(f"Pipeline Error: {e}")
+            yield "Sorry, my ears got a bit confused. Let us try speaking again."
             logging.error(f"Ollama Error: {e}")
             return "I am here with you. Let us take a deep breath."
 
