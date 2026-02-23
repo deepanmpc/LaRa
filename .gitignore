@@ -1,11 +1,31 @@
-whisper.cpp
-.venv
-__pycache__
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+ENV/
 
+# OS-specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
+# Project-specific
+LOGS/*.docx
+installations/*.png
+resources/*.png
+model/
+!model/.gitkeep
+inp.txt
+*.wav
+whisper.cpp/
 
-model/vosk-model-small-en-us-0.15
-
-model/kokoro-v1.0.onnx
-model/voices-v1.0.bin
-hardhat.wav
+# Ignore everything in src except our code
+# (Based on the existing whisper.cpp entry and structure)
+src/whisper.cpp/
