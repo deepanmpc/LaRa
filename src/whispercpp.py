@@ -53,7 +53,9 @@ def main():
     # Point to the local models_dir for offline reference
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     models_dir = os.path.join(base_dir, 'model')
-    whisper_model = Model('small.en', models_dir=models_dir, n_threads=6, print_progress=False)
+    
+    # Speed Optimization: language='en' disables auto-detect. 
+    whisper_model = Model('small.en', models_dir=models_dir, n_threads=6, print_progress=False, language='en')
     agent = AgentricAI()
     
     clear_console()
@@ -111,7 +113,8 @@ def main():
                             if np.max(np.abs(full_audio)) > 0:
                                 full_audio = full_audio / np.max(np.abs(full_audio))
                                 
-                            segments = whisper_model.transcribe(full_audio)
+                            # Speed Optimization: num_threads=6 matching hardware, beam_size=1 (greedy decoding) for absolute fastest inference.
+                            segments = whisper_model.transcribe(full_audio, num_threads=6, beam_size=1)
                             text = "".join([s.text for s in segments]).strip()
                             
                             if not text: continue

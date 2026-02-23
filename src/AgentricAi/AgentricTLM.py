@@ -73,6 +73,8 @@ class AgentricAI:
                 "temperature": 0.15, # Rule 1: High predictability over randomness
                 "top_p": 0.85,       # Further reduce variation
                 "top_k": 40,
+                "num_ctx": 1024,     # Speed optimization: strictly limit context window
+                "num_predict": 60,   # Speed optimization: enforce absolute shortness (roughly 2-3 short sentences)
                 "stop": ["User:", "\n"] # Prevent hallucinating new dialogue turns
             }
         }
