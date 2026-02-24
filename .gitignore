@@ -30,4 +30,4 @@ whisper.cpp/
 # Ignore everything in src except our code
 # (Based on the existing whisper.cpp entry and structure)
 src/whisper.cpp/
-/docs
+/Users/deepandee/Desktop/LaRa/docs
