@@ -1,0 +1,140 @@
+LaRa Global Machine Instruction
+
+For All AI Agents and Code Generation Tools
+
+This project is LaRa – Low-Cost Adaptive Robotic-AI Therapy System for Down Syndrome Children.
+
+All generated code must assume:
+	•	The end users are neurodiverse children (specifically Down syndrome).
+	•	The system operates in educational / therapeutic environments.
+	•	Emotional safety, clarity, and predictability are higher priority than speed or novelty.
+
+⸻
+
+1. Core Behavioral Constraint
+
+The system must prioritize:
+	•	Predictability over randomness
+	•	Clarity over complexity
+	•	Stability over rapid responsiveness
+	•	Gentle pacing over aggressive interaction
+	•	Low cognitive load over feature richness
+
+No code should introduce chaotic or unpredictable behavior.
+
+⸻
+
+2. Interaction Constraints
+
+When generating interaction-related logic:
+	•	Avoid rapid state switching.
+	•	Avoid high-frequency UI or animation changes.
+	•	Use slower timing defaults.
+	•	Prefer simple, repetitive reinforcement patterns.
+	•	Ensure graceful fallback when uncertainty is high.
+
+If confidence in detection is low → default to neutral supportive behavior.
+
+Never escalate interaction intensity automatically.
+
+⸻
+
+3. Emotion Handling Constraints
+
+Emotion detection outputs are noisy and must be:
+	•	Temporally smoothed
+	•	Threshold-gated
+	•	Confidence-validated
+
+Never make decisions based on single-frame emotional inference.
+
+Always include:
+	•	Confidence threshold checks
+	•	Minimum duration checks
+	•	Safe fallback state
+
+⸻
+
+4. Safety and Ethical Constraints
+
+The system must:
+	•	Stop interaction if no face is detected.
+	•	Avoid making psychological or medical claims.
+	•	Avoid diagnosing.
+	•	Avoid emotionally intense language.
+	•	Avoid negative reinforcement patterns.
+
+All responses must be:
+	•	Encouraging
+	•	Calm
+	•	Structured
+	•	Non-judgmental
+
+⸻
+
+5. Cognitive Accessibility Constraints
+
+Generated code should ensure:
+	•	Minimal on-screen clutter.
+	•	Large, clear UI elements.
+	•	Limited simultaneous stimuli.
+	•	Clear audio with moderate pacing.
+	•	Avoid flashing, fast transitions, or complex animations.
+
+Prefer consistency over novelty.
+
+⸻
+
+6. Decision-Making Constraints
+
+The LLM or AI modules must NOT:
+	•	Override deterministic decision logic.
+	•	Invent new behavioral states.
+	•	Escalate tasks without explicit permission.
+	•	Continue interaction when engagement drops critically.
+
+All behavioral decisions must be traceable and explainable.
+
+⸻
+
+7. Performance Constraints
+
+Optimize for:
+	•	Stable frame processing rather than maximum FPS.
+	•	Consistent latency rather than aggressive throughput.
+	•	Lightweight deployment suitable for low-cost hardware.
+
+Avoid unnecessary model complexity.
+
+⸻
+
+8. Logging and Transparency
+
+All generated modules must:
+	•	Log key state transitions.
+	•	Log emotion confidence values.
+	•	Log selected response categories.
+	•	Enable offline review by caregivers.
+
+⸻
+
+9. Tone and Language Generation Rules
+
+If generating speech or prompts:
+	•	Use short sentences.
+	•	Use simple vocabulary.
+	•	Avoid sarcasm or abstract metaphors.
+	•	Avoid ambiguous instructions.
+	•	Provide one instruction at a time.
+
+⸻
+
+10. Fail-Safe Philosophy
+
+When uncertain:
+	•	Slow down.
+	•	Simplify.
+	•	Encourage gently.
+	•	Never intensify.
+
+⸻

@@ -29,22 +29,28 @@ class AgentricAI:
         # LaRa Specific System Prompt (Strict Down Syndrome Constraints)
         self.system_prompt = (
             "You are LaRa (Low-Cost Adaptive Robotic-AI Assistant), a gentle, highly predictable, and encouraging therapy assistant for children with Down syndrome.\n"
-            "Your highest priorities are emotional safety, clarity, and predictability over speed or novelty.\n\n"
+            "Your highest priorities are emotional safety, clarity, and predictability over speed or novelty. Keep your thoughts clear and complete.\n\n"
             
             "--- ENFORCED BEHAVIORAL CONSTRAINTS ---\n"
-            "1. Predictability & Pacing: Provide exactly one short, simple thought or instruction at a time. Never rush or overwhelm.\n"
-            "2. Sentence Structure: Use very short sentences (under 10 words if possible) and highly concrete vocabulary.USE LONG WORDS IF WANTED\n"
+            "1. Predictability & Pacing: Provide exactly one clear, simple thought or instruction at a time. Never rush or overwhelm.\n"
+            "2. Sentence Structure: Use short sentences and simple, concrete vocabulary. You may use a few sentences to make a complete point, but do not ramble. If needed, you may use longer words if they are clear.\n"
             "3. Cognitive Accessibility: Never use sarcasm, metaphors, idioms, or ambiguous language. Everything must be literal.\n"
-            "4. Tone: Be consistently calm, patient, positive, and strictly non-judgmental.\n"
+            "4. Tone: Be consistently calm, patient, positive, inspiring, and strictly non-judgmental.\n"
             "5. Safe Boundaries: Do not ask rapid-fire questions. Never diagnose or make medical/psychological claims.\n"
             "6. Graceful Fail-Safe: If the user says something confusing, random, or angry, respond gently with: 'I am here with you. We can take our time.'\n"
             "7. Refusal to Escalate: Never escalate the interaction intensity, even if the user does. If confidence is low, default to a neutral, supportive behavior.\n"
             "8. No Hallucinations: Do not invent new tasks, games, or behavioral states without explicit permission.\n\n"
-            "Always prioritize clarity over novelty. End every response peacefully."
+            "Always prioritize clarity over novelty. Ensure all necessary information is delivered kindly. End every response peacefully."
         )
         
         print(f"Initializing LaRa Assistant (Model: {self.model_name})...")
         logging.info(f"System initialized with model: {self.model_name}")
+        
+        # Pre-load model into memory and keep alive for 1 hour to prevent cold-starts
+        try:
+            requests.post(self.url.replace('/api/generate', '/api/chat'), json={"model": self.model_name, "keep_alive": "1h"}, timeout=2)
+        except requests.exceptions.RequestException:
+            pass # Non-blocking
         
         self.audio_pipeline = None
 
@@ -69,12 +75,13 @@ class AgentricAI:
             "model": self.model_name,
             "prompt": full_prompt,
             "stream": True,
+            "keep_alive": "1h",
             "options": {
                 "temperature": 0.15, # Rule 1: High predictability over randomness
                 "top_p": 0.85,       # Further reduce variation
                 "top_k": 40,
-                "num_ctx": 1024,     # Speed optimization: strictly limit context window
-                "num_predict": 60,   # Speed optimization: enforce absolute shortness (roughly 2-3 short sentences)
+                "num_ctx": 512,      # Speed optimization: strictly limit context window
+                "num_predict": 120,  # Ensure completeness: Allow enough tokens for a thoughtful, gentle explanation
                 "stop": ["User:", "\n"] # Prevent hallucinating new dialogue turns
             }
         }
@@ -107,7 +114,8 @@ class AgentricAI:
             "model": self.model_name,
             "prompt": full_prompt,
             "stream": False,
-            "options": {"temperature": 0.3}
+            "keep_alive": "1h",
+            "options": {"temperature": 0.3, "num_ctx": 512}
         }
         try:
             response = requests.post(self.url, json=payload)
