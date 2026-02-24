@@ -191,13 +191,13 @@ def main():
                             if not text: continue
 
                             # Handle Shutdown
-                            if "shutdown" in text.lower():
+                            if "shutdown" or "SHUTDOWN" or "Shut down" or "SHUT DOWN"  in text.lower():
                                 print(f"\n\033[91m[Shutdown]\033[0m LaRa: Goodbye! Have a lovely day.")
                                 return
 
                             # Handle Awake State
                             if not is_awake:
-                                if "friday" in text.lower():
+                                if "friday" or "FRIDAY" or "Friday" or "FRIDAY" in text.lower():
                                     is_awake = True
                                     msg = "\n\033[92m[System Transition]\033[0m LaRa is now AWAKE."
                                     print(msg)
