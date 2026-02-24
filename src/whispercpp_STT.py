@@ -104,8 +104,7 @@ def main():
     models_dir = os.path.join(base_dir, 'model')
     
     # Speed Optimization: language='en' disables auto-detect.
-    # fp16=False optimizes inference on CPUs without native half-precision support
-    whisper_model = Model('small.en', models_dir=models_dir, n_threads=6, print_progress=False, language='en', fp16=False)
+    whisper_model = Model('small.en', models_dir=models_dir, n_threads=6, print_progress=False, language='en')
     agent = AgentricAI()
     
     # Initialize Piper TTS safely
@@ -121,7 +120,7 @@ def main():
     print("="*60)
     print("        \033[95mLaRa: Low-Cost Adaptive Robotic-AI Assistant\033[0m")
     print("="*60)
-    print("\033[90mCommands: 'model wake up' | 'model shutdown'\033[0m")
+    print("\033[90mCommands: 'friday' (wake) | 'shutdown' (sleep)\033[0m")
     print("-" * 60)
     print("\033[92mStatus:\033[0m Resting (Listening for wake word...)")
 
@@ -185,20 +184,20 @@ def main():
                             if 0 < peak < 0.5:
                                 full_audio = full_audio / peak
                                 
-                            # Speed Optimization: num_threads=6 matching hardware, beam_size=1 (greedy decoding) for absolute fastest inference.
-                            segments = whisper_model.transcribe(full_audio, num_threads=6, beam_size=1)
+                            # Speed Optimization: n_threads=6 set at model init, greedy decoding used by default.
+                            segments = whisper_model.transcribe(full_audio)
                             text = "".join([s.text for s in segments]).strip()
                             
                             if not text: continue
 
                             # Handle Shutdown
-                            if "model shutdown" in text.lower():
+                            if "shutdown" in text.lower():
                                 print(f"\n\033[91m[Shutdown]\033[0m LaRa: Goodbye! Have a lovely day.")
                                 return
 
                             # Handle Awake State
                             if not is_awake:
-                                if "model wake up" in text.lower():
+                                if "friday" in text.lower():
                                     is_awake = True
                                     msg = "\n\033[92m[System Transition]\033[0m LaRa is now AWAKE."
                                     print(msg)
@@ -213,17 +212,19 @@ def main():
                                             except queue.Empty: break
                                 else:
                                     # Subtle notification in-place
-                                    sys.stdout.write(f"\r\033[90m(Heard: \"{text}\" - say 'model wake up' to activate)\033[0m")
+                                    sys.stdout.write(f"\r\033[90m(Heard: \"{text}\" - say 'friday' to activate)\033[0m")
                                     sys.stdout.flush()
                                 continue
 
-                            # --- Integrated Chat UI (Non-Streaming / Buffered) ---
-                            # Predictability > typing effect. Generate full response, validate, then display.
+                            # --- Integrated Chat UI (Buffered via Stream) ---
+                            # Use the proven streaming endpoint but accumulate internally.
+                            # Display and speak atomically after full generation completes.
                             print(f"\n\033[94mYou:\033[0m {text}")
                             
-                            # Check for barge-in during LLM generation
-                            # We use the non-streaming endpoint for deterministic output
-                            full_ai_response = agent.generate_response(text)
+                            # Accumulate full response from the streaming endpoint
+                            full_ai_response = ""
+                            for chunk in agent.generate_response_stream(text):
+                                full_ai_response += chunk
                             
                             # Validate response for cognitive safety before display or speech
                             full_ai_response = validate_response(full_ai_response)

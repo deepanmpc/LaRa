@@ -7,6 +7,7 @@ import platform
 import time
 import numpy as np
 from piper import PiperVoice
+from piper.config import SynthesisConfig
 
 class LaRaSpeech:
     def __init__(self, model_path="en_US-lessac-high.onnx"):
@@ -68,7 +69,8 @@ class LaRaSpeech:
 
                 # 3. Speech Rate Optimization (length_scale > 1.0 slows down voice gently)
                 # length_scale 1.2 enforces slower, more comprehensible pacing for neurodiverse children.
-                for chunk in self.voice.synthesize(text, length_scale=1.2):
+                syn_config = SynthesisConfig(length_scale=1.2)
+                for chunk in self.voice.synthesize(text, syn_config=syn_config):
                     audio_bytes = chunk.audio_int16_bytes
                     
                     # 4. Amplitude Check (Ensure 16-bit doesn't clip destructively)
