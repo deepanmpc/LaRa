@@ -55,6 +55,10 @@ NOISE_GATE_THRESHOLD = 0.005
 # Barge-in / KWS hardening: require 300ms of continuous speech before triggering
 BARGE_IN_FRAME_THRESHOLD = 10
 
+# KWS cooldown: suppress all wake-word detection for this many seconds after an interrupt
+# Prevents echo loop: interrupt → "Okay. I am listening." → KWS hears "LaRa" from speaker → infinite loop
+KWS_COOLDOWN_S = 1.5
+
 # Initialize VAD
 vad = webrtcvad.Vad(VAD_MODE)
 audio_queue = queue.Queue()
@@ -162,6 +166,7 @@ def main():
     # KWS state tracking during SPEAKING mode
     kws_speech_frames = []
     kws_consecutive_count = 0
+    kws_last_trigger_time = 0.0  # Timestamp of last KWS interrupt (for cooldown)
     
     def flush_audio_queue():
         """Drain the microphone queue to prevent stale frames."""
@@ -176,11 +181,24 @@ def main():
         Speaks text via TTS while monitoring for wake-word interrupt.
         Runs TTS in a background thread, monitors audio in main thread.
         Returns True if speech completed, False if interrupted.
+        
+        ECHO PROTECTION:
+        - KWS is disabled for KWS_COOLDOWN_S seconds after the last interrupt
+        - This prevents the acknowledgment phrase from triggering a new detection
+        - The cooldown is checked BEFORE any Whisper transcription runs
         """
-        nonlocal kws_speech_frames, kws_consecutive_count
+        nonlocal kws_speech_frames, kws_consecutive_count, kws_last_trigger_time
         
         if not lara_voice or not text.strip():
             return True
+        
+        # ECHO GUARD: If we recently interrupted, skip KWS entirely for this utterance
+        # This covers the case where we speak the acknowledgment immediately after interrupt
+        if time.time() - kws_last_trigger_time < KWS_COOLDOWN_S:
+            logging.info("[KWS] Cooldown active — skipping wake-word monitoring for this utterance.")
+            lara_voice.speak(text)
+            flush_audio_queue()
+            return lara_voice.is_speaking == False  # True if completed normally
         
         kws_speech_frames = []
         kws_consecutive_count = 0
@@ -204,6 +222,10 @@ def main():
             if len(indata) != FRAME_SIZE:
                 continue
             
+            # COOLDOWN CHECK: If triggered recently, skip all detection
+            if time.time() - kws_last_trigger_time < KWS_COOLDOWN_S:
+                continue
+            
             # VAD + Energy check on the frame
             rms = np.sqrt(np.mean(indata**2))
             pcm_data = (indata * 32767).astype(np.int16)
@@ -222,8 +244,10 @@ def main():
                     # Run lightweight transcription on the buffered clip
                     if check_wake_word_in_clip(kws_speech_frames, kws_model):
                         # Interrupt!
+                        kws_last_trigger_time = time.time()  # Set cooldown BEFORE interrupt
                         if lara_voice.interrupt_speech():
                             print(f"\n\033[93m[Interrupted]\033[0m Wake word detected.")
+                            logging.info(f"[KWS] Interrupt triggered. Cooldown active for {KWS_COOLDOWN_S}s.")
                             speech_result[0] = False
                         break
             else:
