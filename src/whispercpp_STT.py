@@ -28,9 +28,9 @@ except ImportError as e:
     sys.exit(1)
 
 try:
-    from piper_TTS import LaRaSpeech
+    from kokoro_TTS import LaRaSpeech
 except ImportError as e:
-    logging.warning(f"Could not import LaRaSpeech (TTS module): {e}")
+    logging.warning(f"Could not import LaRaSpeech (Kokoro TTS module): {e}")
     LaRaSpeech = None
 
 
@@ -141,13 +141,10 @@ def main():
     
     agent = AgentricAI()
     
-    # Initialize Piper TTS safely
+    # Initialize Kokoro TTS
     lara_voice = None
     if LaRaSpeech:
-        voice_model_path = os.path.join(models_dir, 'en_US-lessac-high.onnx')
-        if not os.path.exists(voice_model_path):
-            voice_model_path = 'en_US-lessac-high.onnx' 
-        lara_voice = LaRaSpeech(model_path=voice_model_path)
+        lara_voice = LaRaSpeech(voice='af_bella')
     
     clear_console()
     print("="*60)
@@ -395,3 +392,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+    # Force clean exit to prevent PyTorch cleanup crash on macOS
+    os._exit(0)
