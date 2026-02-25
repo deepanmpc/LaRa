@@ -74,14 +74,29 @@ class AgentricAI:
             # or load immediately if preferred. We'll let process_audio handle the _load_models() automatically.
         return True
 
-    def generate_response_stream(self, prompt, mood=None):
-        """Generates a streaming response following LaRa's behavioral constraints."""
-        # Inject mood context if detected
-        mood_context = ""
-        if mood and mood != "neutral":
-            mood_context = f"\n[Internal context — do NOT mention this to the child: The child currently seems {mood}. Adapt your tone accordingly using the recovery mode rules above.]"
+    def generate_response_stream(self, prompt, strategy=None):
+        """Generates a streaming response following LaRa's behavioral constraints.
         
-        full_prompt = f"{self.system_prompt}{mood_context}\nUser says: {prompt}\nLaRa says:"
+        Args:
+            prompt: User's transcribed speech
+            strategy: RecoveryStrategy object from RecoveryStrategyManager (optional)
+        """
+        # Inject strategy-based behavioral guidance (NOT raw mood labels)
+        strategy_context = ""
+        if strategy and strategy.prompt_addition:
+            strategy_context = (
+                f"\n[Internal guidance — do NOT mention this to the child: "
+                f"{strategy.prompt_addition}]"
+            )
+        
+        full_prompt = f"{self.system_prompt}{strategy_context}\nUser says: {prompt}\nLaRa says:"
+        
+        # Dynamic token limit based on strategy's response length
+        max_tokens = 120  # Default
+        if strategy:
+            # Scale tokens: 1 sentence ≈ 30 tokens, 2 ≈ 70, 3 ≈ 120
+            token_map = {1: 50, 2: 80, 3: 120}
+            max_tokens = token_map.get(strategy.response_length_limit, 120)
         
         payload = {
             "model": self.model_name,
@@ -93,7 +108,7 @@ class AgentricAI:
                 "top_p": 0.85,
                 "top_k": 40,
                 "num_ctx": 512,
-                "num_predict": 120,
+                "num_predict": max_tokens,
                 "stop": ["User:"]  # Only stop on dialogue turn markers
             }
         }

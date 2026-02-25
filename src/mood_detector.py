@@ -114,6 +114,22 @@ QUIET_RMS_THRESHOLD = 0.02     # Below this = withdrawn/quiet
 FAST_WORDS_PER_SEC = 3.0       # Faster = anxious
 SLOW_WORDS_PER_SEC = 0.8       # Slower = sad/disengaged
 SHORT_UTTERANCE_WORDS = 3      # Very short = disengagement or frustration
+MAX_SPEAKING_RATE = 6.0        # Cap to prevent artificial spikes
+MIN_DURATION_FOR_RATE = 0.5    # Ignore speaking rate below this duration
+
+
+def _keyword_match_count(keywords: list, text_lower: str) -> int:
+    """
+    Count keyword matches using word-boundary regex.
+    Prevents false positives like 'I don't hate it' triggering on 'hate'.
+    Multi-word phrases (e.g. 'too hard', 'not fair') are supported.
+    """
+    count = 0
+    for kw in keywords:
+        pattern = r'\b' + re.escape(kw) + r'\b'
+        if re.search(pattern, text_lower):
+            count += 1
+    return count
 
 
 class MoodDetector:
@@ -138,6 +154,8 @@ class MoodDetector:
         self._mood_history = deque(maxlen=self.SMOOTHING_WINDOW)
         self._current_mood = Mood.NEUTRAL
         self._current_confidence = 0.0
+        self._consecutive_neutral_count = 0  # For mood decay
+        self._last_speaking_rate = 0.0       # For rate smoothing
         logging.info("[MoodDetector] Initialized with temporal smoothing (window=3)")
 
     def analyze(self, text: str, audio_frames: list, utterance_duration: float = 0.0) -> tuple:
@@ -153,7 +171,7 @@ class MoodDetector:
             Tuple of (mood: str, confidence: float)
         """
         text_mood, text_conf = self._analyze_text(text)
-        audio_mood, audio_conf = self._analyze_audio(audio_frames, text, utterance_duration)
+        audio_mood, audio_conf = self._analyze_audio(audio_frames, text, text_mood, utterance_duration)
         
         # Combine signals: text has higher weight (0.6) than audio (0.4)
         # because keyword detection is more reliable than prosody alone
@@ -162,6 +180,20 @@ class MoodDetector:
         # Temporal smoothing
         self._mood_history.append(combined)
         smoothed_mood, smoothed_conf = self._smooth()
+        
+        # Mood decay: if consecutive neutral readings, decay confidence toward neutral
+        if combined[0] == Mood.NEUTRAL:
+            self._consecutive_neutral_count += 1
+        else:
+            self._consecutive_neutral_count = 0
+        
+        if self._consecutive_neutral_count >= 2 and self._current_mood != Mood.NEUTRAL:
+            self._current_confidence *= 0.8
+            if self._current_confidence < self.CONFIDENCE_THRESHOLD:
+                logging.info(f"[Mood] Decay: {self._current_mood} → neutral (confidence decayed below threshold)")
+                self._current_mood = Mood.NEUTRAL
+                self._current_confidence = 0.0
+                return self._current_mood, self._current_confidence
         
         # Only update if confidence exceeds threshold
         if smoothed_conf >= self.CONFIDENCE_THRESHOLD:
@@ -180,7 +212,7 @@ class MoodDetector:
 
     def _analyze_text(self, text: str) -> tuple:
         """
-        Detect mood from transcribed text using keyword matching.
+        Detect mood from transcribed text using word-boundary regex matching.
         Returns (mood, confidence).
         """
         if not text or not text.strip():
@@ -189,19 +221,34 @@ class MoodDetector:
         text_lower = text.lower().strip()
         word_count = len(text_lower.split())
         
-        # Very short utterance = possible disengagement
+        # Short utterance handling — check specific keywords before defaulting to QUIET
         if word_count <= SHORT_UTTERANCE_WORDS:
-            # Check if it's a positive short response like "yes", "okay", "good"
-            positive_shorts = {"yes", "yeah", "okay", "ok", "good", "sure", "yay", "hi", "hello"}
-            if text_lower.strip().rstrip(".!?") in positive_shorts:
+            cleaned = text_lower.rstrip(".!?")
+            
+            # Positive short response
+            positive_shorts = {"yes", "yeah", "okay", "ok", "good", "sure", "yay", "hi", "hello", "cool", "nice"}
+            if cleaned in positive_shorts:
                 return Mood.HAPPY, 0.3
-            # Otherwise, short could mean quiet/disengaged
-            return Mood.QUIET, 0.4
+            
+            # Check frustration keywords in short utterance
+            if _keyword_match_count(MOOD_KEYWORDS[Mood.FRUSTRATED], text_lower) > 0:
+                return Mood.FRUSTRATED, 0.35
+            
+            # Check anxiety/help-seeking keywords in short utterance
+            if _keyword_match_count(MOOD_KEYWORDS[Mood.ANXIOUS], text_lower) > 0:
+                return Mood.ANXIOUS, 0.35
+            
+            # Check sad keywords
+            if _keyword_match_count(MOOD_KEYWORDS[Mood.SAD], text_lower) > 0:
+                return Mood.SAD, 0.35
+            
+            # No signal — default to quiet (low confidence)
+            return Mood.QUIET, 0.3
         
-        # Count keyword matches for each mood
+        # Full utterance: count keyword matches using word-boundary regex
         scores = {}
         for mood, keywords in MOOD_KEYWORDS.items():
-            matches = sum(1 for kw in keywords if kw in text_lower)
+            matches = _keyword_match_count(keywords, text_lower)
             # Normalize by keyword list length for fair comparison
             scores[mood] = matches / len(keywords) if keywords else 0
         
@@ -217,9 +264,10 @@ class MoodDetector:
         
         return best_mood, confidence
 
-    def _analyze_audio(self, audio_frames: list, text: str, utterance_duration: float) -> tuple:
+    def _analyze_audio(self, audio_frames: list, text: str, text_mood: str, utterance_duration: float) -> tuple:
         """
         Detect mood from audio prosody (volume, speaking rate).
+        Uses text_mood to disambiguate loud audio signals.
         Returns (mood, confidence).
         """
         if not audio_frames:
@@ -232,27 +280,41 @@ class MoodDetector:
             # RMS energy (volume)
             rms = np.sqrt(np.mean(full_audio**2))
             
-            # Speaking rate (words per second)
+            # Speaking rate (words per second) with safety caps
             word_count = len(text.split()) if text else 0
-            speaking_rate = word_count / utterance_duration if utterance_duration > 0 else 0
+            if utterance_duration >= MIN_DURATION_FOR_RATE and word_count > 0:
+                speaking_rate = min(word_count / utterance_duration, MAX_SPEAKING_RATE)
+                # Smooth with previous rate to reduce spikes
+                speaking_rate = (speaking_rate + self._last_speaking_rate) / 2.0 if self._last_speaking_rate > 0 else speaking_rate
+                self._last_speaking_rate = speaking_rate
+            else:
+                # Duration too short for reliable rate — ignore
+                speaking_rate = 0
             
-            # Determine audio-based mood signal
+            # Volume-based mood — disambiguated with text mood (no bias)
             if rms > LOUD_RMS_THRESHOLD:
-                # Loud = could be excited (happy) or upset (frustrated)
-                # Disambiguate with text mood
-                return Mood.FRUSTRATED, 0.4
+                if text_mood == Mood.HAPPY:
+                    return Mood.HAPPY, 0.35
+                elif text_mood == Mood.FRUSTRATED:
+                    return Mood.FRUSTRATED, 0.4
+                else:
+                    # Loud but unclear — lean toward anxious (lower confidence)
+                    return Mood.ANXIOUS, 0.25
             
             elif rms < QUIET_RMS_THRESHOLD:
-                # Very quiet = withdrawn
-                return Mood.SAD, 0.4
+                # Very quiet — only SAD if text has negative keywords
+                # Otherwise QUIET (a calm child is not a sad child)
+                if text_mood in (Mood.SAD, Mood.FRUSTRATED, Mood.ANXIOUS):
+                    return Mood.SAD, 0.35
+                else:
+                    return Mood.QUIET, 0.25
             
-            if speaking_rate > FAST_WORDS_PER_SEC:
-                # Fast speech = anxious
-                return Mood.ANXIOUS, 0.3
-            
-            elif speaking_rate < SLOW_WORDS_PER_SEC and word_count > 0:
-                # Very slow = sad / hesitant
-                return Mood.SAD, 0.3
+            # Speaking rate signals (only if rate is valid)
+            if speaking_rate > 0:
+                if speaking_rate > FAST_WORDS_PER_SEC:
+                    return Mood.ANXIOUS, 0.3
+                elif speaking_rate < SLOW_WORDS_PER_SEC:
+                    return Mood.SAD, 0.25
             
             return Mood.NEUTRAL, 0.2
             
@@ -264,10 +326,17 @@ class MoodDetector:
         """
         Combine text and audio mood signals.
         Text gets 60% weight, audio gets 40% weight.
+        If text confidence is very low, reduce text weight dynamically
+        to prevent Whisper transcription errors from dominating.
         If both agree, confidence is boosted.
         """
-        TEXT_WEIGHT = 0.6
-        AUDIO_WEIGHT = 0.4
+        # Dynamic weight: reduce text influence when confidence is very low
+        if text_conf < 0.2:
+            TEXT_WEIGHT = 0.35
+            AUDIO_WEIGHT = 0.65
+        else:
+            TEXT_WEIGHT = 0.6
+            AUDIO_WEIGHT = 0.4
         
         if text_mood == audio_mood:
             # Both signals agree — high confidence
