@@ -81,15 +81,13 @@ class SessionState:
         """Check if session has exceeded 24h TTL."""
         return (time.time() - self.created_at) > SESSION_TTL_SECONDS
     
-    def update_turn(self, user_input: str, ai_response: str, mood: str, mood_confidence: float):
+    def update_pre_decision(self, mood: str, mood_confidence: float):
         """
-        Record a completed conversation turn.
-        Truncates text to MAX_STORED_TEXT chars for privacy.
-        Updates mood streak counters for difficulty gating.
+        Phase 1 of session update — runs BEFORE DifficultyGate and RecoveryStrategy.
+        Updates mood and streak counters so decisions use fresh data.
+        
+        Do NOT call update_post_response until after LLM response is generated.
         """
-        self.turn_count += 1
-        self.last_user_input = user_input[:MAX_STORED_TEXT] if user_input else ""
-        self.last_ai_response = ai_response[:MAX_STORED_TEXT] if ai_response else ""
         self.mood = mood
         self.mood_confidence = mood_confidence
         
@@ -101,11 +99,27 @@ class SessionState:
         self._update_streaks(mood, mood_confidence)
         
         logging.info(
-            f"[Session] Turn {self.turn_count} | "
+            f"[Session] Pre-decision | "
             f"Mood: {mood} ({mood_confidence:.2f}) | "
+            f"Frustration: {self.consecutive_frustration} | "
+            f"Stability: {self.consecutive_stability}"
+        )
+    
+    def update_post_response(self, user_input: str, ai_response: str):
+        """
+        Phase 2 of session update — runs AFTER LLM response is generated.
+        Finalizes the turn: increments count, stores truncated text.
+        
+        Must be called AFTER DifficultyGate and RecoveryStrategy have executed.
+        """
+        self.turn_count += 1
+        self.last_user_input = user_input[:MAX_STORED_TEXT] if user_input else ""
+        self.last_ai_response = ai_response[:MAX_STORED_TEXT] if ai_response else ""
+        
+        logging.info(
+            f"[Session] Turn {self.turn_count} complete | "
             f"Difficulty: {self.current_difficulty} | "
-            f"Frustration streak: {self.consecutive_frustration} | "
-            f"Stability streak: {self.consecutive_stability}"
+            f"Locked: {self.difficulty_locked_turns > 0}"
         )
     
     def _update_streaks(self, mood: str, confidence: float):

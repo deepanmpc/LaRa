@@ -25,6 +25,7 @@ model/
 !model/.gitkeep
 inp.txt
 *.wav
+*.db
 whisper.cpp/
 
 # Ignore everything in src except our code
