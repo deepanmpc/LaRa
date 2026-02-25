@@ -28,24 +28,83 @@ class Mood:
 # Keyword dictionaries for text-based mood detection
 MOOD_KEYWORDS = {
     Mood.HAPPY: [
-        "happy", "fun", "love", "yay", "great", "like", "good", "nice",
-        "wow", "cool", "awesome", "play", "laugh", "smile", "friend",
-        "thank", "yes", "okay", "sure", "excited", "best", "enjoy"
+        # Core emotions
+        "happy", "glad", "joy", "joyful", "cheerful", "excited", "wonderful",
+        # Child expressions
+        "yay", "yippee", "woohoo", "wow", "cool", "awesome", "amazing",
+        "fantastic", "brilliant", "super", "great", "nice", "perfect",
+        # Social/relational
+        "love", "like", "friend", "best friend", "together", "hug",
+        "play", "playing", "game", "fun", "funny", "silly", "giggle",
+        "laugh", "laughing", "smile", "smiling",
+        # Affirmative
+        "yes", "yeah", "yep", "okay", "sure", "of course", "please",
+        "thank", "thanks", "thank you",
+        # Achievement
+        "did it", "i can", "i won", "look", "watch me", "good job",
+        "proud", "smart", "strong", "brave", "best", "enjoy",
+        # Comfort
+        "warm", "cozy", "safe", "home", "mama", "papa", "family",
     ],
     Mood.SAD: [
-        "sad", "cry", "hurt", "miss", "don't want", "go away", "alone",
-        "tired", "sorry", "bad", "hate", "lost", "gone", "never", "nobody",
-        "leave", "boring", "wish", "why"
+        # Core emotions
+        "sad", "unhappy", "upset", "cry", "crying", "tears", "sob",
+        # Loss/longing
+        "miss", "missing", "gone", "lost", "left", "away", "leave",
+        "leaving", "bye", "goodbye",
+        # Rejection
+        "don't want", "go away", "alone", "lonely", "nobody", "no one",
+        "ignore", "forgot", "forgotten",
+        # Fatigue/withdrawal
+        "tired", "sleepy", "exhausted", "boring", "bored",
+        # Negative self-talk
+        "sorry", "my fault", "bad", "ugly", "wrong", "mess",
+        # Despair
+        "never", "nothing", "can't", "give up", "don't care",
+        "doesn't matter", "whatever", "wish", "why",
+        # Pain
+        "hurt", "hurting", "pain", "ow", "ouch", "sick", "tummy",
     ],
     Mood.FRUSTRATED: [
-        "can't", "stupid", "hate", "no", "stop", "don't", "wrong",
-        "hard", "impossible", "ugh", "again", "not fair", "annoying",
-        "shut up", "dumb", "break", "angry", "mad"
+        # Core emotions
+        "angry", "mad", "furious", "annoyed", "annoying", "irritated",
+        # Refusal
+        "no", "stop", "don't", "won't", "refuse", "not doing",
+        "go away", "leave me",
+        # Difficulty
+        "can't", "can't do", "too hard", "hard", "difficult", "impossible",
+        "stuck", "broken", "not working", "wrong", "messed up",
+        # Exclamations
+        "ugh", "argh", "grr", "hmph",
+        # Injustice
+        "not fair", "unfair", "cheating", "liar", "mean",
+        # Aggression
+        "hate", "stupid", "dumb", "idiot", "shut up", "break",
+        "hit", "kick", "throw", "smash", "punch",
+        # Repetition frustration
+        "again", "already", "told you", "i said", "not again",
+        "how many times", "still",
     ],
     Mood.ANXIOUS: [
-        "scared", "afraid", "don't know", "help", "nervous", "worried",
-        "what if", "maybe", "um", "uh", "panic", "dark", "monster",
-        "loud", "too much", "can't do"
+        # Core emotions
+        "scared", "afraid", "fear", "frightened", "terrified", "nervous",
+        "worried", "worry", "anxious",
+        # Uncertainty
+        "don't know", "not sure", "maybe", "what if", "i think",
+        "is it okay", "am i okay", "will it",
+        # Hesitation
+        "um", "uh", "hmm", "well", "actually", "sorry but",
+        # Threat
+        "dark", "monster", "nightmare", "shadow", "noise", "loud",
+        "stranger", "new", "different", "change",
+        # Overwhelm
+        "too much", "too many", "too fast", "too loud", "too big",
+        "can't do", "can't breathe", "dizzy",
+        # Help-seeking
+        "help", "help me", "please help", "i need", "stay", "don't go",
+        "don't leave", "hold", "come here", "where are you",
+        # Panic
+        "panic", "emergency", "hurry", "run", "hide",
     ],
 }
 
