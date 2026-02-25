@@ -29,6 +29,7 @@ class LaRaSpeech:
         self._last_interrupt_time = 0.0
         self._playback_lock = threading.Lock()
         self._current_stream = None
+        self.speed = 0.9  # Default speed, adjustable by recovery strategy
 
         # Lazy-load Kokoro to avoid import-time delays
         self.pipeline = None
@@ -83,8 +84,8 @@ class LaRaSpeech:
         playback_start = time.time()
 
         try:
-            # Speed 0.9 = slightly slower for neurodiverse pacing (matches Piper's length_scale=1.2)
-            generator = self.pipeline(text, voice=self.voice_id, speed=0.9)
+            # Speed controlled by recovery strategy (default 0.9 for neurodiverse pacing)
+            generator = self.pipeline(text, voice=self.voice_id, speed=self.speed)
 
             for i, (gs, ps, audio) in enumerate(generator):
                 # Check for interrupt BEFORE playing each chunk

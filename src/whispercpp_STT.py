@@ -39,6 +39,12 @@ except ImportError as e:
     logging.warning(f"Could not import MoodDetector: {e}")
     MoodDetector = None
 
+try:
+    from recovery_strategy import RecoveryStrategyManager
+except ImportError as e:
+    logging.warning(f"Could not import RecoveryStrategyManager: {e}")
+    RecoveryStrategyManager = None
+
 
 # --- System Mode ---
 class SystemMode(Enum):
@@ -152,8 +158,9 @@ def main():
     if LaRaSpeech:
         lara_voice = LaRaSpeech(voice='af_bella')
     
-    # Initialize Mood Detector
+    # Initialize Mood Detector and Recovery Strategy
     mood_detector = MoodDetector() if MoodDetector else None
+    strategy_manager = RecoveryStrategyManager() if RecoveryStrategyManager else None
     
     clear_console()
     print("="*60)
@@ -344,6 +351,7 @@ def main():
                             
                             # Mood detection (text + audio signals)
                             detected_mood = "neutral"
+                            mood_conf = 0.0
                             if mood_detector:
                                 utterance_duration = len(utterance_frames) * FRAME_DURATION_MS / 1000.0
                                 detected_mood, mood_conf = mood_detector.analyze(
@@ -354,9 +362,16 @@ def main():
                                 if mood_icon:
                                     print(f"\033[90m[Mood: {detected_mood} {mood_icon}]\033[0m")
                             
-                            # Generate response (buffered via stream, mood-aware)
+                            # Get recovery strategy from mood (strategy layer sits between mood and LLM)
+                            strategy = None
+                            if strategy_manager:
+                                strategy = strategy_manager.get_strategy(detected_mood, mood_conf)
+                                if strategy.label != "neutral":
+                                    print(f"\033[90m[Strategy: {strategy.label}]\033[0m")
+                            
+                            # Generate response (buffered via stream, strategy-guided)
                             full_ai_response = ""
-                            for chunk in agent.generate_response_stream(text, mood=detected_mood):
+                            for chunk in agent.generate_response_stream(text, strategy=strategy):
                                 full_ai_response += chunk
                             
                             # Validate response
@@ -391,6 +406,10 @@ def main():
                                 print("-"*30)
                                 
                                 if lara_voice and full_ai_response.strip():
+                                    # Apply TTS speed from recovery strategy
+                                    if strategy:
+                                        lara_voice.speed = strategy.tts_length_scale
+                                    
                                     system_mode = SystemMode.SPEAKING
                                     completed = speak_and_monitor(full_ai_response.strip())
                                     system_mode = SystemMode.LISTENING
