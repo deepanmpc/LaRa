@@ -31,3 +31,7 @@ whisper.cpp/
 # (Based on the existing whisper.cpp entry and structure)
 src/whisper.cpp/
 /Users/deepandee/Desktop/LaRa/docs
+src/memory_architecture.md
+/Users/deepandee/Desktop/LaRa/src/rules_task_todo.md
+/Users/deepandee/Desktop/LaRa/src/system_invariants.md
+/Users/deepandee/Desktop/LaRa/src/therapist_dashboard_spec.md
