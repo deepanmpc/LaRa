@@ -33,6 +33,12 @@ except ImportError as e:
     logging.warning(f"Could not import LaRaSpeech (Kokoro TTS module): {e}")
     LaRaSpeech = None
 
+try:
+    from mood_detector import MoodDetector
+except ImportError as e:
+    logging.warning(f"Could not import MoodDetector: {e}")
+    MoodDetector = None
+
 
 # --- System Mode ---
 class SystemMode(Enum):
@@ -145,6 +151,9 @@ def main():
     lara_voice = None
     if LaRaSpeech:
         lara_voice = LaRaSpeech(voice='af_bella')
+    
+    # Initialize Mood Detector
+    mood_detector = MoodDetector() if MoodDetector else None
     
     clear_console()
     print("="*60)
@@ -333,9 +342,21 @@ def main():
                             # --- Active Conversation (LISTENING mode) ---
                             print(f"\n\033[94mYou:\033[0m {text}")
                             
-                            # Generate response (buffered via stream)
+                            # Mood detection (text + audio signals)
+                            detected_mood = "neutral"
+                            if mood_detector:
+                                utterance_duration = len(utterance_frames) * FRAME_DURATION_MS / 1000.0
+                                detected_mood, mood_conf = mood_detector.analyze(
+                                    text, utterance_frames, utterance_duration
+                                )
+                                # Show mood indicator subtly
+                                mood_icon = {"happy": "😊", "sad": "😢", "frustrated": "😤", "anxious": "😰", "quiet": "🤫"}.get(detected_mood, "")
+                                if mood_icon:
+                                    print(f"\033[90m[Mood: {detected_mood} {mood_icon}]\033[0m")
+                            
+                            # Generate response (buffered via stream, mood-aware)
                             full_ai_response = ""
-                            for chunk in agent.generate_response_stream(text):
+                            for chunk in agent.generate_response_stream(text, mood=detected_mood):
                                 full_ai_response += chunk
                             
                             # Validate response
