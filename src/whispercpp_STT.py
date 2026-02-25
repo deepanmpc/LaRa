@@ -45,6 +45,18 @@ except ImportError as e:
     logging.warning(f"Could not import RecoveryStrategyManager: {e}")
     RecoveryStrategyManager = None
 
+try:
+    from session_state import SessionState
+except ImportError as e:
+    logging.warning(f"Could not import SessionState: {e}")
+    SessionState = None
+
+try:
+    from user_memory import UserMemoryManager
+except ImportError as e:
+    logging.warning(f"Could not import UserMemoryManager: {e}")
+    UserMemoryManager = None
+
 
 # --- System Mode ---
 class SystemMode(Enum):
@@ -161,6 +173,15 @@ def main():
     # Initialize Mood Detector and Recovery Strategy
     mood_detector = MoodDetector() if MoodDetector else None
     strategy_manager = RecoveryStrategyManager() if RecoveryStrategyManager else None
+    
+    # Initialize Session State (Phase 1) and User Memory (Phase 2)
+    session = SessionState() if SessionState else None
+    memory = UserMemoryManager() if UserMemoryManager else None
+    
+    # Default user (single-user mode for now)
+    USER_ID = "default_child"
+    if memory:
+        memory.get_or_create_user(USER_ID)
     
     clear_console()
     print("="*60)
@@ -349,6 +370,11 @@ def main():
                             # --- Active Conversation (LISTENING mode) ---
                             print(f"\n\033[94mYou:\033[0m {text}")
                             
+                            # Check session TTL
+                            if session and session.is_expired():
+                                logging.info("[Session] Expired — creating new session.")
+                                session = SessionState()
+                            
                             # Mood detection (text + audio signals)
                             detected_mood = "neutral"
                             mood_conf = 0.0
@@ -358,9 +384,26 @@ def main():
                                     text, utterance_frames, utterance_duration
                                 )
                                 # Show mood indicator subtly
-                                mood_icon = {"happy": "😊", "sad": "😢", "frustrated": "😤", "anxious": "😰", "quiet": "🤫"}.get(detected_mood, "")
+                                mood_icon = {"happy": "\U0001f60a", "sad": "\U0001f622", "frustrated": "\U0001f624", "anxious": "\U0001f630", "quiet": "\U0001f92b"}.get(detected_mood, "")
                                 if mood_icon:
                                     print(f"\033[90m[Mood: {detected_mood} {mood_icon}]\033[0m")
+                            
+                            # --- Difficulty Gating (Phase 3) ---
+                            # Check if difficulty should change based on session streaks
+                            if session:
+                                prev_mood = session.mood
+                                if session.should_decrease_difficulty():
+                                    session.change_difficulty(-1)
+                                    print(f"\033[90m[Difficulty: decreased to {session.current_difficulty}]\033[0m")
+                                elif session.should_increase_difficulty():
+                                    session.change_difficulty(+1)
+                                    print(f"\033[90m[Difficulty: increased to {session.current_difficulty}]\033[0m")
+                                
+                                # Detect recovery (frustration → stability transition)
+                                if prev_mood in ("frustrated", "sad") and detected_mood in ("neutral", "happy"):
+                                    if memory:
+                                        concept = session.current_concept or "general"
+                                        memory.record_recovery(USER_ID, concept)
                             
                             # Get recovery strategy from mood (strategy layer sits between mood and LLM)
                             strategy = None
@@ -376,6 +419,15 @@ def main():
                             
                             # Validate response
                             full_ai_response = validate_response(full_ai_response)
+                            
+                            # --- Update Session State (Phase 1) ---
+                            if session:
+                                session.update_turn(text, full_ai_response, detected_mood, mood_conf)
+                            
+                            # --- Record Emotional Metric (Phase 2) ---
+                            if memory:
+                                concept = session.current_concept if session else "general"
+                                memory.record_emotional_metric(USER_ID, concept or "general", detected_mood)
                             
                             # Check for barge-in during LLM generation
                             interrupted = False
