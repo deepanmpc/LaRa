@@ -116,6 +116,13 @@ class UserMemoryManager:
                 id INTEGER PRIMARY KEY,
                 last_decay_timestamp REAL DEFAULT 0.0
             );
+            
+            CREATE TABLE IF NOT EXISTS reinforcement_metrics (
+                user_id TEXT PRIMARY KEY,
+                preferred_style TEXT DEFAULT 'calm_validation',
+                total_events INTEGER DEFAULT 0,
+                last_updated REAL DEFAULT 0.0
+            );
         """)
         self._conn.commit()
     

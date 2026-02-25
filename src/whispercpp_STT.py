@@ -57,6 +57,24 @@ except ImportError as e:
     logging.warning(f"Could not import UserMemoryManager: {e}")
     UserMemoryManager = None
 
+try:
+    from regulation_state import compute_regulation_state
+except ImportError as e:
+    logging.warning(f"Could not import compute_regulation_state: {e}")
+    compute_regulation_state = None
+
+try:
+    from learning_progress import LearningProgressManager
+except ImportError as e:
+    logging.warning(f"Could not import LearningProgressManager: {e}")
+    LearningProgressManager = None
+
+try:
+    from reinforcement_manager import ReinforcementAdaptationManager
+except ImportError as e:
+    logging.warning(f"Could not import ReinforcementAdaptationManager: {e}")
+    ReinforcementAdaptationManager = None
+
 
 # --- System Mode ---
 class SystemMode(Enum):
@@ -182,6 +200,18 @@ def main():
     USER_ID = "default_child"
     if memory:
         memory.get_or_create_user(USER_ID)
+    
+    # Initialize LearningProgressManager (Step 2)
+    learning_manager = None
+    if LearningProgressManager and memory:
+        learning_manager = LearningProgressManager(memory)
+        learning_manager.set_user(USER_ID)
+    
+    # Initialize ReinforcementAdaptationManager (Step 4)
+    reinforcement_manager = None
+    if ReinforcementAdaptationManager:
+        reinforcement_manager = ReinforcementAdaptationManager(memory)
+        reinforcement_manager.set_user(USER_ID)
     
     clear_console()
     print("="*60)
@@ -373,6 +403,8 @@ def main():
                             # Check session TTL
                             if session and session.is_expired():
                                 logging.info("[Session] Expired — creating new session.")
+                                if reinforcement_manager:
+                                    reinforcement_manager.persist_session_metrics()
                                 session = SessionState()
                             
                             # Mood detection (text + audio signals)
@@ -383,48 +415,69 @@ def main():
                                 detected_mood, mood_conf = mood_detector.analyze(
                                     text, utterance_frames, utterance_duration
                                 )
-                                # Show mood indicator subtly
                                 mood_icon = {"happy": "\U0001f60a", "sad": "\U0001f622", "frustrated": "\U0001f624", "anxious": "\U0001f630", "quiet": "\U0001f92b"}.get(detected_mood, "")
                                 if mood_icon:
                                     print(f"\033[90m[Mood: {detected_mood} {mood_icon}]\033[0m")
                             
-                            # --- Difficulty Gating (Phase 3) ---
-                            # Check if difficulty should change based on session streaks
+                            # === PRE-DECISION UPDATE (Step 3) ===
+                            # Update mood + streaks BEFORE gating/strategy decisions
                             if session:
                                 prev_mood = session.mood
-                                if session.should_decrease_difficulty():
-                                    session.change_difficulty(-1)
-                                    print(f"\033[90m[Difficulty: decreased to {session.current_difficulty}]\033[0m")
-                                elif session.should_increase_difficulty():
-                                    session.change_difficulty(+1)
-                                    print(f"\033[90m[Difficulty: increased to {session.current_difficulty}]\033[0m")
+                                session.update_pre_decision(detected_mood, mood_conf)
                                 
                                 # Detect recovery (frustration → stability transition)
                                 if prev_mood in ("frustrated", "sad") and detected_mood in ("neutral", "happy"):
                                     if memory:
                                         concept = session.current_concept or "general"
                                         memory.record_recovery(USER_ID, concept)
+                                    if reinforcement_manager:
+                                        reinforcement_manager.update_metrics(
+                                            reinforcement_manager._current_style, True
+                                        )
                             
-                            # Get recovery strategy from mood (strategy layer sits between mood and LLM)
+                            # --- Difficulty Gating ---
+                            if session:
+                                if session.should_decrease_difficulty():
+                                    session.change_difficulty(-1)
+                                    print(f"\033[90m[Difficulty: decreased to {session.current_difficulty}]\033[0m")
+                                elif session.should_increase_difficulty():
+                                    session.change_difficulty(+1)
+                                    print(f"\033[90m[Difficulty: increased to {session.current_difficulty}]\033[0m")
+                            
+                            # --- Compute RegulationState (Step 1) ---
+                            regulation = None
+                            if compute_regulation_state and session:
+                                regulation = compute_regulation_state(session)
+                            
+                            # --- Get RecoveryStrategy ---
                             strategy = None
                             if strategy_manager:
                                 strategy = strategy_manager.get_strategy(detected_mood, mood_conf)
                                 if strategy.label != "neutral":
                                     print(f"\033[90m[Strategy: {strategy.label}]\033[0m")
                             
-                            # Generate response (buffered via stream, strategy-guided)
+                            # --- Get Reinforcement Style (Step 4) ---
+                            reinforcement_prompt = ""
+                            if reinforcement_manager and regulation:
+                                r_style = reinforcement_manager.get_style(regulation)
+                                reinforcement_prompt = reinforcement_manager.get_style_prompt()
+                            
+                            # --- Generate LLM Response (Step 5: strategy + reinforcement) ---
                             full_ai_response = ""
-                            for chunk in agent.generate_response_stream(text, strategy=strategy):
+                            for chunk in agent.generate_response_stream(
+                                text, strategy=strategy,
+                                reinforcement_context=reinforcement_prompt
+                            ):
                                 full_ai_response += chunk
                             
                             # Validate response
                             full_ai_response = validate_response(full_ai_response)
                             
-                            # --- Update Session State (Phase 1) ---
+                            # === POST-RESPONSE UPDATE (Step 3) ===
                             if session:
-                                session.update_turn(text, full_ai_response, detected_mood, mood_conf)
+                                session.update_post_response(text, full_ai_response)
                             
-                            # --- Record Emotional Metric (Phase 2) ---
+                            # Record emotional metric (Phase 2)
                             if memory:
                                 concept = session.current_concept if session else "general"
                                 memory.record_emotional_metric(USER_ID, concept or "general", detected_mood)
