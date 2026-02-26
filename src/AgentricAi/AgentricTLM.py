@@ -66,13 +66,14 @@ class AgentricAI:
             # or load immediately if preferred. We'll let process_audio handle the _load_models() automatically.
         return True
 
-    def generate_response_stream(self, prompt, strategy=None, reinforcement_context=""):
+    def generate_response_stream(self, prompt, strategy=None, reinforcement_context="", preference_context=""):
         """Generates a streaming response following LaRa's behavioral constraints.
         
         Args:
             prompt: User's transcribed speech
             strategy: RecoveryStrategy object from RecoveryStrategyManager (optional)
-            reinforcement_context: Reinforcement style prompt from ReinforcementAdaptationManager (optional)
+            reinforcement_context: Reinforcement style prompt (optional)
+            preference_context: Child's likes/dislikes for personalization (optional)
         """
         # Inject strategy-based behavioral guidance (NOT raw mood labels)
         strategy_context = ""
@@ -82,11 +83,15 @@ class AgentricAI:
                 f"{strategy.prompt_addition}]"
             )
         
-        # Inject reinforcement style (Step 5 from implementation_fix_and_reinforcement.md)
+        # Inject reinforcement style
         if reinforcement_context:
             strategy_context += (
                 f"\n[Reinforcement style: {reinforcement_context}]"
             )
+        
+        # Inject child preferences (likes/dislikes)
+        if preference_context:
+            strategy_context += f"\n{preference_context}"
         
         full_prompt = f"{self.system_prompt}{strategy_context}\nUser says: {prompt}\nLaRa says:"
         

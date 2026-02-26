@@ -75,6 +75,12 @@ except ImportError as e:
     logging.warning(f"Could not import ReinforcementAdaptationManager: {e}")
     ReinforcementAdaptationManager = None
 
+try:
+    from child_preferences import ChildPreferenceManager
+except ImportError as e:
+    logging.warning(f"Could not import ChildPreferenceManager: {e}")
+    ChildPreferenceManager = None
+
 
 # --- System Mode ---
 class SystemMode(Enum):
@@ -212,6 +218,12 @@ def main():
     if ReinforcementAdaptationManager:
         reinforcement_manager = ReinforcementAdaptationManager(memory)
         reinforcement_manager.set_user(USER_ID)
+    
+    # Initialize Child Preference Manager
+    preference_manager = None
+    if ChildPreferenceManager and memory:
+        preference_manager = ChildPreferenceManager(memory)
+        preference_manager.set_user(USER_ID)
     
     clear_console()
     print("="*60)
@@ -462,11 +474,21 @@ def main():
                                 r_style = reinforcement_manager.get_style(regulation)
                                 reinforcement_prompt = reinforcement_manager.get_style_prompt()
                             
-                            # --- Generate LLM Response (Step 5: strategy + reinforcement) ---
+                            # --- Extract & Inject Child Preferences ---
+                            preference_context = ""
+                            if preference_manager:
+                                new_prefs = preference_manager.process_utterance(text)
+                                if new_prefs:
+                                    for p in new_prefs:
+                                        print(f"\033[90m[Preference: {p.sentiment} → {p.topic}]\033[0m")
+                                preference_context = preference_manager.get_context_for_llm()
+                            
+                            # --- Generate LLM Response (strategy + reinforcement + preferences) ---
                             full_ai_response = ""
                             for chunk in agent.generate_response_stream(
                                 text, strategy=strategy,
-                                reinforcement_context=reinforcement_prompt
+                                reinforcement_context=reinforcement_prompt,
+                                preference_context=preference_context
                             ):
                                 full_ai_response += chunk
                             
