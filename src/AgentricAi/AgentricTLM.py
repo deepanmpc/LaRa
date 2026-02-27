@@ -53,9 +53,31 @@ class AgentricAI:
             pass # Non-blocking
         
         self.audio_pipeline = None
-
-    def initialize_audio_pipeline(self):
-        """Lazy load the simple audio pipeline model when first needed to save memory."""
+        
+        # Conversation history buffer (sliding window for context)
+        self.conversation_history = []
+        self.MAX_HISTORY_TURNS = 5      # Keep last 5 turns
+        self.MAX_TURN_CHARS = 150       # Truncate long turns for token efficiency
+    
+    def _format_history(self):
+        """Format conversation history as prior dialogue turns."""
+        if not self.conversation_history:
+            return ""
+        
+        lines = ["\n--- Recent conversation ---"]
+        for turn in self.conversation_history:
+            lines.append(f"User: {turn['user']}")
+            lines.append(f"LaRa: {turn['lara']}")
+        lines.append("--- End of history ---\n")
+        return "\n".join(lines)
+    
+    def clear_history(self):
+        """Clear conversation history (e.g., on session expiry)."""
+        self.conversation_history = []
+        logging.info("[LLM] Conversation history cleared.")
+    
+    def setup_audio_pipeline(self):
+        """Initialize the audio pipeline for processing."""
         if self.audio_pipeline is None:
             if SimpleAudioPipeline is None:
                 logging.error("SimpleAudioPipeline module not found or failed to import.")
@@ -93,7 +115,9 @@ class AgentricAI:
         if preference_context:
             strategy_context += f"\n{preference_context}"
         
-        full_prompt = f"{self.system_prompt}{strategy_context}\nUser says: {prompt}\nLaRa says:"
+        # Build prompt with conversation history for continuity
+        history_text = self._format_history()
+        full_prompt = f"{self.system_prompt}{strategy_context}{history_text}\nUser says: {prompt}\nLaRa says:"
         
         # Dynamic token limit based on strategy's response length
         max_tokens = 120  # Default
@@ -111,7 +135,7 @@ class AgentricAI:
                 "temperature": 0.15,
                 "top_p": 0.85,
                 "top_k": 40,
-                "num_ctx": 1024,
+                "num_ctx": 2048,
                 "num_predict": max_tokens,
                 "stop": ["User:"]  # Only stop on dialogue turn markers
             }
@@ -132,6 +156,15 @@ class AgentricAI:
                         break
             
             logging.info(f"Interaction - User: {prompt} | LaRa: {full_response}")
+            
+            # Store turn in conversation history for continuity
+            self.conversation_history.append({
+                "user": prompt[:self.MAX_TURN_CHARS],
+                "lara": full_response[:self.MAX_TURN_CHARS],
+            })
+            # Keep only last N turns
+            if len(self.conversation_history) > self.MAX_HISTORY_TURNS:
+                self.conversation_history = self.conversation_history[-self.MAX_HISTORY_TURNS:]
             
         except Exception as e:
             error_msg = "I am sorry, I am having trouble thinking right now. Let us try again."
