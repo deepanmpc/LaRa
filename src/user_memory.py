@@ -219,17 +219,18 @@ class UserMemoryManager:
             )
             progress.last_success_timestamp = time.time()
         
-        self._conn.execute("""
-            UPDATE learning_progress 
-            SET mastery_level = ?, highest_success_level = ?,
-                attempt_count = ?, last_success_timestamp = ?
-            WHERE user_id = ? AND concept_name = ?
-        """, (
-            progress.mastery_level, progress.highest_success_level,
-            progress.attempt_count, progress.last_success_timestamp,
-            user_id, concept_name
-        ))
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute("""
+                UPDATE learning_progress 
+                SET mastery_level = ?, highest_success_level = ?,
+                    attempt_count = ?, last_success_timestamp = ?
+                WHERE user_id = ? AND concept_name = ?
+            """, (
+                progress.mastery_level, progress.highest_success_level,
+                progress.attempt_count, progress.last_success_timestamp,
+                user_id, concept_name
+            ))
+            self._conn.commit()
         
         logging.info(
             f"[UserMemory] Learning: {concept_name} | "
@@ -246,42 +247,38 @@ class UserMemoryManager:
         Record an aggregated emotional count for a concept.
         No narratives — only increments counters.
         """
-        # Ensure row exists
-        self._conn.execute("""
-            INSERT OR IGNORE INTO emotional_metrics (user_id, concept_name)
-            VALUES (?, ?)
-        """, (user_id, concept_name))
-        
-        now = time.time()
-        
-        if mood in ("frustrated", "sad"):
+        with self._lock:
             self._conn.execute("""
-                UPDATE emotional_metrics 
-                SET frustration_count = frustration_count + 1, last_updated = ?
-                WHERE user_id = ? AND concept_name = ?
-            """, (now, user_id, concept_name))
-        elif mood in ("neutral", "happy"):
-            self._conn.execute("""
-                UPDATE emotional_metrics 
-                SET neutral_stability_count = neutral_stability_count + 1, last_updated = ?
-                WHERE user_id = ? AND concept_name = ?
-            """, (now, user_id, concept_name))
-        
-        self._conn.commit()
+                INSERT OR IGNORE INTO emotional_metrics (user_id, concept_name)
+                VALUES (?, ?)
+            """, (user_id, concept_name))
+            if mood in ("frustrated", "sad"):
+                self._conn.execute("""
+                    UPDATE emotional_metrics 
+                    SET frustration_count = frustration_count + 1, last_updated = ?
+                    WHERE user_id = ? AND concept_name = ?
+                """, (now, user_id, concept_name))
+            elif mood in ("neutral", "happy"):
+                self._conn.execute("""
+                    UPDATE emotional_metrics 
+                    SET neutral_stability_count = neutral_stability_count + 1, last_updated = ?
+                    WHERE user_id = ? AND concept_name = ?
+                """, (now, user_id, concept_name))
+            self._conn.commit()
     
     def record_recovery(self, user_id: str, concept_name: str):
         """Record a recovery event (frustration → stability transition)."""
-        self._conn.execute("""
-            INSERT OR IGNORE INTO emotional_metrics (user_id, concept_name)
-            VALUES (?, ?)
-        """, (user_id, concept_name))
-        
-        self._conn.execute("""
-            UPDATE emotional_metrics 
-            SET recovery_count = recovery_count + 1, last_updated = ?
-            WHERE user_id = ? AND concept_name = ?
-        """, (time.time(), user_id, concept_name))
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute("""
+                INSERT OR IGNORE INTO emotional_metrics (user_id, concept_name)
+                VALUES (?, ?)
+            """, (user_id, concept_name))
+            self._conn.execute("""
+                UPDATE emotional_metrics 
+                SET recovery_count = recovery_count + 1, last_updated = ?
+                WHERE user_id = ? AND concept_name = ?
+            """, (time.time(), user_id, concept_name))
+            self._conn.commit()
     
     # --- Decay ---
     

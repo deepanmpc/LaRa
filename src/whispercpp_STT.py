@@ -188,9 +188,8 @@ def check_wake_word_in_clip(audio_frames, kws_model):
         return False
 
 
-def main():
-    clear_console()
-    print("\033[94m[System]\033[0m Initializing LaRa AI...")
+def run_conversation_loop():
+    """Main conversation loop — called by main.py or directly."""
     
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     models_dir = os.path.join(base_dir, 'model')
@@ -594,6 +593,6 @@ def main():
         print(f"\n\033[91mError:\033[0m {e}")
 
 if __name__ == "__main__":
-    main()
+    run_conversation_loop()
     # Force clean exit to prevent PyTorch cleanup crash on macOS
     os._exit(0)
