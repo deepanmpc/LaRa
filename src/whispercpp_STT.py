@@ -81,6 +81,18 @@ except ImportError as e:
     logging.warning(f"Could not import ChildPreferenceManager: {e}")
     ChildPreferenceManager = None
 
+try:
+    from session_summary import generate_session_summary
+except ImportError as e:
+    logging.warning(f"Could not import generate_session_summary: {e}")
+    generate_session_summary = None
+
+try:
+    from vector_memory import VectorMemory
+except ImportError as e:
+    logging.warning(f"Could not import VectorMemory: {e}")
+    VectorMemory = None
+
 
 # --- System Mode ---
 class SystemMode(Enum):
@@ -224,6 +236,12 @@ def main():
     if ChildPreferenceManager and memory:
         preference_manager = ChildPreferenceManager(memory)
         preference_manager.set_user(USER_ID)
+    
+    # Initialize Vector Memory (ChromaDB RAG)
+    vector_memory = None
+    if VectorMemory:
+        vector_memory = VectorMemory()
+        vector_memory.set_user(USER_ID)
     
     clear_console()
     print("="*60)
@@ -480,15 +498,33 @@ def main():
                                 new_prefs = preference_manager.process_utterance(text)
                                 if new_prefs:
                                     for p in new_prefs:
-                                        print(f"\033[90m[Preference: {p.sentiment} → {p.topic}]\033[0m")
+                                        print(f"\033[90m[Preference: {p.sentiment} \u2192 {p.topic}]\033[0m")
                                 preference_context = preference_manager.get_context_for_llm()
                             
-                            # --- Generate LLM Response (strategy + reinforcement + preferences) ---
+                            # --- Session Summary (Section 5, injected as Part 5 of prompt) ---
+                            summary_context = ""
+                            if generate_session_summary and session:
+                                summary_context = generate_session_summary(
+                                    session,
+                                    learning_manager=learning_manager,
+                                    reinforcement_manager=reinforcement_manager,
+                                )
+                            
+                            # --- Vector Memory Retrieval (Section 16, RAG) ---
+                            vector_context = ""
+                            if vector_memory and VectorMemory and VectorMemory.is_story_trigger(text):
+                                vector_context = vector_memory.get_context_for_llm(text)
+                                if vector_context:
+                                    print(f"\033[90m[VectorMemory: recalled past story]\033[0m")
+                            
+                            # --- Generate LLM Response (strict 7-part prompt, Section 15) ---
                             full_ai_response = ""
                             for chunk in agent.generate_response_stream(
                                 text, strategy=strategy,
                                 reinforcement_context=reinforcement_prompt,
-                                preference_context=preference_context
+                                preference_context=preference_context,
+                                session_summary=summary_context,
+                                vector_context=vector_context,
                             ):
                                 full_ai_response += chunk
                             
