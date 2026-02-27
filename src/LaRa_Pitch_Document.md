@@ -106,6 +106,28 @@ The LLM is a **renderer**, not a decision-maker. It reads structured guidance an
 ```
 
 ---
+Child speaks
+  → Whisper transcribes text
+  → MoodDetector detects "frustrated" (conf: 0.72)
+  → SessionState.pre_update()      [LAYER 4: update streak counters]
+  → DifficultyGate checks streaks  [LAYER 4: 2 frustrated turns → decrease]
+  → SessionSummary generated       [LAYER 3: fresh from Layer 4]
+  → Preferences loaded             [LAYER 5: from child_preferences table]
+  → VectorMemory checked           [LAYER 6: story trigger? → retrieve]
+  → LLM prompt assembled:
+        Part 1: System Rules
+        Part 2: Strategy guidance (from RegulationState)
+        Part 3: Reinforcement style (from reinforcement_metrics)
+        Part 4: Preferences + past stories
+        Part 5: Session Summary    [LAYER 3]
+        Part 6: Last 5 turns       [LAYER 2]
+        Part 7: Current message    [LAYER 1]
+  → LLM generates response
+  → Kokoro TTS speaks it
+  → SessionState.post_update()     [LAYER 4: increment turn count]
+  → emotional_metrics updated      [LAYER 5: frustration_count+1]
+  → reinforcement_metrics updated  [LAYER 5: track style effectiveness]
+  → Conversation history updated   [LAYER 2: append new turn]
 
 ## The 5-Layer Memory Architecture
 
@@ -341,3 +363,4 @@ python3 src/whispercpp_STT.py
 *LaRa is structured behavioral intelligence. It enables growth, stability, and continuity without sacrificing safety.*
 
 **Safety > Structure > Adaptation > Personalization.**
+

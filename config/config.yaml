@@ -1,0 +1,141 @@
+# LaRa Configuration File
+# All hard-coded values live here.
+# Do NOT put secrets or API keys here — LaRa is fully local.
+
+# ───────────────────────────────────────────────
+# AUDIO & VOICE ACTIVITY DETECTION
+# ───────────────────────────────────────────────
+audio:
+  sample_rate: 16000            # Hz — 16kHz mono for Whisper
+  frame_duration_ms: 30         # WebRTC VAD frame size (10, 20, or 30 only)
+  vad_mode: 3                   # WebRTC aggressiveness (0=lenient, 3=strict)
+  silence_duration_ms: 1800     # ms of silence before end-of-utterance (1.8s for gentle pacing)
+  channels: 1                   # Mono
+  noise_gate_threshold: 0.005   # RMS below this = silence
+  barge_in_frame_threshold: 10  # Frames of speech to trigger barge-in
+  kws_cooldown_s: 1.5           # Seconds to wait after wake-word before re-listening
+
+# ───────────────────────────────────────────────
+# SPEECH-TO-TEXT (Whisper)
+# ───────────────────────────────────────────────
+stt:
+  model: "small.en"             # Whisper model size
+  device: "cpu"                 # "cpu" or "cuda"
+  compute_type: "int8"          # Quantization: int8 for speed
+
+# ───────────────────────────────────────────────
+# LANGUAGE MODEL (Ollama)
+# ───────────────────────────────────────────────
+llm:
+  model_name: "AgentricAi/AgentricAI_TLM:latest"
+  ollama_url: "http://localhost:11434/api/generate"
+  keep_alive: "1h"
+  temperature: 0.15             # Very deterministic — do not raise above 0.3
+  top_p: 0.85
+  top_k: 40
+  num_ctx: 2048                 # Context window tokens
+  max_tokens_short: 50          # 1-sentence responses (frustrated/anxious)
+  max_tokens_medium: 80         # 2-sentence responses
+  max_tokens_long: 120          # 3-sentence responses (default)
+  history_turns: 5              # Number of conversation turns to keep
+  history_turn_max_chars: 150   # Max chars per turn in history buffer
+
+# ───────────────────────────────────────────────
+# TEXT-TO-SPEECH (Kokoro)
+# ───────────────────────────────────────────────
+tts:
+  voice: "af_bella"
+  default_speed: 0.9            # Normal pace
+  speed_quiet: 0.85             # Slight slow-down for quiet mood
+  speed_frustrated: 0.80        # Calm, slower for frustration
+  speed_anxious: 0.78           # Deliberate, grounding
+  speed_sad: 0.78
+
+# ───────────────────────────────────────────────
+# SESSION STATE
+# ───────────────────────────────────────────────
+session:
+  ttl_hours: 24                 # Session auto-expires after 24 hours
+  min_difficulty: 1             # Never drop below this
+  max_difficulty: 5             # Never exceed this
+  max_stored_text_chars: 200    # Truncation for last_user_input / last_ai_response
+  frustration_streak_threshold: 2    # Consecutive turns to trigger difficulty decrease
+  stability_streak_threshold: 3      # Consecutive turns to trigger difficulty increase
+  difficulty_lock_turns: 2           # Cooldown turns after any difficulty change
+  mood_confidence_threshold: 0.60    # Min confidence required to act on mood
+
+# ───────────────────────────────────────────────
+# MOOD DETECTION
+# ───────────────────────────────────────────────
+mood:
+  smoothing_window: 3           # Utterances in consensus window
+  consensus_required: 2         # Min matching utterances to change mood
+  max_speaking_rate: 6.0        # Words/sec cap (to prevent audio spikes)
+  text_weight: 0.60             # Weight for text analysis vs audio
+  audio_weight: 0.40            # Weight for audio prosody
+  low_conf_text_weight: 0.35    # Reduced text weight when text confidence is low
+  decay_factor: 0.80            # Confidence decay per consecutive neutral turn
+  min_utterance_duration_s: 0.5 # Below this, ignore speaking rate
+
+# ───────────────────────────────────────────────
+# REGULATION STATE
+# ───────────────────────────────────────────────
+regulation:
+  max_frustration_streak: 5     # Streak length that maps to persistence = 1.0
+  max_stability_streak: 5       # Streak length that maps to persistence = 1.0
+
+# ───────────────────────────────────────────────
+# REINFORCEMENT ADAPTATION
+# ───────────────────────────────────────────────
+reinforcement:
+  min_events_before_switch: 5   # Must observe this many events before switching style
+  improvement_threshold: 0.15   # Style B must be 15% better than current
+  default_style: "calm_validation"
+  decay_after_days: 7           # Apply decay to event weights after N days idle
+  decay_factor: 0.90            # Weekly event weight decay
+
+# ───────────────────────────────────────────────
+# CHILD PREFERENCES
+# ───────────────────────────────────────────────
+preferences:
+  max_per_user: 20              # Maximum stored preferences per child
+  max_topic_length: 50          # Max characters for a topic string
+  expiry_months: 6              # Preferences unused for this long are cleared
+
+# ───────────────────────────────────────────────
+# VECTOR MEMORY (ChromaDB RAG)
+# ───────────────────────────────────────────────
+vector_memory:
+  persist_dir: "lara_vector_store"   # Relative to src/
+  max_retrievals_per_session: 3
+  min_similarity_score: 0.60    # Below this = not relevant enough to inject
+  max_summary_length: 200       # Characters — prevents transcript smuggling
+  min_summary_length: 10
+  story_expiry_days: 90
+
+# ───────────────────────────────────────────────
+# LONG-TERM MEMORY (SQLite)
+# ───────────────────────────────────────────────
+memory:
+  db_filename: "lara_memory.db" # Relative to src/
+  emotional_decay_factor: 0.95  # Daily decay multiplier for emotional counts
+  mastery_levels: 5             # Max mastery level (0 to N)
+  mastery_increase_threshold: 3 # Successful attempts needed to increase mastery
+
+# ───────────────────────────────────────────────
+# LOGGING
+# ───────────────────────────────────────────────
+logging:
+  level: "INFO"                 # DEBUG / INFO / WARNING / ERROR
+  system_log: "lara_system.log"
+  interaction_log: "lara_interaction.log"
+  structured: true              # True = key=value format, False = plain text
+
+# ───────────────────────────────────────────────
+# APPLICATION
+# ───────────────────────────────────────────────
+app:
+  user_id: "default_child"      # Single-user mode ID
+  wake_word: "friday"
+  sleep_word: "shutdown"
+  interrupt_word: "lara"

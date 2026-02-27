@@ -16,16 +16,26 @@ import os
 import time
 import sqlite3
 import logging
+import threading
 from dataclasses import dataclass
 from typing import Optional
 
+try:
+    from config_loader import CONFIG as _CONFIG
+    _DB_OVERRIDE    = _CONFIG.memory.db_filename
+    _DECAY_FACTOR   = _CONFIG.memory.emotional_decay_factor
+except Exception:
+    _DB_OVERRIDE    = None
+    _DECAY_FACTOR   = 0.95
+
 
 # Database file location (local to project)
-DB_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(DB_DIR, "lara_memory.db")
+DB_DIR  = os.path.dirname(os.path.abspath(__file__))
+_db_file = _DB_OVERRIDE if _DB_OVERRIDE else "lara_memory.db"
+DB_PATH = os.path.join(DB_DIR, _db_file)
 
-# Emotional metric decay: multiply all counts by this factor every 24h
-METRIC_DECAY_FACTOR = 0.95
+# Emotional metric decay
+METRIC_DECAY_FACTOR    = _DECAY_FACTOR
 DECAY_INTERVAL_SECONDS = 24 * 60 * 60  # 24 hours
 
 
@@ -75,6 +85,7 @@ class UserMemoryManager:
     def __init__(self, db_path: str = DB_PATH):
         self.db_path = db_path
         self._conn = None
+        self._lock = threading.Lock()   # Prevents concurrent SQLite write corruption
         self._init_db()
         self._apply_startup_decay()
         logging.info(f"[UserMemory] Initialized (db: {os.path.basename(db_path)})")
