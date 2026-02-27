@@ -16,23 +16,23 @@ ENV/
 ehthumbs.db
 Thumbs.db
 
-# Project-specific
-LOGS/*.docx
-installations/*.png
-lara_*.log
-resources/*.png
+# Runtime artifacts — generated at runtime, never committed
+data/
+*.log
+*.db
+
+# Audio files
+*.wav
+*.mp3
+
+# Large model / build dirs — not committed
 model/
 !model/.gitkeep
-inp.txt
-*.wav
-*.db
 whisper.cpp/
+installations/
+pretrained_models/
 
-# Ignore everything in src except our code
-# (Based on the existing whisper.cpp entry and structure)
-src/whisper.cpp/
-/Users/deepandee/Desktop/LaRa/docs
-src/memory_architecture.md
-/Users/deepandee/Desktop/LaRa/src/rules_task_todo.md
-/Users/deepandee/Desktop/LaRa/src/system_invariants.md
-/Users/deepandee/Desktop/LaRa/src/therapist_dashboard_spec.md
+# Misc
+*.pyc
+.pytest_cache/
+inp.txt
