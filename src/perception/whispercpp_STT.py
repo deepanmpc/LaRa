@@ -192,7 +192,7 @@ def run_conversation_loop():
     """Main conversation loop — called by main.py or directly."""
     
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    models_dir = os.path.join(base_dir, 'model')
+    models_dir = os.path.join(os.path.dirname(os.path.dirname(base_dir)), 'model')
     
     # Whisper model for transcription and KWS (reuse same model for both)
     whisper_model = Model('small.en', models_dir=models_dir, n_threads=6, print_progress=False, language='en')

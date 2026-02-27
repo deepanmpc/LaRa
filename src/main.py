@@ -31,7 +31,7 @@ except Exception as e:
     sys.exit(1)
 
 # ── Step 2: Setup structured logging ──────────────────────────────────────────
-from logger import setup_logging
+from core.logger import setup_logging
 setup_logging(log_dir=_SRC_DIR)
 
 # ── Step 3: Import everything else after logging is ready ──────────────────────

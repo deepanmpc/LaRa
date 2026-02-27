@@ -30,7 +30,7 @@ except Exception:
 
 
 # Database file location (local to project)
-DB_DIR  = os.path.dirname(os.path.abspath(__file__))
+DB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "data")
 _db_file = _DB_OVERRIDE if _DB_OVERRIDE else "lara_memory.db"
 DB_PATH = os.path.join(DB_DIR, _db_file)
 

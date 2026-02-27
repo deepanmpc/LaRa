@@ -17,7 +17,8 @@ except ImportError:
 # ── Locate config file ─────────────────────────────────────────────────────────
 _SRC_DIR    = os.path.dirname(os.path.abspath(__file__))
 _ROOT_DIR   = os.path.dirname(_SRC_DIR)
-_CONFIG_PATH = os.path.join(_ROOT_DIR, "config", "config.yaml")
+_ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_CONFIG_PATH = os.path.join(os.path.dirname(_ROOT_DIR), "config", "config.yaml")
 
 
 def _load_config(path: str) -> dict:
