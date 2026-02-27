@@ -21,6 +21,7 @@ import time
 from unittest.mock import patch, MagicMock
 from session_state import SessionState
 from user_memory import UserMemoryManager
+from mood_detector import MoodDetector
 
 
 # ── 5.2 TTS Engine Failure ─────────────────────────────────────────────────────
@@ -329,7 +330,6 @@ def test_large_input_does_not_crash_mood_detector():
     It may take a moment but must return a valid mood.
     """
     md = MoodDetector()
-    from mood_detector import MoodDetector
     large_text = "I really like " * 714  # ~10k chars
 
     try:
