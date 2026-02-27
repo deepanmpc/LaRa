@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 try:
-    from config_loader import CONFIG as _CONFIG
+    from src.core.config_loader import CONFIG as _CONFIG
     _DB_OVERRIDE    = _CONFIG.memory.db_filename
     _DECAY_FACTOR   = _CONFIG.memory.emotional_decay_factor
 except Exception:

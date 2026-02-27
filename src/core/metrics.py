@@ -19,7 +19,7 @@ from collections import defaultdict
 from typing import Optional
 
 try:
-    from config_loader import CONFIG
+    from src.core.config_loader import CONFIG
     _METRICS_LOG = "lara_metrics.log"
 except Exception:
     _METRICS_LOG = "lara_metrics.log"

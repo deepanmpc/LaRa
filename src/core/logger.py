@@ -10,7 +10,7 @@ import sys
 import time
 
 try:
-    from config_loader import CONFIG
+    from src.core.config_loader import CONFIG
     _cfg = CONFIG.logging
     LOG_LEVEL   = getattr(logging, _cfg.level.upper(), logging.INFO)
     SYSTEM_LOG  = _cfg.system_log

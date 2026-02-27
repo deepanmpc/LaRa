@@ -21,74 +21,74 @@ logging.basicConfig(
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 try:
-    from AgentricAi.AgentricTLM import AgentricAI
+    from src.llm.AgentricTLM import AgentricAI
 except ImportError as e:
     logging.critical(f"Could not import AgentricAI: {e}")
     print(f"Error: Could not import AgentricAI. Check lara_system.log for details: {e}")
     sys.exit(1)
 
 try:
-    from kokoro_TTS import LaRaSpeech
+    from src.tts.kokoro_TTS import LaRaSpeech
 except ImportError as e:
     logging.warning(f"Could not import LaRaSpeech (Kokoro TTS module): {e}")
     LaRaSpeech = None
 
 try:
-    from mood_detector import MoodDetector
+    from src.mood.mood_detector import MoodDetector
 except ImportError as e:
     logging.warning(f"Could not import MoodDetector: {e}")
     MoodDetector = None
 
 try:
-    from recovery_strategy import RecoveryStrategyManager
+    from src.mood.recovery_strategy import RecoveryStrategyManager
 except ImportError as e:
     logging.warning(f"Could not import RecoveryStrategyManager: {e}")
     RecoveryStrategyManager = None
 
 try:
-    from session_state import SessionState
+    from src.session.session_state import SessionState
 except ImportError as e:
     logging.warning(f"Could not import SessionState: {e}")
     SessionState = None
 
 try:
-    from user_memory import UserMemoryManager
+    from src.memory.user_memory import UserMemoryManager
 except ImportError as e:
     logging.warning(f"Could not import UserMemoryManager: {e}")
     UserMemoryManager = None
 
 try:
-    from regulation_state import compute_regulation_state
+    from src.mood.regulation_state import compute_regulation_state
 except ImportError as e:
     logging.warning(f"Could not import compute_regulation_state: {e}")
     compute_regulation_state = None
 
 try:
-    from learning_progress import LearningProgressManager
+    from src.memory.learning_progress import LearningProgressManager
 except ImportError as e:
     logging.warning(f"Could not import LearningProgressManager: {e}")
     LearningProgressManager = None
 
 try:
-    from reinforcement_manager import ReinforcementAdaptationManager
+    from src.reinforcement.reinforcement_manager import ReinforcementAdaptationManager
 except ImportError as e:
     logging.warning(f"Could not import ReinforcementAdaptationManager: {e}")
     ReinforcementAdaptationManager = None
 
 try:
-    from child_preferences import ChildPreferenceManager
+    from src.memory.child_preferences import ChildPreferenceManager
 except ImportError as e:
     logging.warning(f"Could not import ChildPreferenceManager: {e}")
     ChildPreferenceManager = None
 
 try:
-    from session_summary import generate_session_summary
+    from src.session.session_summary import generate_session_summary
 except ImportError as e:
     logging.warning(f"Could not import generate_session_summary: {e}")
     generate_session_summary = None
 
 try:
-    from vector_memory import VectorMemory
+    from src.memory.vector_memory import VectorMemory
 except ImportError as e:
     logging.warning(f"Could not import VectorMemory: {e}")
     VectorMemory = None
