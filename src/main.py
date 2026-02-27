@@ -15,14 +15,14 @@ import os
 import signal
 import logging
 
-# Ensure src/ is on path
-_SRC_DIR = os.path.dirname(os.path.abspath(__file__))
-if _SRC_DIR not in sys.path:
-    sys.path.insert(0, _SRC_DIR)
+# Ensure project root is on path so `import src.something` works
+_ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT_DIR not in sys.path:
+    sys.path.insert(0, _ROOT_DIR)
 
 # ── Step 1: Load config FIRST (before anything else) ──────────────────────────
 try:
-    from config_loader import CONFIG
+    from src.core.config_loader import CONFIG
 except FileNotFoundError as e:
     print(f"[LaRa] FATAL: {e}")
     sys.exit(1)
@@ -31,12 +31,12 @@ except Exception as e:
     sys.exit(1)
 
 # ── Step 2: Setup structured logging ──────────────────────────────────────────
-from core.logger import setup_logging
-setup_logging(log_dir=_SRC_DIR)
+from src.core.logger import setup_logging
+setup_logging(log_dir=os.path.join(_ROOT_DIR, 'data'))
 
 # ── Step 3: Import everything else after logging is ready ──────────────────────
 try:
-    from whispercpp_STT import run_conversation_loop
+    from src.perception.whispercpp_STT import run_conversation_loop
 except ImportError as e:
     logging.error(f"[Main] Could not import conversation loop: {e}")
     sys.exit(1)
