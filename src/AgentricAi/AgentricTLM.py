@@ -88,36 +88,57 @@ class AgentricAI:
             # or load immediately if preferred. We'll let process_audio handle the _load_models() automatically.
         return True
 
-    def generate_response_stream(self, prompt, strategy=None, reinforcement_context="", preference_context=""):
-        """Generates a streaming response following LaRa's behavioral constraints.
+    def generate_response_stream(
+        self, prompt,
+        strategy=None,
+        reinforcement_context="",
+        preference_context="",
+        session_summary="",
+        vector_context="",
+    ):
+        """Generates a streaming response following strict Section 15 prompt order.
         
-        Args:
-            prompt: User's transcribed speech
-            strategy: RecoveryStrategy object from RecoveryStrategyManager (optional)
-            reinforcement_context: Reinforcement style prompt (optional)
-            preference_context: Child's likes/dislikes for personalization (optional)
+        Prompt order (lara_memory_architecture_full_v2.md, Section 15):
+          1. System Rules         (self.system_prompt)
+          2. Recovery Strategy    (strategy.prompt_addition)
+          3. Reinforcement Style  (reinforcement_context)
+          4. Learning State       (preference_context + vector_context)
+          5. Session Summary      (session_summary)
+          6. Last N Turns         (conversation_history)
+          7. User message         (prompt)
         """
-        # Inject strategy-based behavioral guidance (NOT raw mood labels)
-        strategy_context = ""
+        parts = [self.system_prompt]
+
+        # Part 2: Recovery Strategy Context
         if strategy and strategy.prompt_addition:
-            strategy_context = (
-                f"\n[Internal guidance — do NOT mention this to the child: "
+            parts.append(
+                f"[Behavioral guidance — internal, do NOT mention to child: "
                 f"{strategy.prompt_addition}]"
             )
-        
-        # Inject reinforcement style
+
+        # Part 3: Reinforcement Style
         if reinforcement_context:
-            strategy_context += (
-                f"\n[Reinforcement style: {reinforcement_context}]"
-            )
-        
-        # Inject child preferences (likes/dislikes)
+            parts.append(f"[Reinforcement style: {reinforcement_context}]")
+
+        # Part 4: Learning State (preferences + past story vector context)
         if preference_context:
-            strategy_context += f"\n{preference_context}"
-        
-        # Build prompt with conversation history for continuity
+            parts.append(preference_context)
+        if vector_context:
+            parts.append(vector_context)
+
+        # Part 5: Session Summary (structured, non-narrative)
+        if session_summary:
+            parts.append(session_summary)
+
+        # Part 6: Rolling conversation history (last N turns)
         history_text = self._format_history()
-        full_prompt = f"{self.system_prompt}{strategy_context}{history_text}\nUser says: {prompt}\nLaRa says:"
+        if history_text:
+            parts.append(history_text)
+
+        # Part 7: Current user message
+        parts.append(f"User says: {prompt}\nLaRa says:")
+
+        full_prompt = "\n".join(parts)
         
         # Dynamic token limit based on strategy's response length
         max_tokens = 120  # Default
