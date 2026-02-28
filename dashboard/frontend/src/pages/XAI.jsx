@@ -103,7 +103,7 @@ const XAI = () => {
                                 <td className="px-6 py-4">"Child escalates during breathing exercises."</td>
                             </tr>
                             <tr className="hover:bg-gray-700/50 transition-colors">
-                                <td className="px-6 py-4 font-medium text-slate-200">Silence > 15s</td>
+                                <td className="px-6 py-4 font-medium text-slate-200">Silence 15s</td>
                                 <td className="px-6 py-4 text-emerald-400">Gentle Nudge</td>
                                 <td className="px-6 py-4 text-rose-400">Wait Longer</td>
                                 <td className="px-6 py-4">"Processing delay, do not interrupt yet."</td>
