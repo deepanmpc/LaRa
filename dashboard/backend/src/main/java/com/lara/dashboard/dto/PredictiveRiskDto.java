@@ -18,4 +18,12 @@ public class PredictiveRiskDto {
     // Alert Tiering System (Tier 1: Soft, Tier 2: Mod, Tier 3: High)
     private Integer clinicalAlertTier;
     private String alertRationale;
+
+    // V4 Statistical Rigor & Uncertainty Modeling
+    private Integer adaptiveWindowSize; // between 5-14
+    private Double skewnessIndex; // dictates distribution-aware metric used
+    private Double uncertaintyMargin;
+    private Double riskLowerBound;
+    private Double riskUpperBound;
+    private Double confidenceWidth;
 }
