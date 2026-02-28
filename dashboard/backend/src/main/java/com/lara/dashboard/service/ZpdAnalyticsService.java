@@ -6,6 +6,7 @@ import com.lara.dashboard.repository.ZpdMetricRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.cache.annotation.Cacheable;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -20,11 +21,12 @@ public class ZpdAnalyticsService {
     private final ZpdMetricRepository zpdMetricRepository;
 
     /**
-     * Compute the ZPD Overview for the dashboard.
-     * Involves calculating elasticity, moving averages, and aggregation.
+     * Computes holistic ZPD progress statistics based on moving averages.
      */
+    @Cacheable(value = "zpdMetrics", key = "#childIdHashed")
     public ZpdOverviewDto getZpdAnalytics(String childIdHashed, int daysRange) {
         LocalDateTime startDate = LocalDateTime.now().minusDays(daysRange);
+        // Find metrics for the specific child bounding trailing days(daysRange);
         List<ZpdMetric> metrics = zpdMetricRepository.findByChildIdHashedAndTimestampBetween(
                 childIdHashed, startDate, LocalDateTime.now()
         );

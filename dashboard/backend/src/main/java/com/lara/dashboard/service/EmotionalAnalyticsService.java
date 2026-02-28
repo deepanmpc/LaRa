@@ -6,6 +6,7 @@ import com.lara.dashboard.repository.EmotionalMetricRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.cache.annotation.Cacheable;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -18,6 +19,11 @@ public class EmotionalAnalyticsService {
 
     private final EmotionalMetricRepository emotionalMetricRepository;
 
+    /**
+     * Calculates combined emotional stability metrics based on JPA logs within a given date range.
+     * Cached aggressively to spare heavy aggregate grouping functions.
+     */
+    @Cacheable(value = "emotionalMetrics", key = "#childIdHashed")
     public EmotionalOverviewDto getEmotionalMetrics(String childIdHashed, int daysRange) {
         LocalDateTime startDate = LocalDateTime.now().minusDays(daysRange);
         List<EmotionalMetric> metrics = emotionalMetricRepository.findByChildIdHashedAndTimestampBetween(

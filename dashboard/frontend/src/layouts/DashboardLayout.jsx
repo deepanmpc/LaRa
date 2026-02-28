@@ -1,7 +1,7 @@
 import React from 'react';
 import { Outlet, Navigate, NavLink } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { LayoutDashboard, Brain, Activity, Target, Network, LogOut } from 'lucide-react';
+import { LayoutDashboard, Brain, Activity, Target, Network, LogOut, FastForward, ShieldCheck } from 'lucide-react';
 
 const DashboardLayout = () => {
     const { isAuthenticated, role, logout } = useAuthStore();
@@ -14,9 +14,11 @@ const DashboardLayout = () => {
     const navItems = [
         { path: '/', label: 'Overview & ZPD', icon: <Target size={20} /> },
         { path: '/emotions', label: 'Emotional Stability', icon: <Activity size={20} /> },
-        { path: '/xai', label: 'Explainable AI', icon: <Brain size={20} /> },
+        { path: '/predictive', label: 'Early Risk Engine', icon: <FastForward size={20} /> },
         { path: '/interventions', label: 'Tool Intelligence', icon: <LayoutDashboard size={20} /> },
+        { path: '/xai', label: 'Explainable AI', icon: <Brain size={20} /> },
         { path: '/graph', label: 'Knowledge Graph', icon: <Network size={20} /> },
+        { path: '/integrity', label: 'System Integrity', icon: <ShieldCheck size={20} /> },
     ];
 
     return (
