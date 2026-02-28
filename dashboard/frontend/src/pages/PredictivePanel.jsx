@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { 
+import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, ComposedChart
 } from 'recharts';
 import { ShieldAlert, TrendingDown, Activity, FastForward } from 'lucide-react';
+import { ChartToolbar } from '../components/ChartToolbar';
 
 const PredictivePanel = () => {
     // Mocking PredictiveRiskDto combined with Independence Index time-series
@@ -22,6 +22,14 @@ const PredictivePanel = () => {
             { session: 7, independenceScore: 60, overScaffoldingRisk: 70, errorMargin: [50, 70] },
         ]
     });
+
+    const [zoomDomain, setZoomDomain] = useState([1, 7]);
+    const [isPanning, setIsPanning] = useState(false);
+
+    const handleZoomIn = () => setZoomDomain([zoomDomain[0] + 1, Math.max(zoomDomain[1] - 1, zoomDomain[0] + 2)]);
+    const handleZoomOut = () => setZoomDomain([1, 7]); // Reset
+    const handleExportCSV = () => console.log("Exporting CSV...");
+    const handleExportPNG = () => console.log("Exporting PNG...");
 
     const getAlertColor = (tier) => {
         if (tier === 3) return "text-rose-500 bg-rose-500/10 border-rose-500/30";
@@ -59,7 +67,7 @@ const PredictivePanel = () => {
                     </div>
                     <span className="text-3xl font-bold text-white">{(data.frustrationRiskScore * 100).toFixed(0)}%</span>
                 </div>
-                
+
                 <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
                     <div className="flex items-center justify-between mb-2">
                         <h3 className="text-sm font-medium text-slate-400">Mastery Stagnation Prob.</h3>
@@ -79,14 +87,22 @@ const PredictivePanel = () => {
 
             {/* Independence Index 2.0 with Confidence Shading */}
             <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-                <h3 className="text-lg font-semibold text-white mb-6">Independence Score Trajectory (w/ Bayesian Intervals)</h3>
-                <div className="h-80 w-full">
+                <ChartToolbar
+                    title="Independence Score Trajectory (w/ Bayesian Intervals)"
+                    onZoomIn={handleZoomIn}
+                    onZoomOut={handleZoomOut}
+                    onPanToggle={() => setIsPanning(!isPanning)}
+                    isPanning={isPanning}
+                    onExportCSV={handleExportCSV}
+                    onExportPNG={handleExportPNG}
+                />
+                <div className="h-80 w-full" style={{ cursor: isPanning ? 'grab' : 'default' }}>
                     <ResponsiveContainer width="100%" height="100%">
                         <ComposedChart data={data.independenceTrajectory}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                            <XAxis dataKey="session" stroke="#94a3b8" fontSize={12} tickFormatter={(val) => `Session ${val}`} tickLine={false} axisLine={false} />
+                            <XAxis dataKey="session" stroke="#94a3b8" fontSize={12} domain={zoomDomain} type="number" tickFormatter={(val) => `Session ${val}`} tickLine={false} axisLine={false} />
                             <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} domain={[0, 100]} />
-                            <Tooltip 
+                            <Tooltip
                                 contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', borderRadius: '8px' }}
                                 itemStyle={{ color: '#f1f5f9' }}
                             />

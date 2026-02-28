@@ -1,9 +1,11 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useCallback } from 'react';
 import ForceGraph3D from 'react-force-graph-3d';
-import { Network, ZoomIn } from 'lucide-react';
+import { Network, ZoomIn, Play, Pause, Camera } from 'lucide-react';
 
 const GraphPage = () => {
     const fgRef = useRef();
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [temporalSlider, setTemporalSlider] = useState(14); // e.g., Day 14 recorded
 
     // Mocking the node/edge payload from Spring Boot GraphController
     const [graphData] = useState({
@@ -43,7 +45,20 @@ const GraphPage = () => {
             3: "#f59e0b", // Emotion (Orange)
             4: "#10b981", // Tool (Emerald)
         };
+        // Fading implementation for older temporal epochs
+        if (node.val < temporalSlider) return "#334155";
         return colors[node.group] || "#94a3b8";
+    };
+
+    const handleScreenshot = () => {
+        // Hooks into the internal THREE.js WebGL rendering context
+        if (fgRef.current) {
+            const dataUrl = fgRef.current.renderer().domElement.toDataURL("image/png");
+            const link = document.createElement("a");
+            link.download = `lara-knowledge-graph-day${temporalSlider}.png`;
+            link.href = dataUrl;
+            link.click();
+        }
     };
 
     return (
@@ -51,16 +66,24 @@ const GraphPage = () => {
             <header className="mb-6 flex justify-between items-end shrink-0">
                 <div>
                     <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-                        <Network className="text-primary-400" /> Interactive Knowledge Graph
+                        <Network className="text-primary-400" /> Interactive Knowledge Graph (v2)
                     </h1>
-                    <p className="text-slate-400 mt-1">3D Topology of cognitive zones, emotional triggers, and successful interventions.</p>
+                    <p className="text-slate-400 mt-1">Simulated graph evolution showing node centrality and clustered communities.</p>
                 </div>
-                <button
-                    onClick={() => fgRef.current?.cameraPosition({ x: 0, y: 0, z: 250 }, { x: 0, y: 0, z: 0 }, 1000)}
-                    className="flex items-center gap-2 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-slate-300 hover:text-white"
-                >
-                    <ZoomIn size={16} /> Reset View
-                </button>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={handleScreenshot}
+                        className="flex items-center gap-2 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-slate-300 hover:text-white"
+                    >
+                        <Camera size={16} /> Export PNG
+                    </button>
+                    <button
+                        onClick={() => fgRef.current?.cameraPosition({ x: 0, y: 0, z: 250 }, { x: 0, y: 0, z: 0 }, 1000)}
+                        className="flex items-center gap-2 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-slate-300 hover:text-white"
+                    >
+                        <ZoomIn size={16} /> Reset View
+                    </button>
+                </div>
             </header>
 
             <div className="flex-1 bg-gray-950 border border-gray-700 rounded-xl overflow-hidden relative shadow-inner">
@@ -71,7 +94,7 @@ const GraphPage = () => {
                         graphData={graphData}
                         nodeLabel="label"
                         nodeColor={getNodeColor}
-                        nodeVal="val"
+                        nodeVal={node => node.val * 0.5} // Base size off centrality mapped to val (Mocked)
                         linkWidth={(link) => (link.strength ? link.strength * 2 : 1)}
                         linkColor={(link) => link.color || "#475569"}
                         onNodeClick={handleClickNode}
@@ -81,6 +104,29 @@ const GraphPage = () => {
                         linkDirectionalParticleSpeed={d => d.strength * 0.01}
                         nodeOpacity={0.9}
                     />
+                </div>
+
+                <div className="absolute top-6 right-6 bg-gray-900/90 backdrop-blur border border-gray-700 p-4 rounded-lg pointer-events-auto w-64">
+                    <h4 className="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-4">Temporal Evolution</h4>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => setIsPlaying(!isPlaying)}
+                            className="p-2 rounded-full bg-primary-500/20 text-primary-400 hover:bg-primary-500 hover:text-white transition-colors"
+                        >
+                            {isPlaying ? <Pause size={16} /> : <Play size={16} />}
+                        </button>
+                        <input
+                            type="range"
+                            min="1" max="50"
+                            value={temporalSlider}
+                            onChange={(e) => setTemporalSlider(e.target.value)}
+                            className="flex-1 accent-primary-500"
+                        />
+                    </div>
+                    <div className="flex justify-between text-xs text-slate-500 mt-2">
+                        <span>Session 1</span>
+                        <span>Session {temporalSlider}</span>
+                    </div>
                 </div>
 
                 {/* Legend Overlay */}
