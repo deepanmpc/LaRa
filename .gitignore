@@ -20,6 +20,7 @@ Thumbs.db
 data/
 *.log
 *.db
+*.sqlite3
 
 # Audio files
 *.wav
@@ -31,6 +32,7 @@ model/
 whisper.cpp/
 installations/
 pretrained_models/
+
 
 # Misc
 *.pyc
