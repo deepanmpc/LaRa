@@ -9,6 +9,7 @@ import Interventions from './pages/Interventions';
 import XAI from './pages/XAI';
 import GraphPage from './pages/GraphPage';
 import SystemIntegrity from './pages/SystemIntegrity';
+import SimulationSandbox from './pages/SimulationSandbox';
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
           <Route path="interventions" element={<Interventions />} />
           <Route path="xai" element={<XAI />} />
           <Route path="graph" element={<GraphPage />} />
+          <Route path="sandbox" element={<SimulationSandbox />} />
           <Route path="integrity" element={<SystemIntegrity />} />
         </Route>
       </Routes>

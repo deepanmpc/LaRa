@@ -4,7 +4,7 @@ import {
     Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
     ScatterChart, Scatter, ZAxis
 } from 'recharts';
-import { Target, TrendingUp, Zap } from 'lucide-react';
+import { Target, TrendingUp, Zap, Info } from 'lucide-react';
 
 const Overview = () => {
     // Mocking the ZpdOverviewDto from Spring Boot for development scaffolding
@@ -24,7 +24,14 @@ const Overview = () => {
             { conceptId: "Social", masteryScore: 85, totalAttempts: 20 },
             { conceptId: "Logic", masteryScore: 40, totalAttempts: 5 },
             { conceptId: "Verbal", masteryScore: 75, totalAttempts: 15 },
-        ]
+        ],
+        // Enhancement 9: Cognitive Load Reduction Summary
+        cognitiveSummary: {
+            dominantRiskTrend: "Session trajectory is stable and tracking nominally.",
+            recommendedAction: "Maintain current scaffolding and ZPD progression zones.",
+            confidenceLevel: "High",
+            structuredShortSummary: "Session trajectory is stable and tracking nominally. Maintain current scaffolding and ZPD progression zones. Confidence is high. Predictions fall cleanly within a tight 15% uncertainty margin."
+        }
     });
 
     return (
@@ -33,6 +40,17 @@ const Overview = () => {
                 <h1 className="text-2xl font-bold text-white tracking-tight">Educational Progress & ZPD</h1>
                 <p className="text-slate-400 mt-1">Zone of Proximal Development metrics and cognitive mastery trends.</p>
             </header>
+
+            {/* Cognitive Summary Banner */}
+            <div className="bg-primary-900/20 border border-primary-500/30 rounded-xl p-4 flex gap-4 items-start">
+                <div className="p-2 bg-primary-500/20 rounded-lg text-primary-400 shrink-0">
+                    <Info size={24} />
+                </div>
+                <div>
+                    <h3 className="text-primary-300 font-semibold mb-1">Clinical AI Summary</h3>
+                    <p className="text-slate-300 text-sm leading-relaxed">{data.cognitiveSummary.structuredShortSummary}</p>
+                </div>
+            </div>
 
             {/* Metric Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

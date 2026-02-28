@@ -18,11 +18,16 @@ const SystemIntegrity = () => {
             { day: "-3d", driftScore: 1.15 },
             { day: "Today", driftScore: 1.12 },
         ],
-        auditLogs: [
-            { timestamp: "2026-02-19T10:15:00Z", severity: "HIGH", aiDecision: "Ignore", overriddenTo: "Intervene", clinicianId: "Dr. Smith", rationale: "Safety concern." },
-            { timestamp: "2026-02-18T14:45:22Z", severity: "MED", aiDecision: "Breathing Tool", overriddenTo: "Nudge", clinicianId: "Dr. Lee", rationale: "Child resisting tool." },
-            { timestamp: "2026-02-17T09:30:10Z", severity: "LOW", aiDecision: "Decrease Difficulty", overriddenTo: "Maintain", clinicianId: "Dr. Smith", rationale: "Pushing through plateau." },
-        ]
+        // Enhancements 1 & 8: Statistical Calibration & Bias Fairness
+        calibration: {
+            brierScore: 0.14,
+            expectedCalibrationError: 0.06,
+            overallReliability: "HIGH"
+        },
+        biasFairness: {
+            riskScoreVarianceIndex: 0.04,
+            fairnessStatus: "EQUITABLE"
+        }
     });
 
     const getStatusTheme = (status) => {
@@ -68,10 +73,40 @@ const SystemIntegrity = () => {
 
                 <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 flex flex-col justify-between">
                     <div>
+                        <h3 className="text-sm font-medium text-slate-400 mb-2">Expected Calibration Error (ECE)</h3>
+                        <div className="flex items-baseline">
+                            <span className="text-3xl font-bold text-emerald-400">{(data.calibration.expectedCalibrationError * 100).toFixed(1)}%</span>
+                            <span className="text-slate-500 text-sm ml-2">reliability</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 flex flex-col justify-between">
+                    <div>
+                        <h3 className="text-sm font-medium text-slate-400 mb-2">Brier Score (MSE)</h3>
+                        <div className="flex items-baseline">
+                            <span className="text-3xl font-bold text-white">{data.calibration.brierScore.toFixed(3)}</span>
+                            <span className="text-slate-500 text-sm ml-2">closer to 0 is better</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 flex flex-col justify-between">
+                    <div>
                         <h3 className="text-sm font-medium text-slate-400 mb-2">KL Distribution Drift</h3>
                         <div className="flex items-baseline">
                             <span className="text-3xl font-bold text-white">{data.distributionDriftMagnitude.toFixed(2)}</span>
                             <span className="text-slate-500 text-sm ml-2">thresh &gt; 1.0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 flex flex-col justify-between">
+                    <div>
+                        <h3 className="text-sm font-medium text-slate-400 mb-2">Overall Subgroup Fairness Variance</h3>
+                        <div className="flex items-baseline">
+                            <span className="text-3xl font-bold text-emerald-400">{(data.biasFairness.riskScoreVarianceIndex * 100).toFixed(1)}%</span>
+                            <span className="text-slate-500 text-sm ml-2 uppercase truncate">{data.biasFairness.fairnessStatus}</span>
                         </div>
                     </div>
                 </div>

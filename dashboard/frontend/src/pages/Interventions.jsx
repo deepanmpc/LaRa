@@ -16,10 +16,11 @@ const Interventions = () => {
             { tool: "Sensory Break", duration: 300, successRate: 95, usageCount: 15 },
             { tool: "Cognitive Reframing", duration: 60, successRate: 40, usageCount: 22 },
         ],
+        // Extended Mock mapping ToolDecayMetrics (Enhancement 4)
         tableLogs: [
-            { timestamp: "10:45 AM", tool: "Sensory Break", preMood: "Frustrated", postMood: "Calm", aiConf: 92, outcome: "Success" },
-            { timestamp: "11:15 AM", tool: "Gentle Nudge", preMood: "Distracted", postMood: "Engaged", aiConf: 88, outcome: "Success" },
-            { timestamp: "01:20 PM", tool: "Cognitive Reframing", preMood: "Anxious", postMood: "Anxious", aiConf: 65, outcome: "Failed" },
+            { id: 1, trigger: "Frustration (Z-Score: 2.1)", tool: "Guided Breathing", outcome: "+1.5", status: "Success", decaySlope: -0.02, habituationRisk: 15, cooldown: 0 },
+            { id: 2, trigger: "Silence > 15s", tool: "Gentle Nudge", outcome: "+0.8", status: "Moderate", decaySlope: -0.08, habituationRisk: 80, cooldown: 120 },
+            { id: 3, trigger: "ZPD Plateau", tool: "Reduce Difficulty (-10%)", outcome: "N/A", status: "Pending", decaySlope: 0.01, habituationRisk: 0, cooldown: 0 },
         ]
     });
 
@@ -61,7 +62,7 @@ const Interventions = () => {
                     </div>
                     <div>
                         <span className="text-3xl font-bold text-white">{data.dependencyRiskScore.toFixed(2)}</span>
-                        <span className="text-slate-400 ml-2 text-sm">warning threshold > 0.6</span>
+                        <span className="text-slate-400 ml-2 text-sm">warning threshold &gt; 0.6</span>
                     </div>
                 </div>
             </div>
@@ -89,28 +90,42 @@ const Interventions = () => {
                     <h3 className="text-lg font-semibold text-white">Recent Intervention Logs</h3>
                 </div>
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm text-slate-400">
-                        <thead className="bg-gray-900/50 text-xs uppercase bg-gray-900 border-b border-gray-700">
+                    <table className="w-full text-left text-sm text-slate-300">
+                        <thead className="bg-gray-700/50 text-slate-200">
                             <tr>
-                                <th className="px-6 py-4">Time</th>
-                                <th className="px-6 py-4">Tool Deployed</th>
-                                <th className="px-6 py-4">Pre-Mood → Post-Mood</th>
-                                <th className="px-6 py-4">AI Confidence</th>
-                                <th className="px-6 py-4">Outcome</th>
+                                <th className="px-6 py-4 font-medium rounded-tl-lg">Trigger Condition</th>
+                                <th className="px-6 py-4 font-medium">Intervention Tool deployed</th>
+                                <th className="px-6 py-4 font-medium">Outcome Delta</th>
+                                <th className="px-6 py-4 font-medium">Effectiveness Decay</th>
+                                <th className="px-6 py-4 font-medium rounded-tr-lg">Efficacy Status</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-700">
-                            {data.tableLogs.map((log, i) => (
-                                <tr key={i} className="hover:bg-gray-700/50 transition-colors">
-                                    <td className="px-6 py-4 text-slate-500">{log.timestamp}</td>
-                                    <td className="px-6 py-4 font-medium text-slate-200">{log.tool}</td>
+                        <tbody className="divide-y divide-gray-700/50">
+                            {data.tableLogs.map((row) => (
+                                <tr key={row.id} className="hover:bg-gray-700/30 transition-colors">
+                                    <td className="px-6 py-4 font-medium text-slate-200">{row.trigger}</td>
+                                    <td className="px-6 py-4">{row.tool}</td>
                                     <td className="px-6 py-4">
-                                        {log.preMood} <span className="text-primary-500 mx-2">→</span> {log.postMood}
+                                        <span className={row.outcome.startsWith('+') ? 'text-emerald-400' : 'text-slate-400'}>
+                                            {row.outcome}
+                                        </span>
                                     </td>
-                                    <td className="px-6 py-4">{log.aiConf}%</td>
                                     <td className="px-6 py-4">
-                                        <span className={`px-2 py-1 rounded text-xs font-semibold ${log.outcome === 'Success' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
-                                            {log.outcome}
+                                        {row.habituationRisk > 60 ? (
+                                            <div className="flex flex-col gap-1">
+                                                <span className="text-rose-400 flex items-center gap-1"><ShieldAlert size={14} /> Habituation Risk ({row.habituationRisk}%)</span>
+                                                <span className="text-xs text-rose-500/70">Cooldown: {row.cooldown}m</span>
+                                            </div>
+                                        ) : (
+                                            <span className="text-emerald-400">Stable (Slope: {row.decaySlope})</span>
+                                        )}
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium 
+                                            ${row.status === 'Success' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                                                row.status === 'Moderate' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                                                    'bg-gray-500/10 text-gray-400 border border-gray-500/20'}`}>
+                                            {row.status}
                                         </span>
                                     </td>
                                 </tr>
