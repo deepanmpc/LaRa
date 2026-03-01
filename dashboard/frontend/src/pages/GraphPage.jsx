@@ -1,6 +1,8 @@
 import React, { useRef, useState, useCallback } from 'react';
 import ForceGraph3D from 'react-force-graph-3d';
 import { Network, ZoomIn, Play, Pause, Camera } from 'lucide-react';
+import * as THREE from 'three';
+import SpriteText from 'three-spritetext';
 
 const GraphPage = () => {
     const fgRef = useRef();
@@ -92,17 +94,54 @@ const GraphPage = () => {
                     <ForceGraph3D
                         ref={fgRef}
                         graphData={graphData}
+                        backgroundColor="#090a0f" // Deeper cyber-business palette
                         nodeLabel="label"
-                        nodeColor={getNodeColor}
-                        nodeVal={node => node.val * 0.5} // Base size off centrality mapped to val (Mocked)
-                        linkWidth={(link) => (link.strength ? link.strength * 2 : 1)}
-                        linkColor={(link) => link.color || "#475569"}
+                        nodeThreeObject={node => {
+                            const isFaded = node.val < temporalSlider;
+                            const color = getNodeColor(node);
+                            const size = Math.max(10, node.val * 0.45); // Scale up balls to fit text like user's image
+
+                            const group = new THREE.Group();
+
+                            // Glowing Glass Sphere (Elegant UI)
+                            const geometry = new THREE.SphereGeometry(size, 32, 32);
+                            const material = new THREE.MeshPhysicalMaterial({
+                                color: color,
+                                transparent: true,
+                                opacity: isFaded ? 0.2 : 0.85,
+                                transmission: 0.6,
+                                roughness: 0.1,
+                                thickness: 2.5,
+                                emissive: color,
+                                emissiveIntensity: isFaded ? 0.05 : 0.6
+                            });
+                            const sphere = new THREE.Mesh(geometry, material);
+                            group.add(sphere);
+
+                            // Inner Text Label
+                            if (!isFaded) {
+                                // Formatting text to wrap or fit gracefully
+                                const textLabel = node.label.replace(' ', '\n');
+                                const sprite = new SpriteText(textLabel);
+                                sprite.color = '#ffffff';
+                                sprite.textHeight = size * 0.3; // Proportionally scale text inside node
+                                sprite.fontWeight = '700';
+                                sprite.fontFace = 'Inter, sans-serif';
+                                group.add(sprite);
+                            }
+
+                            return group;
+                        }}
+                        nodeThreeObjectExtend={false}
+                        linkWidth={(link) => (link.strength ? link.strength * 2.5 : 1.5)}
+                        linkColor={(link) => link.color || "#334155"}
                         onNodeClick={handleClickNode}
-                        backgroundColor="#0f111a"
-                        // Advanced settings
-                        linkDirectionalParticles={2}
-                        linkDirectionalParticleSpeed={d => d.strength * 0.01}
-                        nodeOpacity={0.9}
+                        // Advanced particle highway styling
+                        linkDirectionalParticles={4}
+                        linkDirectionalParticleWidth={2}
+                        linkDirectionalParticleColor={() => "#ffffff"}
+                        linkDirectionalParticleSpeed={d => (d.strength || 0.5) * 0.015}
+                        linkResolution={16}
                     />
                 </div>
 
