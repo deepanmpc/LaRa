@@ -20,7 +20,7 @@ function App() {
           <Route path="emotions" element={<Emotions />} />
           <Route path="predictive" element={<PredictivePanel />} />
           <Route path="interventions" element={<Interventions />} />
-          <Route path="xai" element={<XAI />} />
+          <Route path="xai-logs" element={<XAI />} />
           <Route path="graph" element={<GraphPage />} />
           <Route path="sandbox" element={<SimulationSandbox />} />
           <Route path="integrity" element={<SystemIntegrity />} />
