@@ -27,7 +27,12 @@ const SystemIntegrity = () => {
         biasFairness: {
             riskScoreVarianceIndex: 0.04,
             fairnessStatus: "EQUITABLE"
-        }
+        },
+        auditLogs: [
+            { timestamp: "2026-02-19T10:15:00Z", severity: "HIGH", aiDecision: "Ignore", overriddenTo: "Intervene", clinicianId: "Dr. Smith", rationale: "Safety concern." },
+            { timestamp: "2026-02-18T14:45:22Z", severity: "MED", aiDecision: "Breathing Tool", overriddenTo: "Nudge", clinicianId: "Dr. Lee", rationale: "Child resisting tool." },
+            { timestamp: "2026-02-17T09:30:10Z", severity: "LOW", aiDecision: "Decrease Difficulty", overriddenTo: "Maintain", clinicianId: "Dr. Smith", rationale: "Pushing through plateau." },
+        ]
     });
 
     const getStatusTheme = (status) => {
