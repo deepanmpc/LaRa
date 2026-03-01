@@ -20,10 +20,10 @@ const DashboardLayout = () => {
         { path: '/predictive', label: 'Early Risk Engine', icon: <FastForward size={20} /> },
         { path: '/interventions', label: 'Tool Intelligence', icon: <LayoutDashboard size={20} /> },
         { path: '/xai', label: 'Explainable AI', icon: <Brain size={20} /> },
-        { name: 'XAI Logic Logs', icon: ShieldAlert, path: '/xai-logs' },
-        { name: 'Knowledge Graph', icon: Network, path: '/graph' },
-        { name: 'Simulation Sandbox', icon: Settings2, path: '/sandbox' },
-        { name: 'System Integrity', icon: Target, path: '/integrity' }
+        { path: '/xai-logs', label: 'XAI Logic Logs', icon: <ShieldAlert size={20} /> },
+        { path: '/graph', label: 'Knowledge Graph', icon: <Network size={20} /> },
+        { path: '/sandbox', label: 'Simulation Sandbox', icon: <Settings2 size={20} /> },
+        { path: '/integrity', label: 'System Integrity', icon: <Target size={20} /> }
     ];
 
     return (
