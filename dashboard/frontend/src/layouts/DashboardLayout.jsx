@@ -19,7 +19,6 @@ const DashboardLayout = () => {
         { path: '/emotions', label: 'Emotional Stability', icon: <Activity size={20} /> },
         { path: '/predictive', label: 'Early Risk Engine', icon: <FastForward size={20} /> },
         { path: '/interventions', label: 'Tool Intelligence', icon: <LayoutDashboard size={20} /> },
-        { path: '/xai', label: 'Explainable AI', icon: <Brain size={20} /> },
         { path: '/xai-logs', label: 'XAI Logic Logs', icon: <ShieldAlert size={20} /> },
         { path: '/graph', label: 'Knowledge Graph', icon: <Network size={20} /> },
         { path: '/sandbox', label: 'Simulation Sandbox', icon: <Settings2 size={20} /> },

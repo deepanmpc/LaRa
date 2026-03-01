@@ -99,41 +99,80 @@ const GraphPage = () => {
                         nodeThreeObject={node => {
                             const isFaded = node.val < temporalSlider;
                             const color = getNodeColor(node);
-                            const size = Math.max(10, node.val * 0.45); // Scale up balls to fit text like user's image
 
                             const group = new THREE.Group();
 
-                            // Glowing Glass Sphere (Elegant UI)
-                            const geometry = new THREE.SphereGeometry(size, 32, 32);
-                            const material = new THREE.MeshPhysicalMaterial({
+                            // Formatting text to wrap or fit gracefully
+                            const textLabel = node.label.replace(' ', '\n');
+                            const sprite = new SpriteText(textLabel);
+                            sprite.color = '#ffffff';
+                            sprite.textHeight = 4; // Explicitly scaled down for typography focus
+                            sprite.fontWeight = '600';
+                            sprite.fontFace = 'Inter, sans-serif';
+
+                            // Measure text to dynamically size the background plate
+                            const paddingX = 4;
+                            const paddingY = 2;
+                            const bgWidth = (sprite.textHeight * textLabel.length * 0.4) + paddingX;
+                            const bgHeight = (textLabel.includes('\n') ? sprite.textHeight * 2.5 : sprite.textHeight * 1.5) + paddingY;
+
+                            // Create a rounded rectangle shape for the label background (pill-like)
+                            const shape = new THREE.Shape();
+                            const radius = 2;
+                            shape.moveTo(-bgWidth/2 + radius, -bgHeight/2);
+                            shape.lineTo(bgWidth/2 - radius, -bgHeight/2);
+                            shape.quadraticCurveTo(bgWidth/2, -bgHeight/2, bgWidth/2, -bgHeight/2 + radius);
+                            shape.lineTo(bgWidth/2, bgHeight/2 - radius);
+                            shape.quadraticCurveTo(bgWidth/2, bgHeight/2, bgWidth/2 - radius, bgHeight/2);
+                            shape.lineTo(-bgWidth/2 + radius, bgHeight/2);
+                            shape.quadraticCurveTo(-bgWidth/2, bgHeight/2, -bgWidth/2, bgHeight/2 - radius);
+                            shape.lineTo(-bgWidth/2, -bgHeight/2 + radius);
+                            shape.quadraticCurveTo(-bgWidth/2, -bgHeight/2, -bgWidth/2 + radius, -bgHeight/2);
+
+                            const geometry = new THREE.ShapeGeometry(shape);
+                            
+                            // Glowing Elegant Flat Plate
+                            const material = new THREE.MeshBasicMaterial({
                                 color: color,
                                 transparent: true,
-                                opacity: isFaded ? 0.2 : 0.85,
-                                transmission: 0.6,
-                                roughness: 0.1,
-                                thickness: 2.5,
-                                emissive: color,
-                                emissiveIntensity: isFaded ? 0.05 : 0.6
+                                opacity: isFaded ? 0.15 : 0.85,
+                                side: THREE.DoubleSide
                             });
-                            const sphere = new THREE.Mesh(geometry, material);
-                            group.add(sphere);
+                            
+                            const bgMesh = new THREE.Mesh(geometry, material);
+                            
+                            // Add a subtle border/glow ring behind it
+                            const edges = new THREE.EdgesGeometry(geometry);
+                            const lineMaterial = new THREE.LineBasicMaterial({ 
+                                color: color, 
+                                transparent: true, 
+                                opacity: isFaded ? 0.1 : 1.0,
+                                linewidth: 2
+                            });
+                            const border = new THREE.LineSegments(edges, lineMaterial);
+                            // Push the plate back slightly to prevent Z-fighting with the text
+                            bgMesh.position.z = -0.1;
+                            border.position.z = -0.1;
 
-                            // Inner Text Label
+                            group.add(border);
+                            group.add(bgMesh);
+                            
                             if (!isFaded) {
-                                // Formatting text to wrap or fit gracefully
-                                const textLabel = node.label.replace(' ', '\n');
-                                const sprite = new SpriteText(textLabel);
-                                sprite.color = '#ffffff';
-                                sprite.textHeight = size * 0.3; // Proportionally scale text inside node
-                                sprite.fontWeight = '700';
-                                sprite.fontFace = 'Inter, sans-serif';
                                 group.add(sprite);
+                            } else {
+                                // Dim text for faded nodes but keep it readable
+                                const fadedSprite = new SpriteText(textLabel);
+                                fadedSprite.color = '#94a3b8';
+                                fadedSprite.textHeight = 4;
+                                fadedSprite.fontWeight = '400';
+                                fadedSprite.fontFace = 'Inter, sans-serif';
+                                group.add(fadedSprite);
                             }
 
                             return group;
                         }}
                         nodeThreeObjectExtend={false}
-                        linkWidth={(link) => (link.strength ? link.strength * 2.5 : 1.5)}
+                        linkWidth={(link) => (link.strength ? link.strength * 1.5 : 1.0)}
                         linkColor={(link) => link.color || "#334155"}
                         onNodeClick={handleClickNode}
                         // Advanced particle highway styling
