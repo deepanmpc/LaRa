@@ -8,15 +8,66 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+import com.lara.dashboard.dto.tier2.HybridClinicalDashboardDto;
+import com.lara.dashboard.dto.tier2.SessionLiveMetrics;
+import com.lara.dashboard.model.StudentLongitudinalMetrics;
+import com.lara.dashboard.repository.StudentLongitudinalMetricsRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class Tier2ClinicalService {
 
+    private final StudentLongitudinalMetricsRepository longitudinalMetricsRepository;
+    private final LiveSessionService liveSessionService;
+
     /**
-     * Aggregates the 12-point clinical spec.
-     * Utilizes @Cacheable to fulfill Requirement 12: Cached longitudinal aggregates.
+     * Requirement Part 3: Hybrid Endpoint.
+     * Merges Post-Session Longitudinal Intelligence (Cached) with Live Session Metrics.
      */
+    public HybridClinicalDashboardDto getHybridDashboard(String studentIdHashed) {
+        // 1. Load Precomputed Longitudinal Metrics (cached lookup)
+        StudentLongitudinalMetrics longitudinal = fetchCachedLongitudinalMetrics(studentIdHashed);
+        
+        // 2. Check for active live session (in-memory lookup, no DB hit)
+        // Assumption: UI or context passes the active sessionId if known, or we query live service.
+        // We will default to checking if the child has an active session identifier.
+        // For scaffolding, we request active session matching the studentId root.
+        SessionLiveMetrics liveMetrics = liveSessionService.getLiveMetrics(studentIdHashed + "-active");
+
+        return HybridClinicalDashboardDto.builder()
+                .studentId(studentIdHashed)
+                .longitudinalMetrics(longitudinal)
+                .liveMetrics(liveMetrics.getEmotionalState() != null ? liveMetrics : null) // null if no active session tracking
+                .build();
+    }
+
+    @Cacheable(value = "tier2Longitudinal", key = "#studentIdHashed")
+    public StudentLongitudinalMetrics fetchCachedLongitudinalMetrics(String studentIdHashed) {
+        log.info("Cache miss for {}, fetching longitudinal DB metrics...", studentIdHashed);
+        return longitudinalMetricsRepository.findById(studentIdHashed)
+                .orElseGet(() -> StudentLongitudinalMetrics.builder()
+                        .studentId(studentIdHashed)
+                        // Fallback defaults if aggregation hasn't run yet
+                        .rollingVolatility7(0.0)
+                        .rollingVolatility14(0.0)
+                        .recoveryTrend(0.0)
+                        .masteryVelocity(0.0)
+                        .independenceScore(0.0)
+                        .interventionDecayIndex(0.0)
+                        .frustrationRiskScore(0.0)
+                        .confidenceBandLow(0.0)
+                        .confidenceBandHigh(0.0)
+                        .lastUpdated(LocalDateTime.now())
+                        .build());
+    }
     @Cacheable(value = "tier2Dashboard", key = "#studentIdHashed")
     public Tier2FullDashboardDto generateClinicalSpecDashboard(String studentIdHashed) {
         log.info("Generating full Tier 2 dashboard payload for child {}", studentIdHashed);

@@ -29,14 +29,14 @@ public class Tier2ClinicalController {
      */
     @GetMapping("/{studentId}")
     @PreAuthorize("hasRole('CLINICIAN')")
-    public ResponseEntity<Tier2FullDashboardDto> getFullClinicalDashboard(@PathVariable String studentId) {
+    public ResponseEntity<com.lara.dashboard.dto.tier2.HybridClinicalDashboardDto> getHybridClinicalDashboard(@PathVariable String studentId) {
         // Enforce Requirement 11: Audit logging of clinician views
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String clinicianId = (auth != null) ? auth.getName() : "UNKNOWN_CLINICIAN";
         
-        auditLoggingService.logClinicalAccess(clinicianId, studentId, "VIEW_TIER2_DASHBOARD");
+        auditLoggingService.logClinicalAccess(clinicianId, studentId, "VIEW_HYBRID_CLINICAL_DASHBOARD");
 
-        return ResponseEntity.ok(tier2ClinicalService.generateClinicalSpecDashboard(studentId));
+        return ResponseEntity.ok(tier2ClinicalService.getHybridDashboard(studentId));
     }
 
     /**
