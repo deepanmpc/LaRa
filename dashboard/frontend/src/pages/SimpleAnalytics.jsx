@@ -6,7 +6,7 @@ import {
     Clock, Target, Trophy, FileText, Send, Eye
 } from 'lucide-react';
 
-const API_BASE = 'http://localhost:8080/api/analytics/simple';
+const API_BASE = 'http://localhost:8080/api/dashboard';
 
 const SimpleAnalytics = () => {
     const [data, setData] = useState(null);
@@ -17,7 +17,7 @@ const SimpleAnalytics = () => {
     useEffect(() => {
         const fetchSimpleData = async () => {
             try {
-                const res = await axios.get(`${API_BASE}/mock-student-id`);
+                const res = await axios.get(`${API_BASE}/simple/mock-student-id`);
                 setData(res.data);
                 setLoading(false);
             } catch (err) {
