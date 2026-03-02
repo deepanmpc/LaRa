@@ -63,8 +63,8 @@ public class ZpdAnalyticsService {
         double elasticity = calculateElasticity(metrics);
 
         // Convert to Trend points (mocking grouping by day for chart)
-        List<ZpdOverviewDto.ZpdTrendPoint> trends = metrics.stream()
-                .map(m -> ZpdOverviewDto.ZpdTrendPoint.builder()
+        List<ZpdOverviewDto.HistoricalTrendDto> trends = metrics.stream()
+                .map(m -> ZpdOverviewDto.HistoricalTrendDto.builder()
                         .timestamp(m.getTimestamp().toString())
                         .successRate(m.getMasteryScore() / (m.getDifficultyLevel() > 0 ? m.getDifficultyLevel() : 1))
                         .engagementFrequency(m.getEngagementFrequency())

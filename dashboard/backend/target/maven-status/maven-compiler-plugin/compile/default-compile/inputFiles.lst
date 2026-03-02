@@ -7,6 +7,7 @@
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/service/StudentService.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/security/UserDetailsServiceImpl.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/service/SimulationService.java
+/Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/controller/OverviewController.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/controller/StudentController.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/service/CalibrationService.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/model/SessionSummaryMetric.java
@@ -21,12 +22,14 @@
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/dto/ModelHealthDto.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/dto/StudentDto.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/service/AnalyticsRollupJob.java
+/Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/service/Tier2ClinicalService.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/dto/SimulationResultDto.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/dto/BiasMonitoringDto.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/controller/EmotionalController.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/repository/SessionRepository.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/dto/ZpdOverviewDto.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/controller/SystemIntegrityController.java
+/Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/dto/tier2/Tier2FullDashboardDto.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/repository/StudentRepository.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/service/EmotionalAnalyticsService.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/model/Role.java
@@ -34,6 +37,7 @@
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/model/User.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/model/KnowledgeEdge.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/repository/CalibrationLogRepository.java
+/Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/dto/KnowledgeGraphDto.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/controller/AuthController.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/controller/ZpdController.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/dto/EmotionalOverviewDto.java
@@ -41,6 +45,8 @@
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/dto/CognitiveSummaryDto.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/repository/OverrideLogRepository.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/controller/GraphController.java
+/Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/service/GraphService.java
+/Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/controller/Tier2ClinicalController.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/service/ClinicalSummaryService.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/controller/ToolInterventionController.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/security/SecurityConfig.java
@@ -60,6 +66,7 @@
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/dto/SystemPerformanceDto.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/repository/SessionSummaryMetricRepository.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/repository/ToolInterventionRepository.java
+/Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/service/AuditLoggingService.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/model/ZpdMetric.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/service/ClinicalDashboardService.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/dto/SimulationRequestDto.java
@@ -78,6 +85,7 @@
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/repository/KnowledgeNodeRepository.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/repository/EmotionalMetricRepository.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/security/JwtUtils.java
+/Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/service/OverviewService.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/controller/CalibrationController.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/controller/ToolEffectivenessController.java
 /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/controller/SimpleDashboardController.java
