@@ -13,6 +13,7 @@ import SystemIntegrity from './pages/SystemIntegrity';
 import SimulationSandbox from './pages/SimulationSandbox';
 import SessionLauncher from './pages/SessionLauncher';
 import SimpleAnalytics from './pages/SimpleAnalytics';
+import ClinicalDashboard from './pages/dashboard/clinical';
 
 function App() {
   return (
@@ -22,6 +23,9 @@ function App() {
         <Route path="/dashboard" element={<CaregiverLayout />}>
           <Route path="simple" element={<SimpleAnalytics />} />
         </Route>
+
+        {/* Clinical Flow (Tier 2 Hybrid) */}
+        <Route path="/dashboard/clinical" element={<ClinicalDashboard />} />
 
         <Route path="/session" element={<SessionLauncher />} />
         <Route path="/" element={<DashboardLayout />}>
