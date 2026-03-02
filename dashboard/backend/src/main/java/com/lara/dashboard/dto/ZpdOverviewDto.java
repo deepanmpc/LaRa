@@ -2,6 +2,7 @@ package com.lara.dashboard.dto;
 
 import lombok.Builder;
 import lombok.Data;
+
 import java.util.List;
 
 @Data
@@ -9,16 +10,16 @@ import java.util.List;
 public class ZpdOverviewDto {
     private Double currentAdvancementVelocity;
     private Double averageElasticityScore;
-    private List<ZpdTrendPoint> historicalTrends;
+    private List<HistoricalTrendDto> historicalTrends;
     private List<ConceptMasteryDto> conceptMastery;
 
     @Data
     @Builder
-    public static class ZpdTrendPoint {
+    public static class HistoricalTrendDto {
         private String timestamp;
         private Double successRate;
         private Integer engagementFrequency;
-        private Double difficultyMA;     // Moving average of difficulty
+        private Double difficultyMA;
     }
 
     @Data
