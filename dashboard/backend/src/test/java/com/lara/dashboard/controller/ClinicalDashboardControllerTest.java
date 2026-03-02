@@ -6,6 +6,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -18,13 +20,24 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(controllers = ClinicalDashboardController.class)
+@Import(ClinicalDashboardControllerTest.SecurityTestConfig.class)
 class ClinicalDashboardControllerTest {
+
+    @org.springframework.boot.test.context.TestConfiguration
+    @EnableMethodSecurity
+    static class SecurityTestConfig { }
 
     @Autowired
     private MockMvc mockMvc;
 
     @MockBean
     private ClinicalDashboardService clinicalDashboardService;
+
+    @MockBean
+    private com.lara.dashboard.security.JwtUtils jwtUtils;
+
+    @MockBean
+    private com.lara.dashboard.security.UserDetailsServiceImpl userDetailsService;
 
     @Test
     @WithMockUser(roles = "CLINICIAN")
