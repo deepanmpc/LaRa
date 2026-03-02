@@ -1,0 +1,84 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] -------------------------< com.lara:dashboard >-------------------------
+[INFO] Building LaRa Clinical Intelligence Dashboard 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- clean:3.3.2:clean (default-clean) @ dashboard ---
+[INFO] Deleting /Users/deepandee/Desktop/LaRa/dashboard/backend/target
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ dashboard ---
+[INFO] Copying 1 resource from src/main/resources to target/classes
+[INFO] Copying 0 resource from src/main/resources to target/classes
+[INFO] 
+[INFO] --- compiler:3.11.0:compile (default-compile) @ dashboard ---
+[INFO] Changes detected - recompiling the module! :source
+[INFO] Compiling 78 source files with javac [debug release 17] to target/classes
+[INFO] -------------------------------------------------------------
+[ERROR] COMPILATION ERROR : 
+[INFO] -------------------------------------------------------------
+[ERROR] /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/service/CausalityAnalyticsService.java:[33,17] cannot find symbol
+  symbol:   method findByChildIdHashedAndTimestampAfterOrderByTimestampAsc(java.lang.String,java.time.LocalDateTime)
+  location: variable toolRepository of type com.lara.dashboard.repository.ToolInterventionRepository
+[ERROR] /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/service/PredictiveAnalyticsService.java:[34,17] cannot find symbol
+  symbol:   method findByChildIdHashedAndTimestampAfterOrderByTimestampAsc(java.lang.String,java.time.LocalDateTime)
+  location: variable emotionalMetricRepository of type com.lara.dashboard.repository.EmotionalMetricRepository
+[ERROR] /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/service/PredictiveAnalyticsService.java:[37,17] cannot find symbol
+  symbol:   method findByChildIdHashedAndTimestampAfterOrderByTimestampAsc(java.lang.String,java.time.LocalDateTime)
+  location: variable zpdMetricRepository of type com.lara.dashboard.repository.ZpdMetricRepository
+[ERROR] /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/service/PredictiveAnalyticsService.java:[94,37] cannot find symbol
+  symbol:   method getFrustrationScore()
+  location: class com.lara.dashboard.model.EmotionalMetric
+[ERROR] /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/service/PredictiveAnalyticsService.java:[97,42] cannot find symbol
+  symbol:   method getFrustrationScore()
+  location: class com.lara.dashboard.model.EmotionalMetric
+[ERROR] /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/service/PredictiveAnalyticsService.java:[107,45] cannot find symbol
+  symbol:   method getMasteryLevel()
+  location: class com.lara.dashboard.model.ZpdMetric
+[ERROR] /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/service/PredictiveAnalyticsService.java:[108,61] cannot find symbol
+  symbol:   method getMasteryLevel()
+  location: class com.lara.dashboard.model.ZpdMetric
+[ERROR] /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/service/ToolEffectivenessDecayService.java:[29,17] cannot find symbol
+  symbol:   method findByChildIdHashedAndTimestampAfterOrderByTimestampAsc(java.lang.String,java.time.LocalDateTime)
+  location: variable toolRepository of type com.lara.dashboard.repository.ToolInterventionRepository
+[INFO] 8 errors 
+[INFO] -------------------------------------------------------------
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  2.929 s
+[INFO] Finished at: 2026-03-02T22:30:28+05:30
+[INFO] ------------------------------------------------------------------------
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.11.0:compile (default-compile) on project dashboard: Compilation failure: Compilation failure: 
+[ERROR] /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/service/CausalityAnalyticsService.java:[33,17] cannot find symbol
+[ERROR]   symbol:   method findByChildIdHashedAndTimestampAfterOrderByTimestampAsc(java.lang.String,java.time.LocalDateTime)
+[ERROR]   location: variable toolRepository of type com.lara.dashboard.repository.ToolInterventionRepository
+[ERROR] /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/service/PredictiveAnalyticsService.java:[34,17] cannot find symbol
+[ERROR]   symbol:   method findByChildIdHashedAndTimestampAfterOrderByTimestampAsc(java.lang.String,java.time.LocalDateTime)
+[ERROR]   location: variable emotionalMetricRepository of type com.lara.dashboard.repository.EmotionalMetricRepository
+[ERROR] /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/service/PredictiveAnalyticsService.java:[37,17] cannot find symbol
+[ERROR]   symbol:   method findByChildIdHashedAndTimestampAfterOrderByTimestampAsc(java.lang.String,java.time.LocalDateTime)
+[ERROR]   location: variable zpdMetricRepository of type com.lara.dashboard.repository.ZpdMetricRepository
+[ERROR] /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/service/PredictiveAnalyticsService.java:[94,37] cannot find symbol
+[ERROR]   symbol:   method getFrustrationScore()
+[ERROR]   location: class com.lara.dashboard.model.EmotionalMetric
+[ERROR] /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/service/PredictiveAnalyticsService.java:[97,42] cannot find symbol
+[ERROR]   symbol:   method getFrustrationScore()
+[ERROR]   location: class com.lara.dashboard.model.EmotionalMetric
+[ERROR] /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/service/PredictiveAnalyticsService.java:[107,45] cannot find symbol
+[ERROR]   symbol:   method getMasteryLevel()
+[ERROR]   location: class com.lara.dashboard.model.ZpdMetric
+[ERROR] /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/service/PredictiveAnalyticsService.java:[108,61] cannot find symbol
+[ERROR]   symbol:   method getMasteryLevel()
+[ERROR]   location: class com.lara.dashboard.model.ZpdMetric
+[ERROR] /Users/deepandee/Desktop/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/service/ToolEffectivenessDecayService.java:[29,17] cannot find symbol
+[ERROR]   symbol:   method findByChildIdHashedAndTimestampAfterOrderByTimestampAsc(java.lang.String,java.time.LocalDateTime)
+[ERROR]   location: variable toolRepository of type com.lara.dashboard.repository.ToolInterventionRepository
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException

@@ -11,4 +11,5 @@ import java.util.List;
 public interface EmotionalMetricRepository extends JpaRepository<EmotionalMetric, Long> {
     List<EmotionalMetric> findByChildIdHashedAndTimestampBetween(String childIdHashed, LocalDateTime start, LocalDateTime end);
     List<EmotionalMetric> findBySessionId(String sessionId);
+    List<EmotionalMetric> findByChildIdHashedAndTimestampAfterOrderByTimestampAsc(String childIdHashed, LocalDateTime timestamp);
 }

@@ -11,4 +11,5 @@ import java.util.List;
 public interface ZpdMetricRepository extends JpaRepository<ZpdMetric, Long> {
     List<ZpdMetric> findByChildIdHashedAndTimestampBetween(String childIdHashed, LocalDateTime start, LocalDateTime end);
     List<ZpdMetric> findByChildIdHashedAndConceptId(String childIdHashed, String conceptId);
+    List<ZpdMetric> findByChildIdHashedAndTimestampAfterOrderByTimestampAsc(String childIdHashed, LocalDateTime timestamp);
 }

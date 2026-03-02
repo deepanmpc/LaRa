@@ -10,4 +10,5 @@ import java.util.List;
 @Repository
 public interface ToolInterventionRepository extends JpaRepository<ToolIntervention, Long> {
     List<ToolIntervention> findByChildIdHashedAndTimestampBetween(String childIdHashed, LocalDateTime start, LocalDateTime end);
+    List<ToolIntervention> findByChildIdHashedAndTimestampAfterOrderByTimestampAsc(String childIdHashed, LocalDateTime timestamp);
 }
