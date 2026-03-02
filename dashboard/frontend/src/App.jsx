@@ -18,11 +18,11 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Caregiver Flow (Tier 3) */}
-        <Route path="/caregiver" element={<CaregiverLayout />}>
+        {/* Caregiver Flow (Tier 1) */}
+        <Route path="/dashboard" element={<CaregiverLayout />}>
           <Route path="simple" element={<SimpleAnalytics />} />
         </Route>
-        
+
         <Route path="/session" element={<SessionLauncher />} />
         <Route path="/" element={<DashboardLayout />}>
           <Route index element={<Overview />} />
@@ -34,7 +34,7 @@ function App() {
           <Route path="sandbox" element={<SimulationSandbox />} />
           <Route path="integrity" element={<SystemIntegrity />} />
         </Route>
-        <Route path="/dashboard" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   )

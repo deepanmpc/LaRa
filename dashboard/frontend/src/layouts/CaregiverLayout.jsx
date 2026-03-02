@@ -13,7 +13,7 @@ const CaregiverLayout = () => {
     }
 
     const navItems = [
-        { path: '/caregiver/simple', label: 'Today\'s Summary', icon: <Star size={24} /> },
+        { path: '/dashboard/simple', label: 'Today\'s Summary', icon: <Star size={24} /> },
         { path: '/session', label: 'Start Session', icon: <Heart size={24} /> }
     ];
 
