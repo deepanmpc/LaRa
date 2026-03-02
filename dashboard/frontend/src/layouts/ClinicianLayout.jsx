@@ -6,7 +6,7 @@ import {
     ShieldAlert, BookOpen, User, Menu, Settings2
 } from 'lucide-react';
 
-const DashboardLayout = () => {
+const ClinicianLayout = () => {
     const { isAuthenticated, role, logout } = useAuthStore();
 
     // Bypassing for dev scaffold.
@@ -80,4 +80,4 @@ const DashboardLayout = () => {
     );
 };
 
-export default DashboardLayout;
+export default ClinicianLayout;
