@@ -213,7 +213,7 @@ class AgentricAI:
 
     def handle_audio_input(self, audio_file_path: str):
         """
-        Processes an audio file through the fast WhisperX pipeline.
+        Processes an audio file through the Whisper.cpp pipeline.
         Extracts clean text securely, prioritizing emotional safety and low latency.
          Streams the LLM response back.
         """
@@ -223,7 +223,7 @@ class AgentricAI:
             return
             
         try:
-            print(f"Listening to nicely to {audio_file_path}...")
+            print(f"Listening nicely to {audio_file_path}...")
             transcribed_text = self.audio_pipeline.process_audio(audio_file_path)
             
             # Constraints: If detection is low or empty -> default to neutral supportive behavior

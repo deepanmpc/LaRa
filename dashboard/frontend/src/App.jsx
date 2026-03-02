@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import DashboardLayout from './layouts/DashboardLayout';
 
 import Overview from './pages/Overview';
@@ -10,11 +10,13 @@ import XAI from './pages/XAI';
 import GraphPage from './pages/GraphPage';
 import SystemIntegrity from './pages/SystemIntegrity';
 import SimulationSandbox from './pages/SimulationSandbox';
+import SessionLauncher from './pages/SessionLauncher';
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/session" element={<SessionLauncher />} />
         <Route path="/" element={<DashboardLayout />}>
           <Route index element={<Overview />} />
           <Route path="emotions" element={<Emotions />} />
@@ -25,6 +27,7 @@ function App() {
           <Route path="sandbox" element={<SimulationSandbox />} />
           <Route path="integrity" element={<SystemIntegrity />} />
         </Route>
+        <Route path="/dashboard" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   )
