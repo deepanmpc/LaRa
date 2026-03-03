@@ -1,0 +1,30 @@
+# Compiled class files
+target/
+*.class
+
+# Log files
+*.log
+
+# Package files
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Maven wrapper
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+*.suo
+.DS_Store
+
+# Environment secrets – never commit
+.env
+.env.local
+.env.production
