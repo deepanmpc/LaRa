@@ -1,11 +1,3 @@
-numpy<2
-sounddevice
-webrtcvad
-pywhispercpp
-requests
-torch
-vosk
-pyaudio
 # LaRa Vision Perception — Python Dependencies
 # Install with: pip install -r vision_perception/requirements.txt
 
