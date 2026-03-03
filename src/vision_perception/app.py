@@ -10,7 +10,6 @@ import sys
 import time
 import os
 
-import psutil
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,7 +28,7 @@ log = get_logger(__name__)
 app = FastAPI(
     title="LaRa Vision Perception",
     description="Independent vision microservice for the LaRa learning companion system.",
-    version="2.0.0",
+    version="2.1.0",
 )
 
 app.add_middleware(
@@ -61,19 +60,21 @@ async def health():
 
 @app.get("/status")
 async def status():
-    """Returns engine state, FPS, memory usage, and proactive leak indicators."""
+    """Returns engine state, FPS, memory stats, watchdog stall count, and YOLO interval."""
     mem_mb = perception_state.sample_memory()
     over_limit = mem_mb > vision_config.MAX_MEMORY_MB
 
     return {
-        "state":               perception_state.engine_state.value,
-        "fps":                 perception_state.fps,
-        "memory_mb":           mem_mb,
-        "memory_delta_mb":     perception_state.memory_delta_mb(),
-        "memory_warning":      over_limit,
-        "memory_leak_suspected": perception_state.memory_leak_suspected(),
-        "yolo_interval":       _engine._objects.current_interval,
-        "error":               perception_state.error_message or None,
+        "state":                      perception_state.engine_state.value,
+        "fps":                        perception_state.fps,
+        "memory_mb":                  mem_mb,
+        "memory_delta_mb":            perception_state.memory_delta_mb(),
+        "memory_growth_rate_mb_per_sec": perception_state.memory_growth_rate_mb_per_sec(),
+        "memory_warning":             over_limit,
+        "memory_leak_suspected":      perception_state.memory_leak_suspected(),
+        "stall_count":                perception_state.stall_count,
+        "yolo_interval":              _engine._objects.current_interval,
+        "error":                      perception_state.error_message or None,
     }
 
 

@@ -1,9 +1,9 @@
 """
-LaRa Vision Perception — Object Detector (v2, Adaptive Throttling)
-YOLOv8n with self-balancing interval:
-  - If pipeline loop is over-budget → increase YOLO_INTERVAL (less frequent)
-  - If pipeline has headroom        → decrease YOLO_INTERVAL (more frequent)
-  - Bounds: [1, 6] — never completely disabled, never thrashing
+LaRa Vision Perception — Object Detector (v2.1, Adaptive YOLO with Hysteresis)
+v2.1 upgrade:
+  - Minimum 2-second cooldown between interval adjustments.
+  - ±5ms hysteresis dead-band to prevent oscillation at threshold boundary.
+  - Interval bounds remain 1–6.
 """
 
 from typing import List, Tuple
@@ -15,15 +15,15 @@ from utils.logger import get_logger
 
 log = get_logger(__name__)
 
-_MIN_INTERVAL = 1
-_MAX_INTERVAL = 6
-
 
 class ObjectDetector:
     """
-    Adaptive-throttled YOLOv8n wrapper.
-    Call `update_throttle(processing_ms, budget_ms)` from the engine each loop
-    to let the detector self-balance its own run frequency.
+    YOLOv8n with hysteresis-protected adaptive throttle.
+
+    Throttle algorithm (v2.1):
+      - Only adjusts interval if > YOLO_ADJUST_INTERVAL_S has passed since last change.
+      - Dead-band: ±YOLO_HYSTERESIS_BAND_MS around frame_budget prevents oscillation.
+      - Interval adjusts by ±1 per evaluation (clamped to [1, 6]).
     """
 
     def __init__(self):
@@ -32,19 +32,44 @@ class ObjectDetector:
         self._cache: List[str] = []
         self._last_confidence: float = 0.0
         self._model = None
+
+        # Hysteresis state
+        self._last_adjust_time: float = 0.0   # epoch seconds of last interval change
         self._load_model()
 
-    # ── Adaptive throttle ────────────────────────────────────────
+    # ── Adaptive throttle (with hysteresis) ─────────────────────
 
     def update_throttle(self, processing_ms: float, budget_ms: float) -> None:
         """
-        Called by PerceptionEngine once per loop with timing data.
-        Adjusts YOLO_INTERVAL to keep total pipeline within budget.
+        Called by PerceptionEngine each loop.
+        Adjusts YOLO interval respecting:
+          - 2-second minimum between changes
+          - ±5ms dead-band around the budget
         """
-        if processing_ms > budget_ms * 0.9:  # Over 90% of budget → slow down
-            self._interval = min(self._interval + 1, _MAX_INTERVAL)
-        elif processing_ms < budget_ms * 0.6:  # Under 60% of budget → speed up
-            self._interval = max(self._interval - 1, _MIN_INTERVAL)
+        now = time.monotonic()
+        if now - self._last_adjust_time < vision_config.YOLO_ADJUST_INTERVAL_S:
+            return  # Within cooldown window — do nothing
+
+        band = vision_config.YOLO_HYSTERESIS_BAND_MS
+        upper = budget_ms + band   # Over this → too slow, increase interval
+        lower = budget_ms - band   # Under this → have headroom, decrease interval
+
+        changed = False
+        if processing_ms > upper:
+            new_interval = min(self._interval + 1, vision_config.YOLO_MAX_INTERVAL)
+            if new_interval != self._interval:
+                self._interval = new_interval
+                changed = True
+        elif processing_ms < lower:
+            new_interval = max(self._interval - 1, vision_config.YOLO_MIN_INTERVAL)
+            if new_interval != self._interval:
+                self._interval = new_interval
+                changed = True
+
+        if changed:
+            self._last_adjust_time = now
+            log.info({"msg": "YOLO interval adjusted", "interval": self._interval,
+                      "processing_ms": round(processing_ms, 1), "budget_ms": round(budget_ms, 1)})
 
     @property
     def current_interval(self) -> int:
@@ -54,23 +79,18 @@ class ObjectDetector:
 
     def process(self, frame: np.ndarray) -> Tuple[List[str], float]:
         """
-        Returns (object_names_list, confidence_score).
-        Runs inference only every self._interval frames; returns cache otherwise.
+        Returns (object_names, mean_confidence).
+        Only runs inference every self._interval frames.
         """
         self._counter += 1
-
         if self._model is None:
             return [], 0.0
-
         if self._counter % self._interval != 0:
-            return self._cache, self._last_confidence   # Fast path
+            return self._cache, self._last_confidence
 
         device = "cuda" if vision_config.USE_GPU else "cpu"
         try:
-            t0 = time.monotonic()
             results = self._model.predict(frame, device=device, verbose=False)
-            dt = (time.monotonic() - t0) * 1000
-
             names: List[str] = []
             scores: List[float] = []
             for r in results:
@@ -80,10 +100,8 @@ class ObjectDetector:
                     if name not in names:
                         names.append(name)
                         scores.append(conf)
-
             self._cache = names
             self._last_confidence = round(float(np.mean(scores)) if scores else 0.0, 3)
-
         except Exception as e:
             log.warning(f"YOLO inference error: {e}")
 
@@ -99,7 +117,7 @@ class ObjectDetector:
             self._model.predict(
                 np.zeros((480, 640, 3), dtype=np.uint8), device=device, verbose=False
             )
-            log.info({"msg": "YOLO model loaded (adaptive throttle)", "path": vision_config.YOLO_MODEL_PATH, "device": device})
+            log.info({"msg": "YOLO v2.1 loaded (hysteresis throttle)", "device": device})
         except Exception as e:
             log.warning(f"YOLO load failed — object detection disabled: {e}")
             self._model = None
