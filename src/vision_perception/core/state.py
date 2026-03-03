@@ -1,10 +1,11 @@
 """
-LaRa Vision Perception — Shared State Container (v2)
-Production-hardened:
-  - Immutable PerceptionOutput dataclass (not raw dict).
-  - Atomic swap via threading.Lock — no CPython GIL dependency.
-  - Rolling memory tracker for leak detection.
-  - Confidence sub-object included in every frame output.
+LaRa Vision Perception — Shared State Container (v2.1)
+Upgrades over v2.0:
+  - PerceptionSkipReason replaces simple bool frameSkipped.
+  - PerceptionConfidence gains pose field.
+  - PerceptionOutput gains systemConfidence field.
+  - Memory tracker upgraded to slope-based leak detection (20-sample window).
+  - Watchdog stall_count exposed for /status.
 """
 
 import threading
@@ -22,37 +23,53 @@ class EngineState(str, Enum):
     ERROR   = "ERROR"
 
 
-# ── Immutable output dataclass ───────────────────────────────────────────────
+# ── Skip reason sub-object ───────────────────────────────────────────────────
+
+@dataclass(frozen=True)
+class PerceptionSkipReason:
+    """
+    Granular skip classification.
+    Exactly one of these should be True on a skipped frame,
+    or all False on a full detection frame.
+    """
+    quality:     bool = False   # Failed brightness/sharpness gate
+    throttle:    bool = False   # Skipped by YOLO throttle logic
+    camera_drop: bool = False   # get_frame() returned None
+
+
+# ── Confidence sub-object ────────────────────────────────────────────────────
 
 @dataclass(frozen=True)
 class PerceptionConfidence:
-    """Confidence scores for each detection sub-system [0.0–1.0]."""
-    face: float = 0.0
+    """Detection confidence scores [0.0–1.0] per sub-system."""
+    face:    float = 0.0
     gesture: float = 0.0
     objects: float = 0.0
+    pose:    float = 0.0   # ← NEW: solvePnP reprojection quality score
 
+
+# ── Immutable output dataclass ───────────────────────────────────────────────
 
 @dataclass(frozen=True)
 class PerceptionOutput:
     """
-    Immutable snapshot of one perception frame.
-    Frozen dataclass prevents partial mutations on the object
-    even if a reference escapes to another thread.
+    Immutable snapshot of one perception frame (v2.1 schema).
+    Frozen → no partial mutations from any thread holding a reference.
     """
-    presence:        bool                = False
-    faceVerified:    bool                = False
-    lookingAtScreen: bool                = False
-    engagementScore: float               = 0.0
-    gesture:         str                 = "NONE"
-    detectedObjects: tuple               = ()   # tuple, not list — immutable
-    frameSkipped:    bool                = False
-    confidence:      PerceptionConfidence = field(default_factory=PerceptionConfidence)
-    timestamp:       float               = 0.0
+    presence:          bool                  = False
+    faceVerified:      bool                  = False
+    lookingAtScreen:   bool                  = False
+    engagementScore:   float                 = 0.0
+    gesture:           str                   = "NONE"
+    detectedObjects:   tuple                 = ()
+    skipped:           PerceptionSkipReason  = field(default_factory=PerceptionSkipReason)
+    confidence:        PerceptionConfidence  = field(default_factory=PerceptionConfidence)
+    systemConfidence:  float                 = 0.0  # ← NEW: composite meta-score
+    timestamp:         float                 = 0.0
 
     def to_dict(self) -> dict:
         """Serialise to a plain dict for JSON responses."""
         d = asdict(self)
-        # Convert tuple back to list for JSON compatibility
         d["detectedObjects"] = list(d["detectedObjects"])
         return d
 
@@ -64,13 +81,13 @@ _NULL_OUTPUT = PerceptionOutput(timestamp=0.0)
 
 class PerceptionState:
     """
-    Module-level singleton.
-    Writer (PerceptionEngine) swaps `_output` reference under a minimal lock.
-    Reader (FastAPI route) acquires the same lock only to copy the reference —
-    actual object access is lock-free because PerceptionOutput is frozen.
+    Module-level singleton. Thread-safe via a single _swap_lock for output.
+    Watchdog state and memory stats are written only by their dedicated threads.
     """
 
-    _MEMORY_WINDOW = 10   # samples to track for delta
+    _MEMORY_WINDOW       = 20   # v2.1: wider slope window
+    _SLOPE_WINDOW_S      = 5.0  # seconds per slope calculation interval
+    _CONSECUTIVE_NEEDED  = 3    # consecutive high-slope windows to flag leak
 
     def __init__(self):
         self.engine_state: EngineState = EngineState.STOPPED
@@ -85,9 +102,15 @@ class PerceptionState:
         self._frame_count: int = 0
         self._fps_window_start: float = time.time()
 
-        # Memory monitoring
+        # Memory monitoring (v2.1: slope-based)
         self._proc = psutil.Process(os.getpid())
-        self._memory_samples: list = []
+        self._memory_samples: list = []          # (timestamp, rss_mb) tuples
+        self._memory_slope_mb_s: float = 0.0
+        self._high_slope_streak: int = 0
+        self._memory_leak_suspected: bool = False
+
+        # Watchdog stall tracker
+        self.stall_count: int = 0
 
     # ── Output swap (writer) ─────────────────────────────────────
 
@@ -101,7 +124,7 @@ class PerceptionState:
     @property
     def latest(self) -> PerceptionOutput:
         with self._swap_lock:
-            return self._output  # reference copy — object is frozen, safe to read
+            return self._output
 
     # ── FPS helpers ──────────────────────────────────────────────
 
@@ -117,39 +140,63 @@ class PerceptionState:
     def fps(self) -> float:
         return self._fps
 
-    # ── Memory monitoring ────────────────────────────────────────
+    # ── Memory monitoring (v2.1 slope-based) ─────────────────────
 
     def sample_memory(self) -> float:
-        """Record current RSS (MB) and return it."""
+        """Record timestamped RSS sample; update slope & leak flag. Returns RSS MB."""
         mb = round(self._proc.memory_info().rss / 1_048_576, 1)
-        self._memory_samples.append(mb)
+        now = time.time()
+        self._memory_samples.append((now, mb))
         if len(self._memory_samples) > self._MEMORY_WINDOW:
             self._memory_samples.pop(0)
+        self._update_slope()
         return mb
 
+    def _update_slope(self) -> None:
+        """Compute MB/sec slope from oldest→newest sample pair."""
+        from config import vision_config
+        if len(self._memory_samples) < 2:
+            return
+        t0, m0 = self._memory_samples[0]
+        t1, m1 = self._memory_samples[-1]
+        dt = t1 - t0
+        if dt < 0.1:
+            return
+        slope = (m1 - m0) / dt
+        self._memory_slope_mb_s = round(slope, 4)
+
+        if slope > vision_config.MEMORY_SLOPE_THRESHOLD_MB_S:
+            self._high_slope_streak += 1
+        else:
+            self._high_slope_streak = 0
+
+        self._memory_leak_suspected = (
+            self._high_slope_streak >= vision_config.MEMORY_CONSECUTIVE_WINDOWS
+        )
+
+    @property
+    def memory_mb(self) -> float:
+        if not self._memory_samples:
+            return 0.0
+        return self._memory_samples[-1][1]
+
     def memory_delta_mb(self) -> float:
-        """
-        Rolling memory growth (last sample − oldest sample in window).
-        Positive = growing; negative = shrinking.
-        """
         if len(self._memory_samples) < 2:
             return 0.0
-        return round(self._memory_samples[-1] - self._memory_samples[0], 1)
+        return round(self._memory_samples[-1][1] - self._memory_samples[0][1], 1)
+
+    def memory_growth_rate_mb_per_sec(self) -> float:
+        return self._memory_slope_mb_s
 
     def memory_leak_suspected(self) -> bool:
-        """Flag if RSS has been monotonically increasing across the entire window."""
-        if len(self._memory_samples) < self._MEMORY_WINDOW:
-            return False
-        return all(
-            self._memory_samples[i] < self._memory_samples[i + 1]
-            for i in range(len(self._memory_samples) - 1)
-        )
+        return self._memory_leak_suspected
 
     # ── Convenience setters ──────────────────────────────────────
 
     def set_running(self) -> None:
         self.engine_state = EngineState.RUNNING
         self.error_message = ""
+        self.stall_count = 0
 
     def set_stopped(self) -> None:
         self.engine_state = EngineState.STOPPED

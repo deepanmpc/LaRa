@@ -1,14 +1,18 @@
 """
-LaRa Vision Perception — Face Detector (v2)
-Production-hardened:
-  - Configurable camera intrinsic matrix (override or auto-derive from frame).
-  - Yaw/pitch clamped to ±90° to eliminate landmark jitter spikes.
-  - solvePnP failure handled gracefully — propagates last valid pose.
-  - Returns confidence score (0.0–1.0) from MediaPipe detection confidence.
+LaRa Vision Perception — Face Detector (v2.1)
+v2.1 upgrade: Full pose confidence layer.
+
+pose_confidence is computed from 3 signals:
+  1. MediaPipe landmark visibility score (mean of 6 key landmarks)
+  2. solvePnP reprojection error (pixel distance — lower = better)
+  3. Landmark spread quality (spatial coverage in frame)
+
+If pose_confidence < POSE_CONFIDENCE_MIN → lookingAtScreen forced False.
+pose_confidence is returned in the output dict for the confidence sub-object.
 """
 
 from collections import deque
-from typing import Optional, Tuple
+from typing import Tuple
 
 import cv2
 import mediapipe as mp
@@ -19,27 +23,24 @@ from utils.logger import get_logger
 
 log = get_logger(__name__)
 
-# Generic 3-D skull model reference points (metric: mm)
+# Generic 3-D skull model reference points (mm)
 _MODEL_POINTS = np.array([
-    (0.0,    0.0,    0.0),     # Nose tip
-    (0.0,   -330.0, -65.0),    # Chin
-    (-225.0, 170.0, -135.0),   # Left eye corner
-    (225.0,  170.0, -135.0),   # Right eye corner
-    (-150.0, -150.0, -125.0),  # Left mouth corner
-    (150.0,  -150.0, -125.0),  # Right mouth corner
+    (0.0,    0.0,    0.0),
+    (0.0,   -330.0, -65.0),
+    (-225.0, 170.0, -135.0),
+    (225.0,  170.0, -135.0),
+    (-150.0, -150.0, -125.0),
+    (150.0,  -150.0, -125.0),
 ], dtype=np.float64)
 
 _LANDMARK_INDICES = [1, 152, 263, 33, 287, 57]
-
-# Clamp angles to prevent solvePnP spikes on landmark jitter
 _YAW_CLAMP   = 90.0
 _PITCH_CLAMP = 90.0
 
 
 class FaceDetector:
     """
-    MediaPipe FaceMesh + solvePnP head pose.
-    Outputs: presence, yaw, pitch, lookingAtScreen, confidence.
+    MediaPipe FaceMesh + calibrated solvePnP head pose + pose confidence.
     """
 
     def __init__(self):
@@ -52,21 +53,16 @@ class FaceDetector:
         )
         self._yaw_buf: deque = deque(maxlen=vision_config.HEAD_POSE_BUFFER)
         self._pitch_buf: deque = deque(maxlen=vision_config.HEAD_POSE_BUFFER)
-
-        # Last valid solvePnP result — fallback on failure
-        self._last_valid_yaw: float = 0.0
+        self._last_valid_yaw:   float = 0.0
         self._last_valid_pitch: float = 0.0
-
-        # Cache derived camera matrix per (w, h) pair to avoid recomputing
         self._cam_cache: dict = {}
-
-        log.info("FaceDetector v2 initialised (MediaPipe FaceMesh + calibrated solvePnP)")
+        log.info("FaceDetector v2.1 initialised (pose confidence layer active)")
 
     def process(self, frame: np.ndarray) -> dict:
         """
         Returns:
             presence (bool), yaw (float), pitch (float),
-            lookingAtScreen (bool), confidence (float)
+            lookingAtScreen (bool), confidence (float), pose_confidence (float)
         """
         h, w = frame.shape[:2]
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -75,55 +71,100 @@ class FaceDetector:
         if not results.multi_face_landmarks:
             return {
                 "presence": False, "yaw": 0.0, "pitch": 0.0,
-                "lookingAtScreen": False, "confidence": 0.0,
+                "lookingAtScreen": False,
+                "confidence": 0.0,
+                "pose_confidence": 0.0,
             }
 
         lm = results.multi_face_landmarks[0].landmark
-        yaw, pitch, ok = self._estimate_head_pose(lm, w, h)
 
-        # Use last valid pose if solvePnP failed this frame
-        if not ok:
+        # ── Landmark visibility score ──────────────────────────────
+        visibility_scores = [
+            lm[i].visibility for i in _LANDMARK_INDICES
+            if hasattr(lm[i], "visibility")
+        ]
+        mean_visibility = float(np.mean(visibility_scores)) if visibility_scores else 0.0
+
+        # Skip pose estimation if landmarks are poorly visible
+        if mean_visibility < vision_config.LANDMARK_VISIBILITY_MIN:
+            return {
+                "presence": True, "yaw": 0.0, "pitch": 0.0,
+                "lookingAtScreen": False,
+                "confidence": round(mean_visibility, 3),
+                "pose_confidence": 0.0,
+            }
+
+        # ── solvePnP + reprojection error ─────────────────────────
+        yaw, pitch, reprojection_err, solvepnp_ok = self._estimate_head_pose(lm, w, h)
+
+        if not solvepnp_ok:
             yaw, pitch = self._last_valid_yaw, self._last_valid_pitch
-        else:
-            # Clamp to prevent spike on landmark jitter
-            yaw   = float(np.clip(yaw,   -_YAW_CLAMP,   _YAW_CLAMP))
-            pitch = float(np.clip(pitch, -_PITCH_CLAMP, _PITCH_CLAMP))
+            reprojection_err = vision_config.POSE_REPROJECTION_THRESHOLD * 2  # penalise
+
+        # Clamp angles
+        yaw   = float(np.clip(yaw,   -_YAW_CLAMP,   _YAW_CLAMP))
+        pitch = float(np.clip(pitch, -_PITCH_CLAMP, _PITCH_CLAMP))
+
+        if solvepnp_ok:
             self._last_valid_yaw   = yaw
             self._last_valid_pitch = pitch
 
-        # Smooth via rolling buffer
+        # Smooth
         self._yaw_buf.append(yaw)
         self._pitch_buf.append(pitch)
         yaw_s   = float(np.mean(self._yaw_buf))
         pitch_s = float(np.mean(self._pitch_buf))
 
-        looking = (
+        # ── Landmark spread quality ───────────────────────────────
+        pts = np.array([(lm[i].x * w, lm[i].y * h) for i in _LANDMARK_INDICES])
+        spread = float(np.std(pts))   # Higher spread = better coverage
+        spread_score = min(1.0, spread / 80.0)  # Normalise; 80px std = full score
+
+        # ── Composite pose_confidence ─────────────────────────────
+        # Signal 1: visibility (0–1)
+        vis_score = float(np.clip(mean_visibility, 0.0, 1.0))
+
+        # Signal 2: reprojection quality (lower err = higher score)
+        repro_score = float(np.clip(
+            1.0 - reprojection_err / (vision_config.POSE_REPROJECTION_THRESHOLD * 2),
+            0.0, 1.0,
+        ))
+
+        # Signal 3: spatial spread
+        pose_confidence = round(
+            0.40 * vis_score + 0.40 * repro_score + 0.20 * spread_score,
+            3,
+        )
+
+        # ── Gaze classification — soft fail on low confidence ─────
+        above_threshold = (
             abs(yaw_s)   < vision_config.GAZE_YAW_THRESHOLD
             and abs(pitch_s) < vision_config.GAZE_PITCH_THRESHOLD
         )
+        looking = above_threshold and (pose_confidence >= vision_config.POSE_CONFIDENCE_MIN)
 
-        # Derive confidence from landmark proximity to expected pattern
-        # Simple proxy: ratio of how "centred" the head is in the gaze window
-        yaw_conf   = max(0.0, 1.0 - abs(yaw_s)   / _YAW_CLAMP)
-        pitch_conf = max(0.0, 1.0 - abs(pitch_s) / _PITCH_CLAMP)
-        confidence = round((yaw_conf + pitch_conf) / 2.0, 3)
+        # Face detection confidence: head-centrality proxy
+        face_conf = round(
+            (max(0.0, 1.0 - abs(yaw_s) / _YAW_CLAMP) + max(0.0, 1.0 - abs(pitch_s) / _PITCH_CLAMP)) / 2.0,
+            3,
+        )
 
         return {
             "presence": True,
             "yaw": round(yaw_s, 2),
             "pitch": round(pitch_s, 2),
             "lookingAtScreen": looking,
-            "confidence": confidence,
+            "confidence": face_conf,
+            "pose_confidence": pose_confidence,
         }
 
-    # ── Camera intrinsics ────────────────────────────────────────────────────
+    # ── Camera intrinsics ─────────────────────────────────────────
 
     def _get_camera_matrix(self, w: int, h: int) -> np.ndarray:
         key = (w, h)
         if key not in self._cam_cache:
-            # Allow override via config; fall back to focal = frame width
             fx = getattr(vision_config, "CAMERA_FX", float(w))
-            fy = getattr(vision_config, "CAMERA_FY", float(w))  # square pixels assumed
+            fy = getattr(vision_config, "CAMERA_FY", float(w))
             cx = getattr(vision_config, "CAMERA_CX", w / 2.0)
             cy = getattr(vision_config, "CAMERA_CY", h / 2.0)
             self._cam_cache[key] = np.array([
@@ -133,12 +174,12 @@ class FaceDetector:
             ], dtype=np.float64)
         return self._cam_cache[key]
 
-    # ── solvePnP wrapper ─────────────────────────────────────────────────────
+    # ── solvePnP + reprojection error ─────────────────────────────
 
     def _estimate_head_pose(
         self, landmarks, w: int, h: int
-    ) -> Tuple[float, float, bool]:
-        """Returns (yaw_deg, pitch_deg, success_flag)."""
+    ) -> Tuple[float, float, float, bool]:
+        """Returns (yaw_deg, pitch_deg, reprojection_error_px, success)."""
         try:
             image_points = np.array([
                 (landmarks[i].x * w, landmarks[i].y * h)
@@ -146,24 +187,31 @@ class FaceDetector:
             ], dtype=np.float64)
 
             cam_matrix  = self._get_camera_matrix(w, h)
-            dist_coeffs = np.zeros((4, 1))  # Calibrated zeros — override if lens data available
+            dist_coeffs = np.zeros((4, 1))
 
             ok, rvec, tvec = cv2.solvePnP(
                 _MODEL_POINTS, image_points, cam_matrix, dist_coeffs,
                 flags=cv2.SOLVEPNP_ITERATIVE,
             )
             if not ok:
-                return 0.0, 0.0, False
+                return 0.0, 0.0, 999.0, False
+
+            # Compute reprojection error
+            projected, _ = cv2.projectPoints(
+                _MODEL_POINTS, rvec, tvec, cam_matrix, dist_coeffs
+            )
+            projected = projected.reshape(-1, 2)
+            reprojection_err = float(np.mean(np.linalg.norm(projected - image_points, axis=1)))
 
             rot_mat, _ = cv2.Rodrigues(rvec)
             _, _, _, _, _, _, euler = cv2.decomposeProjectionMatrix(
                 np.hstack([rot_mat, tvec])
             )
-            return float(euler[1]), float(euler[0]), True   # yaw, pitch
+            return float(euler[1]), float(euler[0]), reprojection_err, True
 
         except Exception as e:
             log.warning(f"solvePnP exception: {e}")
-            return 0.0, 0.0, False
+            return 0.0, 0.0, 999.0, False
 
     def close(self) -> None:
         self._face_mesh.close()
