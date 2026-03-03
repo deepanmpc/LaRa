@@ -1,7 +1,9 @@
 """
-LaRa Vision Perception — Engagement Score Tracker
-Combines face presence, gaze stability, and head-pose smoothness
-into a single rolling engagement float [0.0 – 1.0].
+LaRa Vision Perception — Engagement Score Tracker (v2)
+Production fix:
+  - Gesture weight ONLY contributes if lookingAtScreen == True.
+    Prevents random gestures (scratch, fidget) from inflating engagement.
+  - Returns confidence as a separate signal.
 """
 
 from collections import deque
@@ -15,24 +17,28 @@ log = get_logger(__name__)
 
 class EngagementTracker:
     """
-    Maintains a rolling buffer of per-frame engagement signals and
-    produces a smoothed score without recomputing from scratch each frame.
+    Rolling engagement score [0.0–1.0] from three signals.
 
-    Signals:
-      - face_present   (bool)  → 0.4 weight
-      - looking_at_screen (bool) → 0.4 weight
-      - gesture_active (bool)  → 0.2 weight  (any non-NONE gesture)
+    Signal weights:
+      face_present     → 0.45
+      looking_at_screen → 0.45
+      gesture_active   → 0.10  (contributes ONLY when lookingAtScreen=True)
+
+    Rationale: A child can wave their hand while looking away.
+    That should NOT count as engagement. Gesture bonus requires
+    the child to already be on-screen and looking at it.
     """
 
-    WEIGHTS = {
-        "face": 0.4,
-        "gaze": 0.4,
-        "gesture": 0.2,
-    }
+    W_FACE    = 0.45
+    W_GAZE    = 0.45
+    W_GESTURE = 0.10
 
     def __init__(self):
         self._buf: Deque[float] = deque(maxlen=vision_config.ENGAGEMENT_BUFFER)
-        log.info(f"EngagementTracker initialised (buffer={vision_config.ENGAGEMENT_BUFFER})")
+        log.info(
+            f"EngagementTracker v2: face={self.W_FACE}, gaze={self.W_GAZE}, "
+            f"gesture={self.W_GESTURE} (gaze-gated) | buffer={vision_config.ENGAGEMENT_BUFFER}"
+        )
 
     def update(
         self,
@@ -41,12 +47,15 @@ class EngagementTracker:
         gesture: str,
     ) -> float:
         """
-        Push one frame's signals into the buffer and return smoothed score.
+        Push one frame's signals; return smoothed rolling score.
+        Gesture weight applies only when lookingAtScreen == True.
         """
+        gesture_active = (gesture != "NONE") and looking_at_screen   # ← gaze-gated
+
         raw = (
-            self.WEIGHTS["face"] * float(face_present)
-            + self.WEIGHTS["gaze"] * float(looking_at_screen)
-            + self.WEIGHTS["gesture"] * float(gesture != "NONE")
+            self.W_FACE    * float(face_present)
+            + self.W_GAZE    * float(looking_at_screen)
+            + self.W_GESTURE * float(gesture_active)
         )
         self._buf.append(raw)
         score = sum(self._buf) / len(self._buf)

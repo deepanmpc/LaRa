@@ -1,6 +1,6 @@
 """
-LaRa Vision Perception — Hand Detector & Gesture Classifier
-MediaPipe Hands → landmark-based rule classifier.
+LaRa Vision Perception — Hand Detector & Gesture Classifier (v2)
+MediaPipe Hands → landmark-based rule classifier + confidence output.
 """
 
 from typing import Optional
@@ -33,17 +33,30 @@ class HandDetector:
 
     def process(self, frame: np.ndarray) -> str:
         """
-        Returns a gesture string: OPEN_PALM | FIST | THUMBS_UP | POINTING | PEACE | NONE
+        Returns a gesture label string (legacy API — keeps tests passing).
+        """
+        gesture, _ = self.process_with_confidence(frame)
+        return gesture
+
+    def process_with_confidence(self, frame: np.ndarray) -> tuple:
+        """
+        Returns (gesture_str, confidence_float).
+        Confidence = MediaPipe hand detection score, or 0.0 if no hand found.
         """
         import cv2
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = self._hands.process(rgb)
 
         if not results.multi_hand_landmarks:
-            return "NONE"
+            return "NONE", 0.0
 
         lm = results.multi_hand_landmarks[0].landmark
-        return self._classify(lm)
+        # MediaPipe confidence via multi_handedness
+        conf = 0.0
+        if results.multi_handedness:
+            conf = round(float(results.multi_handedness[0].classification[0].score), 3)
+
+        return self._classify(lm), conf
 
     # ── Internal gesture rules ───────────────────────────────────
 
