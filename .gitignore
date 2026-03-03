@@ -28,17 +28,26 @@ data/
 
 # Large model / build dirs — not committed
 model/
+models/
+src/vision_perception/models/
 !model/.gitkeep
+!src/vision_perception/models/.gitkeep
 whisper.cpp/
 installations/
 pretrained_models/
 
+# Specific ML formats
+*.pt
+*.onnx
+*.weights
+*.tflite
+*.pb
 
 # Misc
 *.pyc
 .pytest_cache/
 inp.txt
-
-
-!/Users/deepandee/Desktop/LaRa/vision_perception
+.env
+.idea/
+.vscode/
 
