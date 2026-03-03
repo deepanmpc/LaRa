@@ -38,3 +38,7 @@ pretrained_models/
 *.pyc
 .pytest_cache/
 inp.txt
+
+
+!/Users/deepandee/Desktop/LaRa/vision_perception
+
