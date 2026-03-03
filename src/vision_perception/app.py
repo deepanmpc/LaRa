@@ -29,7 +29,7 @@ log = get_logger(__name__)
 app = FastAPI(
     title="LaRa Vision Perception",
     description="Independent vision microservice for the LaRa learning companion system.",
-    version="1.0.0",
+    version="2.0.0",
 )
 
 app.add_middleware(
@@ -61,17 +61,19 @@ async def health():
 
 @app.get("/status")
 async def status():
-    """Returns engine state, FPS, and memory usage."""
-    proc = psutil.Process()
-    mem_mb = round(proc.memory_info().rss / 1_048_576, 1)
+    """Returns engine state, FPS, memory usage, and proactive leak indicators."""
+    mem_mb = perception_state.sample_memory()
     over_limit = mem_mb > vision_config.MAX_MEMORY_MB
 
     return {
-        "state":    perception_state.engine_state.value,
-        "fps":      perception_state.fps,
-        "memory_mb": mem_mb,
-        "memory_warning": over_limit,
-        "error":    perception_state.error_message or None,
+        "state":               perception_state.engine_state.value,
+        "fps":                 perception_state.fps,
+        "memory_mb":           mem_mb,
+        "memory_delta_mb":     perception_state.memory_delta_mb(),
+        "memory_warning":      over_limit,
+        "memory_leak_suspected": perception_state.memory_leak_suspected(),
+        "yolo_interval":       _engine._objects.current_interval,
+        "error":               perception_state.error_message or None,
     }
 
 
@@ -114,7 +116,7 @@ async def latest():
             status_code=503,
             detail="Perception engine is not running. Call POST /start first.",
         )
-    return perception_state.latest
+    return perception_state.latest.to_dict()
 
 
 # ── Test Mode (CLI) ──────────────────────────────────────────
@@ -137,9 +139,10 @@ def _run_test_mode():
     try:
         while True:
             time.sleep(vision_config.TEST_MODE_LOG_INTERVAL)
-            output = perception_state.latest
-            output["_fps"] = perception_state.fps
-            print(json.dumps(output, indent=2))
+            output_dict = perception_state.latest.to_dict()
+            output_dict["_fps"] = perception_state.fps
+            output_dict["_yolo_interval"] = _engine._objects.current_interval
+            print(json.dumps(output_dict, indent=2))
     except KeyboardInterrupt:
         print("\nStopping...")
     finally:
