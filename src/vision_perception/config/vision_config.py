@@ -32,9 +32,11 @@ ENGAGEMENT_THRESHOLDS: dict = {
 }
 
 # ─── Engagement decay (absence) ──────────────────────────
-# When presence == False, the current score is multiplied by this factor
-# per frame. 0.7 gives aggressive decay; 0.9 gives gentle decay.
+# FAST (internal): collapses score quickly — raw signal fidelity
 ENGAGEMENT_DECAY_RATE_FAST: float = 0.7
+# SLOW (UI): exposed to dashboard — smooth decay for human perception
+# 0.95^15 ≈ 0.46  (halved after 1 sec at 15fps — perceptible but not jarring)
+ENGAGEMENT_DECAY_RATE_UI: float = 0.95
 
 # ─── Head pose "looking at screen" window ─────────────────
 GAZE_YAW_THRESHOLD: float = 25.0
@@ -63,6 +65,7 @@ YOLO_ADJUST_INTERVAL_S: float = 2.0    # Minimum seconds between interval change
 MEMORY_WINDOW: int = 20                 # Rolling sample window
 MEMORY_SLOPE_THRESHOLD_MB_S: float = 0.5  # MB/sec growth rate trigger
 MEMORY_CONSECUTIVE_WINDOWS: int = 3      # Must exceed slope for N windows
+MEMORY_TRACK_PEAK: bool = True           # Track per-session RSS peaks for fragmentation detection
 
 # ─── System confidence weights ────────────────────────────
 # Weighted mean → systemConfidence
