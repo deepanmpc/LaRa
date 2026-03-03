@@ -1,16 +1,33 @@
 """
-LaRa Vision Perception — PerceptionEngine (v2.1)
-v2.1 upgrade: Watchdog escalation policy.
-  - 1 stall (>500ms)    → log WARNING
-  - 3 consecutive stalls → soft restart pipeline loop (new thread)
-  - 5 consecutive stalls → set state = ERROR, stop engine
+LaRa Vision Perception — PerceptionEngine (v2.2)
+v2.2 risk surface fixes:
 
-Also:
-  - PerceptionSkipReason used for accurate skip classification.
-  - systemConfidence computed as weighted mean per config weights.
-  - pose_confidence routed into PerceptionConfidence.pose.
+  Fix 1 – Soft Restart Safety:
+    On 3-stall restart, fully reinitialise detector instances
+    (MediaPipe face, MediaPipe hands, YOLO session). Assumes partial
+    CUDA/session corruption and treats model objects as disposable.
+
+  Fix 2 – Quality Gate Stable State:
+    If frame fails quality gate, publish last STABLE output
+    (dataclasses.replace to update skip reason + timestamp) instead
+    of a blank PerceptionOutput. Prevents dim-lighting from being
+    misinterpreted as child absence.
+
+  Fix 3 – Pessimistic systemConfidence:
+    systemConfidence = min(face, pose, objects) — exposes the weakest
+    link instead of averaging it out. Appropriate for safety-critical
+    robotics. Hides nothing.
+
+  Fix 4 – Dual Engagement Score:
+    Passes (score, ui_score) from EngagementTracker into PerceptionOutput
+    for both engagementScore and engagementScoreUI.
+
+  Fix 5 – Peak Memory Session Tracking:
+    Calls perception_state.record_session_peak() on every soft restart
+    so the peak-climb detector accumulates data at restart boundaries.
 """
 
+import dataclasses
 import threading
 import time
 from typing import Optional
@@ -32,17 +49,15 @@ from utils.logger import get_logger
 
 log = get_logger(__name__)
 
-_WATCHDOG_STALL_S = 0.5          # Stall threshold
-_WATCHDOG_SOFT_RESTART_AT = 3    # Consecutive stalls before soft restart
-_WATCHDOG_ERROR_AT = 5           # Consecutive stalls before ERROR state
-_MEMORY_SAMPLE_INTERVAL = 30     # Frames between memory samples
+_WATCHDOG_STALL_S        = 0.5
+_WATCHDOG_SOFT_RESTART_AT = 3
+_WATCHDOG_ERROR_AT       = 5
+_MEMORY_SAMPLE_INTERVAL  = 30
 
 
 class PerceptionEngine:
     """
-    Orchestrates the vision pipeline in a daemon thread.
-    v2.1: 3-tier watchdog escalation + accurate skip classification
-          + systemConfidence weighted aggregation.
+    Vision pipeline orchestrator (v2.2).
     """
 
     def __init__(self):
@@ -57,6 +72,9 @@ class PerceptionEngine:
         self._watchdog: Optional[threading.Thread] = None
         self._last_tick: float = time.monotonic()
         self._frame_counter: int = 0
+
+        # Fix 2: last stable output for quality gate fallback
+        self._last_stable: Optional[PerceptionOutput] = None
 
     # ── Public API ───────────────────────────────────────────────
 
@@ -74,12 +92,10 @@ class PerceptionEngine:
         self._last_tick = time.monotonic()
         self._spawn_pipeline_thread()
         self._watchdog = threading.Thread(
-            target=self._watchdog_loop,
-            daemon=True,
-            name="engine-watchdog",
+            target=self._watchdog_loop, daemon=True, name="engine-watchdog"
         )
         self._watchdog.start()
-        log.info("PerceptionEngine v2.1 started")
+        log.info("PerceptionEngine v2.2 started")
 
     def stop(self) -> None:
         perception_state.set_stopped()
@@ -90,27 +106,50 @@ class PerceptionEngine:
             self._watchdog.join(timeout=2.0)
             self._watchdog = None
         self._camera.stop()
-        self._face.close()
-        self._hand.close()
-        log.info("PerceptionEngine v2.1 stopped cleanly")
+        self._close_detectors()
+        log.info("PerceptionEngine v2.2 stopped cleanly")
 
     def _spawn_pipeline_thread(self) -> None:
         self._thread = threading.Thread(
-            target=self._pipeline_loop,
-            daemon=True,
-            name="perception-engine",
+            target=self._pipeline_loop, daemon=True, name="perception-engine"
         )
         self._thread.start()
 
-    # ── Watchdog (3-tier escalation) ─────────────────────────────
+    # ── Fix 1: Full detector reinit (called by watchdog on soft restart) ──────
+
+    def _reinit_detectors(self) -> None:
+        """
+        Fully destroy and recreate all MediaPipe and YOLO model instances.
+        Required on soft restart — assumes session/CUDA context may be corrupted.
+        """
+        log.warning("Reinitialising all detector instances (full session reset)")
+        try:
+            self._face.close()
+        except Exception as e:
+            log.warning(f"Error closing FaceDetector: {e}")
+        try:
+            self._hand.close()
+        except Exception as e:
+            log.warning(f"Error closing HandDetector: {e}")
+
+        self._face    = FaceDetector()
+        self._hand    = HandDetector()
+        self._objects = ObjectDetector()
+        log.info("All detector instances reinitialised successfully")
+
+    def _close_detectors(self) -> None:
+        try:
+            self._face.close()
+        except Exception:
+            pass
+        try:
+            self._hand.close()
+        except Exception:
+            pass
+
+    # ── Watchdog (3-tier escalation + peak session recording) ────
 
     def _watchdog_loop(self) -> None:
-        """
-        Escalation policy:
-          1 stall  → WARNING log
-          3 stalls → soft restart (spawn new pipeline thread)
-          5 stalls → ENGINE ERROR state
-        """
         consecutive = 0
         while perception_state.is_running():
             time.sleep(0.25)
@@ -122,30 +161,30 @@ class PerceptionEngine:
 
             consecutive += 1
             perception_state.stall_count += 1
-            self._last_tick = time.monotonic()  # reset to avoid log flood
+            self._last_tick = time.monotonic()
 
             log.warning({
-                "msg": "Watchdog stall detected",
+                "msg": "Watchdog stall",
                 "stall_ms": round(stall_s * 1000),
                 "consecutive": consecutive,
-                "stall_count_total": perception_state.stall_count,
+                "total_stalls": perception_state.stall_count,
             })
 
             if consecutive >= _WATCHDOG_ERROR_AT:
-                log.error("Watchdog: 5 consecutive stalls — setting ENGINE ERROR")
-                perception_state.set_error("Watchdog: pipeline stalled 5 consecutive times")
+                log.error("Watchdog: 5 consecutive stalls — ENGINE ERROR")
+                perception_state.set_error("Watchdog: 5 consecutive stalls")
                 break
 
             if consecutive == _WATCHDOG_SOFT_RESTART_AT:
-                log.warning("Watchdog: 3 consecutive stalls — attempting soft restart")
-                if self._thread and self._thread.is_alive():
-                    # Cannot kill the thread directly — mark state and respawn
-                    # Old thread will exit on its next is_running() check
-                    pass
+                log.warning("Watchdog: 3 stalls — full detector reinit + thread respawn")
+                # Record session peak before restart — feeds peak-leak detector
+                perception_state.record_session_peak()
+                # Fix 1: fully reinitialise model sessions
+                self._reinit_detectors()
                 self._spawn_pipeline_thread()
-                log.info("Watchdog: new pipeline thread spawned")
+                log.info("Watchdog: soft restart complete")
 
-    # ── Pipeline loop ────────────────────────────────────────────
+    # ── Pipeline loop ─────────────────────────────────────────────
 
     def _pipeline_loop(self) -> None:
         frame_budget_s = 1.0 / vision_config.TARGET_FPS
@@ -154,34 +193,29 @@ class PerceptionEngine:
         while perception_state.is_running():
             t_loop_start = time.monotonic()
 
-            # ── Frame acquisition ────────────────────────────────
+            # ── Frame acquisition ─────────────────────────────────
             frame = self._camera.get_frame()
             if frame is None:
-                skipped = PerceptionOutput(
-                    skipped=PerceptionSkipReason(camera_drop=True),
-                    timestamp=round(time.time(), 4),
-                )
-                perception_state.publish(skipped)
+                output = self._make_skip(camera_drop=True)
+                perception_state.publish(output)
                 time.sleep(0.005)
                 continue
 
             self._last_tick = time.monotonic()
 
-            # ── Frame quality gate ───────────────────────────────
+            # ── Fix 2: Quality gate — preserve stable state ───────
             if not self._quality.is_usable(frame):
-                skipped = PerceptionOutput(
-                    skipped=PerceptionSkipReason(quality=True),
-                    timestamp=round(time.time(), 4),
-                )
-                perception_state.publish(skipped)
+                output = self._make_skip(quality=True)
+                perception_state.publish(output)
                 perception_state.tick()
                 elapsed = (time.monotonic() - t_loop_start) * 1000
                 time.sleep(max(0.0, frame_budget_s - elapsed / 1000.0))
                 continue
 
-            # ── Full detection pipeline ──────────────────────────
+            # ── Full detection pipeline ───────────────────────────
             try:
                 output = self._process_frame(frame)
+                self._last_stable = output          # update stable snapshot
             except Exception as e:
                 log.warning(f"Pipeline error: {e}")
                 output = perception_state.latest
@@ -189,34 +223,64 @@ class PerceptionEngine:
             perception_state.publish(output)
             perception_state.tick()
 
-            # ── Timing feedback to adaptive throttle ─────────────
             loop_ms = (time.monotonic() - t_loop_start) * 1000
             self._objects.update_throttle(loop_ms, budget_ms)
 
-            # ── Periodic memory sampling ──────────────────────────
             self._frame_counter += 1
             if self._frame_counter % _MEMORY_SAMPLE_INTERVAL == 0:
                 perception_state.sample_memory()
                 if perception_state.memory_leak_suspected():
                     log.warning({
-                        "msg": "Memory leak suspected",
+                        "msg": "Memory leak (slope)",
                         "slope_mb_s": perception_state.memory_growth_rate_mb_per_sec(),
-                        "delta_mb": perception_state.memory_delta_mb(),
+                    })
+                if perception_state.peak_leak_suspected():
+                    log.warning({
+                        "msg": "Memory leak (peak fragmentation)",
+                        "peak_mb": perception_state.current_session_peak_mb,
                     })
 
-            # ── Sleep to maintain FPS ─────────────────────────────
             sleep_s = max(0.0, frame_budget_s - loop_ms / 1000.0)
             if sleep_s > 0:
                 time.sleep(sleep_s)
 
-    # ── Frame processing ─────────────────────────────────────────
+    # ── Fix 2 helper: stable-state quality skip ───────────────────
+
+    def _make_skip(
+        self,
+        quality: bool = False,
+        throttle: bool = False,
+        camera_drop: bool = False,
+    ) -> PerceptionOutput:
+        """
+        Returns the last stable output with updated skip reason + timestamp.
+        If no stable output exists yet, returns a null output.
+        This ensures quality-gate skips don't zero-out presence or engagement.
+        """
+        skip_reason = PerceptionSkipReason(
+            quality=quality, throttle=throttle, camera_drop=camera_drop
+        )
+        if self._last_stable is not None:
+            # Clone last known-good frame; only override skip + timestamp
+            return dataclasses.replace(
+                self._last_stable,
+                skipped=skip_reason,
+                timestamp=round(time.time(), 4),
+            )
+        return PerceptionOutput(
+            skipped=skip_reason,
+            timestamp=round(time.time(), 4),
+        )
+
+    # ── Frame processing ──────────────────────────────────────────
 
     def _process_frame(self, frame: np.ndarray) -> PerceptionOutput:
         face_out = self._face.process(frame)
         gesture, gesture_conf = self._hand.process_with_confidence(frame)
         objects, obj_conf = self._objects.process(frame)
 
-        score = self._engagement.update(
+        # Fix 4: unpack dual-track engagement scores
+        score, ui_score = self._engagement.update(
             face_present=face_out["presence"],
             looking_at_screen=face_out["lookingAtScreen"],
             gesture=gesture,
@@ -225,13 +289,8 @@ class PerceptionEngine:
         face_conf = face_out.get("confidence", 0.0)
         pose_conf = face_out.get("pose_confidence", 0.0)
 
-        # ── System confidence (weighted mean of key sub-confidences)
-        system_confidence = round(
-            vision_config.SYSTEM_CONF_W_FACE    * face_conf
-            + vision_config.SYSTEM_CONF_W_POSE  * pose_conf
-            + vision_config.SYSTEM_CONF_W_OBJECTS * obj_conf,
-            3,
-        )
+        # Fix 3: pessimistic fusion — min exposes weakest sensor
+        system_confidence = round(min(face_conf, pose_conf, obj_conf), 3)
 
         confidence = PerceptionConfidence(
             face=face_conf,
@@ -245,9 +304,10 @@ class PerceptionEngine:
             faceVerified=False,
             lookingAtScreen=face_out["lookingAtScreen"],
             engagementScore=score,
+            engagementScoreUI=ui_score,
             gesture=gesture,
             detectedObjects=tuple(objects),
-            skipped=PerceptionSkipReason(),   # all False — full frame
+            skipped=PerceptionSkipReason(),
             confidence=confidence,
             systemConfidence=system_confidence,
             timestamp=round(time.time(), 4),
