@@ -78,22 +78,6 @@ class FaceDetector:
 
         lm = results.multi_face_landmarks[0].landmark
 
-        # ── Landmark visibility score ──────────────────────────────
-        visibility_scores = [
-            lm[i].visibility for i in _LANDMARK_INDICES
-            if hasattr(lm[i], "visibility")
-        ]
-        mean_visibility = float(np.mean(visibility_scores)) if visibility_scores else 0.0
-
-        # Skip pose estimation if landmarks are poorly visible
-        if mean_visibility < vision_config.LANDMARK_VISIBILITY_MIN:
-            return {
-                "presence": True, "yaw": 0.0, "pitch": 0.0,
-                "lookingAtScreen": False,
-                "confidence": round(mean_visibility, 3),
-                "pose_confidence": 0.0,
-            }
-
         # ── solvePnP + reprojection error ─────────────────────────
         yaw, pitch, reprojection_err, solvepnp_ok = self._estimate_head_pose(lm, w, h)
 
@@ -121,18 +105,15 @@ class FaceDetector:
         spread_score = min(1.0, spread / 80.0)  # Normalise; 80px std = full score
 
         # ── Composite pose_confidence ─────────────────────────────
-        # Signal 1: visibility (0–1)
-        vis_score = float(np.clip(mean_visibility, 0.0, 1.0))
-
-        # Signal 2: reprojection quality (lower err = higher score)
+        # Signal 1: reprojection quality (lower err = higher score)
         repro_score = float(np.clip(
             1.0 - reprojection_err / (vision_config.POSE_REPROJECTION_THRESHOLD * 2),
             0.0, 1.0,
         ))
 
-        # Signal 3: spatial spread
+        # Signal 2: spatial spread
         pose_confidence = round(
-            0.40 * vis_score + 0.40 * repro_score + 0.20 * spread_score,
+            0.70 * repro_score + 0.30 * spread_score,
             3,
         )
 
