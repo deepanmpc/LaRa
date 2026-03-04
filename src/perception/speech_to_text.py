@@ -86,10 +86,11 @@ except ImportError as e:
     ChildPreferenceManager = None
 
 try:
-    from src.session.session_summary import generate_session_summary
+    from src.session.session_summary import generate_session_summary, export_session_summary
 except ImportError as e:
-    logging.warning(f"Could not import generate_session_summary: {e}")
+    logging.warning(f"Could not import session summaries: {e}")
     generate_session_summary = None
+    export_session_summary = None
 
 try:
     from src.memory.vector_memory import VectorMemory
@@ -576,6 +577,8 @@ def run_conversation_loop():
                                     learning_manager=learning_manager,
                                     reinforcement_manager=reinforcement_manager,
                                 )
+                                if export_session_summary:
+                                    export_session_summary(summary_context, session.session_id)
                             
                             # --- Vector Memory Retrieval (Section 16, RAG) ---
                             vector_context = ""

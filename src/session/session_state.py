@@ -120,6 +120,7 @@ class SessionState:
         
         logging.info(
             f"[Session] Turn {self.turn_count} complete | "
+            f"Difficulty: {self.current_difficulty} | "
             f"Locked: {self.difficulty_locked_turns > 0}"
         )
         self.save_to_disk()
