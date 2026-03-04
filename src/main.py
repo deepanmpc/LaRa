@@ -58,38 +58,8 @@ signal.signal(signal.SIGTERM, _handle_signal)
 
 
 # ── Entrypoint ─────────────────────────────────────────────────────────────────
-def setup_logging():
-    """Configure system and interaction loggers."""
-    from src.core.runtime_paths import get_log_path
-    from src.core.constants import SYSTEM_LOG, INTERACTION_LOG, LOG_LEVEL
-    
-    # 1. Root logger (System errors)
-    sys_log = get_log_path(SYSTEM_LOG)
-    logging.basicConfig(
-        filename=sys_log,
-        level=LOG_LEVEL,
-        format='%(asctime)s | %(levelname)s | %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
-    
-    # 2. Add an explicit StreamHandler so users see warnings on console natively
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.WARNING)
-    console_formatter = logging.Formatter('%(asctime)s | %(levelname)s | %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-    console_handler.setFormatter(console_formatter)
-    logging.getLogger().addHandler(console_handler)
-    
-    # 3. Dedicated logger for conversational interactions
-    int_log = get_log_path(INTERACTION_LOG)
-    interact_logger = logging.getLogger("InteractionLog")
-    interact_logger.setLevel(logging.INFO)
-    fh = logging.FileHandler(int_log, encoding="utf-8")
-    fh.setFormatter(logging.Formatter('%(asctime)s | %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
-    interact_logger.addHandler(fh)
-    
-    logging.info("=" * 60)
-    logging.info("LaRa System Boot Sequence Started")
-    logging.info("=" * 60)
+from src.core.logger import setup_logging
+
 
 def run():
     """Main entrypoint — called by CLI script or directly."""
