@@ -1,28 +1,37 @@
 import axios from 'axios';
-import { useAuthStore } from '../store/authStore';
+
+// In production, use the full URL from env (VITE_API_BASE_URL).
+// In dev, fall back to '/api' so the Vite proxy routes to backend.
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 
 const api = axios.create({
-    baseURL: 'http://localhost:8080/api', // Spring Boot Backend
+    baseURL: API_BASE,
+    headers: {
+        'Content-Type': 'application/json',
+    },
 });
 
-// Request interceptor to attach JWT token
+
+// Attach JWT before every request
 api.interceptors.request.use(
     (config) => {
-        const token = useAuthStore.getState().token;
+        const token = localStorage.getItem('lara_token');
         if (token) {
-            config.headers['Authorization'] = `Bearer ${token}`;
+            config.headers.Authorization = `Bearer ${token}`;
         }
         return config;
     },
     (error) => Promise.reject(error)
 );
 
-// Response interceptor to handle 401 Unauthorized
+// Handle 401 globally - clear auth and redirect
 api.interceptors.response.use(
     (response) => response,
     (error) => {
-        if (error.response?.status === 401) {
-            useAuthStore.getState().logout();
+        if (error.response?.status === 401 || error.response?.status === 403) {
+            localStorage.removeItem('lara_token');
+            localStorage.removeItem('lara_user');
+            window.location.href = '/login';
         }
         return Promise.reject(error);
     }
