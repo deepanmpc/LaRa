@@ -28,16 +28,10 @@ except Exception:
     _DB_OVERRIDE    = None
     _DECAY_FACTOR   = 0.95
 
-# Database file location — uses runtime directory (outside repo)
-try:
-    from src.core.runtime_paths import get_memory_db_path
-    _db_file = _DB_OVERRIDE if _DB_OVERRIDE else "lara_memory.db"
-    DB_PATH = get_memory_db_path(_db_file)
-except Exception:
-    # Fallback to legacy location
-    DB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "data")
-    _db_file = _DB_OVERRIDE if _DB_OVERRIDE else "lara_memory.db"
-    DB_PATH = os.path.join(DB_DIR, _db_file)
+from src.core.runtime_paths import get_memory_db_path
+
+_db_file = _DB_OVERRIDE if _DB_OVERRIDE else "lara_memory.db"
+DB_PATH = get_memory_db_path(_db_file)
 
 # Emotional metric decay
 METRIC_DECAY_FACTOR    = _DECAY_FACTOR

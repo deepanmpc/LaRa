@@ -9,20 +9,14 @@ import os
 import sys
 import time
 
+from src.core.config_loader import CONFIG
 from src.core.runtime_paths import get_log_path
 
-try:
-    from src.core.config_loader import CONFIG
-    _cfg = CONFIG.logging
-    LOG_LEVEL   = getattr(logging, _cfg.level.upper(), logging.INFO)
-    SYSTEM_LOG  = _cfg.system_log
-    INTERACTION_LOG = _cfg.interaction_log
-    STRUCTURED  = _cfg.structured
-except Exception:
-    LOG_LEVEL   = logging.INFO
-    SYSTEM_LOG  = "lara_system.log"
-    INTERACTION_LOG = "lara_interaction.log"
-    STRUCTURED  = True
+_cfg = CONFIG.logging
+LOG_LEVEL   = getattr(logging, _cfg.level.upper(), logging.INFO)
+SYSTEM_LOG  = _cfg.system_log
+INTERACTION_LOG = _cfg.interaction_log
+STRUCTURED  = _cfg.structured
 
 # ── Rate Limiting ─────────────────────────────────────────────────────────────
 _last_log_time = {}

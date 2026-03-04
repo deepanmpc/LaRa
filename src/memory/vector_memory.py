@@ -83,14 +83,8 @@ class VectorMemory:
 
         # Use runtime_paths for persist directory (outside repo)
         if persist_dir is None:
-            try:
-                from src.core.runtime_paths import get_vector_store_path
-                persist_dir = get_vector_store_path()
-            except Exception:
-                persist_dir = os.path.join(
-                    os.path.dirname(os.path.abspath(__file__)),
-                    "lara_vector_store"
-                )
+            from src.core.runtime_paths import get_vector_store_path
+            persist_dir = get_vector_store_path()
         os.makedirs(persist_dir, exist_ok=True)
 
         try:

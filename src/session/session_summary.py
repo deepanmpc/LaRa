@@ -71,3 +71,30 @@ def generate_session_summary(session, learning_manager=None, reinforcement_manag
     summary = "\n".join(lines)
     logging.debug(f"[SessionSummary] Generated: {trend} | D{difficulty} | T{turn}")
     return summary
+
+
+def export_session_summary(summary: str, session_id: str) -> None:
+    """
+    Appends the deterministic summary to a persistent text log for this session.
+    
+    Args:
+        summary: The generated summary string.
+        session_id: The ID of the current session.
+    """
+    if not summary or not session_id:
+        return
+        
+    try:
+        from src.core.runtime_paths import get_sessions_dir
+        import os
+        import time
+        
+        sessions_dir = get_sessions_dir()
+        log_path = os.path.join(sessions_dir, f"session_{session_id}_summary.txt")
+        
+        ts = time.strftime("%Y-%m-%d %H:%M:%S")
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"\n--- {ts} ---\n")
+            f.write(summary + "\n")
+    except Exception as e:
+        logging.error(f"[SessionSummary] Failed to export to disk: {e}")

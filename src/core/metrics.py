@@ -18,17 +18,11 @@ from contextlib import contextmanager
 from collections import defaultdict
 from typing import Optional
 
-try:
-    from src.core.config_loader import CONFIG
-    _METRICS_LOG = "lara_metrics.log"
-except Exception:
-    _METRICS_LOG = "lara_metrics.log"
+from src.core.config_loader import CONFIG
+from src.core.runtime_paths import get_log_path
 
-try:
-    from src.core.runtime_paths import get_log_path
-    _METRICS_PATH = get_log_path(_METRICS_LOG)
-except Exception:
-    _METRICS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), _METRICS_LOG)
+_METRICS_LOG = "lara_metrics.log"
+_METRICS_PATH = get_log_path(_METRICS_LOG)
 
 
 # ── In-memory summary ──────────────────────────────────────────────────────────

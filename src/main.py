@@ -58,6 +58,39 @@ signal.signal(signal.SIGTERM, _handle_signal)
 
 
 # ── Entrypoint ─────────────────────────────────────────────────────────────────
+def setup_logging():
+    """Configure system and interaction loggers."""
+    from src.core.runtime_paths import get_log_path
+    from src.core.constants import SYSTEM_LOG, INTERACTION_LOG, LOG_LEVEL
+    
+    # 1. Root logger (System errors)
+    sys_log = get_log_path(SYSTEM_LOG)
+    logging.basicConfig(
+        filename=sys_log,
+        level=LOG_LEVEL,
+        format='%(asctime)s | %(levelname)s | %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    
+    # 2. Add an explicit StreamHandler so users see warnings on console natively
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.WARNING)
+    console_formatter = logging.Formatter('%(asctime)s | %(levelname)s | %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    console_handler.setFormatter(console_formatter)
+    logging.getLogger().addHandler(console_handler)
+    
+    # 3. Dedicated logger for conversational interactions
+    int_log = get_log_path(INTERACTION_LOG)
+    interact_logger = logging.getLogger("InteractionLog")
+    interact_logger.setLevel(logging.INFO)
+    fh = logging.FileHandler(int_log, encoding="utf-8")
+    fh.setFormatter(logging.Formatter('%(asctime)s | %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
+    interact_logger.addHandler(fh)
+    
+    logging.info("=" * 60)
+    logging.info("LaRa System Boot Sequence Started")
+    logging.info("=" * 60)
+
 def run():
     """Main entrypoint — called by CLI script or directly."""
     logging.info(
@@ -74,13 +107,9 @@ def run():
     print("=" * 60)
 
     try:
-        # Load singletons BEFORE entering the loop
-        print("\n\033[93m[System Boot]\033[0m Initializing neural services (STT, TTS, LLM)...")
-        import time
-        t0 = time.time()
-        initialize_system()
-        print(f"\033[93m[System Boot]\033[0m Complete. Services loaded in {time.time()-t0:.2f}s\n")
-        
+        # The system initialization and heavy imports are now handled in __main__
+        # This function primarily runs the conversation loop.
+        from src.perception.speech_to_text import run_conversation_loop
         run_conversation_loop()
     except KeyboardInterrupt:
         pass
@@ -94,4 +123,37 @@ def run():
 
 
 if __name__ == "__main__":
+    print("\n\033[96m============================================================\033[0m")
+    print("\033[96m        LaRa — Low-Cost Adaptive Robotic-AI Assistant\033[0m")
+    print("\033[96m        Model: AgentricAi/AgentricAI_TLM:latest\033[0m")
+    print("\033[96m        Wake word: 'friday'\033[0m")
+    print("\033[96m============================================================\033[0m\n")
+
+    # 1. Pre-init runtime directories required for all file I/O operations
+    import src.core.runtime_paths as rp
+    rp.initialize()
+
+    # 2. Configure loggers
+    setup_logging()
+    
+    # 3. Import heavy components (Lazy-loads CTranslate2, WhisperModel, Torch, etc.)
+    import time
+    t0 = time.time()
+    try:
+        from src.system.bootstrap import initialize as initialize_system
+        # run_conversation_loop is now imported inside the run() function
+    except ImportError as e:
+        logging.error(f"[Main] Could not load conversational logic: {e}")
+        sys.exit(1)
+    
+    # 4. Spin up singletons
+    print("\033[93m[System Boot]\033[0m Initializing neural services (STT, TTS, LLM)...")
+    try:
+        initialize_system()
+        print(f"\033[93m[System Boot]\033[0m Complete. Services loaded in {time.time()-t0:.2f}s\n")
+    except Exception as e:
+        logging.critical(f"[System Boot] Fatal initialization error: {e}")
+        sys.exit(1)
+    
+    # 5. Run the main application loop
     run()

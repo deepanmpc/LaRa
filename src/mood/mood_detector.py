@@ -238,15 +238,15 @@ class MoodDetector:
                 return Mood.HAPPY, 0.3
             
             # Check frustration keywords in short utterance
-            if _keyword_match_count(MOOD_KEYWORDS[Mood.FRUSTRATED], text_lower) > 0:
+            if _keyword_match_count(PRECOMPILED_PATTERNS[Mood.FRUSTRATED], text_lower) > 0:
                 return Mood.FRUSTRATED, 0.35
             
             # Check anxiety/help-seeking keywords in short utterance
-            if _keyword_match_count(MOOD_KEYWORDS[Mood.ANXIOUS], text_lower) > 0:
+            if _keyword_match_count(PRECOMPILED_PATTERNS[Mood.ANXIOUS], text_lower) > 0:
                 return Mood.ANXIOUS, 0.35
             
             # Check sad keywords
-            if _keyword_match_count(MOOD_KEYWORDS[Mood.SAD], text_lower) > 0:
+            if _keyword_match_count(PRECOMPILED_PATTERNS[Mood.SAD], text_lower) > 0:
                 return Mood.SAD, 0.35
             
             # No signal — default to quiet (low confidence)

@@ -34,17 +34,12 @@ RUNTIME_ROOT: str = os.environ.get("LARA_DATA_DIR", _DEFAULT_ROOT)
 _SUBDIRS = ["logs", "memory", "sessions", "models"]
 
 
-def _ensure_dirs() -> None:
-    """Create the runtime directory tree if it doesn't exist."""
+def initialize() -> None:
+    """Create the runtime directory tree if it doesn't exist. Called by main.py."""
     for sub in _SUBDIRS:
         path = os.path.join(RUNTIME_ROOT, sub)
         os.makedirs(path, exist_ok=True)
     _logger.debug(f"Runtime directories ensured under {RUNTIME_ROOT}")
-
-
-# Auto-create on import
-_ensure_dirs()
-
 
 # ── Public helpers ────────────────────────────────────────────
 

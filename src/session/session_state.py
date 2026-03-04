@@ -21,7 +21,9 @@ Design rules (from rules_task_todo.md):
 import time
 import uuid
 import logging
-from dataclasses import dataclass, field
+import json
+import os
+from dataclasses import dataclass, field, asdict
 
 
 # Maximum characters to store for last input/response (privacy + memory)
@@ -118,10 +120,24 @@ class SessionState:
         
         logging.info(
             f"[Session] Turn {self.turn_count} complete | "
-            f"Difficulty: {self.current_difficulty} | "
             f"Locked: {self.difficulty_locked_turns > 0}"
         )
+        self.save_to_disk()
     
+    def save_to_disk(self):
+        """
+        Serializes the non-narrative metadata turn state to LARA_DATA_DIR/sessions
+        allowing programmatic resumption or offline tracking.
+        """
+        try:
+            from src.core.runtime_paths import get_sessions_dir
+            sessions_dir = get_sessions_dir()
+            state_file = os.path.join(sessions_dir, f"session_{self.session_id}_state.json")
+            with open(state_file, "w", encoding="utf-8") as f:
+                json.dump(asdict(self), f, indent=2)
+        except Exception as e:
+            logging.error(f"[Session] Failed to persist state to disk: {e}")
+            
     def _update_streaks(self, mood: str, confidence: float):
         """
         Track consecutive frustration and stability.
