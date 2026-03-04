@@ -24,6 +24,30 @@ except Exception:
     INTERACTION_LOG = "lara_interaction.log"
     STRUCTURED  = True
 
+# ── Rate Limiting ─────────────────────────────────────────────────────────────
+_last_log_time = {}
+
+def rate_limited_log(key: str, message: str, level: int = logging.INFO, interval: int = 5) -> bool:
+    """
+    Prevents high-frequency logs from spamming the console or file system
+    if they occur inside tight perception / sensory loops.
+    
+    Args:
+        key: Unique identifier for the log event
+        message: The actual string to log
+        level: logging.INFO, logging.WARNING, etc.
+        interval: Minimum seconds required between logs with this key
+        
+    Returns:
+        True if the log was emitted, False if throttled.
+    """
+    now = time.time()
+    if key not in _last_log_time or (now - _last_log_time[key]) > interval:
+        _last_log_time[key] = now
+        logging.log(level, message)
+        return True
+    return False
+
 
 # ── Formatter ─────────────────────────────────────────────────────────────────
 
