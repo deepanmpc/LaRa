@@ -17,6 +17,18 @@ from fastapi.middleware.cors import CORSMiddleware
 # Add vision_perception root to path so relative imports work
 sys.path.insert(0, os.path.dirname(__file__))
 
+# Load CORS origins from config
+_DEFAULT_CORS = ["http://localhost:5173", "http://localhost:8080"]
+try:
+    _root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    if _root not in sys.path:
+        sys.path.insert(0, _root)
+    from src.core.config_loader import CONFIG
+    _cors = getattr(getattr(CONFIG, 'vision', None), 'cors_origins', None)
+    _CORS_ORIGINS = _cors if _cors else _DEFAULT_CORS
+except Exception:
+    _CORS_ORIGINS = _DEFAULT_CORS
+
 from core.engine import PerceptionEngine
 from core.state import perception_state, EngineState
 from config import vision_config
@@ -33,7 +45,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:8080"],
+    allow_origins=_CORS_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )

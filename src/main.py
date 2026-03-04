@@ -32,7 +32,7 @@ except Exception as e:
 
 # ── Step 2: Setup structured logging ──────────────────────────────────────────
 from src.core.logger import setup_logging
-setup_logging(log_dir=os.path.join(_ROOT_DIR, 'data'))
+setup_logging()
 
 # ── Step 3: Import everything else after logging is ready ──────────────────────
 try:

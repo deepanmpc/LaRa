@@ -3,22 +3,25 @@ import os
 import queue
 import re
 import threading
+import platform
 import numpy as np
 import sounddevice as sd
 import webrtcvad
 import time
 import logging
 from enum import Enum
-from pywhispercpp.model import Model
+from faster_whisper import WhisperModel
 
-# Configure logging
-logging.basicConfig(
-    filename='lara_system.log',
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+# Logging is already configured by main.py's setup_logging() — do NOT call basicConfig here
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+# Load config for model paths and settings
+try:
+    from src.core.config_loader import CONFIG
+    _STT_CFG = CONFIG.stt
+except Exception:
+    _STT_CFG = None
 
 try:
     from src.llm.AgentricTLM import AgentricAI
@@ -110,7 +113,7 @@ SILENCE_DURATION_MS = 1800  # Gentle pacing: 1.8s for slow/paused speech
 CHANNELS = 1
 
 # Noise clearance threshold (Energy-based gate)
-NOISE_GATE_THRESHOLD = 0.005 
+NOISE_GATE_THRESHOLD = 0.001 
 
 # Barge-in / KWS hardening: require 300ms of continuous speech before triggering
 BARGE_IN_FRAME_THRESHOLD = 10
@@ -176,7 +179,7 @@ def check_wake_word_in_clip(audio_frames, kws_model):
         if 0 < peak < 0.5:
             full_audio = full_audio / peak
         
-        segments = kws_model.transcribe(full_audio)
+        segments, _info = kws_model.transcribe(full_audio, beam_size=1, language="en")
         text = "".join([s.text for s in segments]).strip().lower()
         
         if "lara" in text:
@@ -191,11 +194,32 @@ def check_wake_word_in_clip(audio_frames, kws_model):
 def run_conversation_loop():
     """Main conversation loop — called by main.py or directly."""
     
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    models_dir = os.path.join(os.path.dirname(os.path.dirname(base_dir)), 'model')
+    # Resolve model directory from config or runtime_paths
+    _project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    try:
+        from src.core.runtime_paths import get_models_dir
+        default_model_dir = get_models_dir()
+    except Exception:
+        default_model_dir = os.path.join(_project_root, 'model')
     
-    # Whisper model for transcription and KWS (reuse same model for both)
-    whisper_model = Model('small.en', models_dir=models_dir, n_threads=6, print_progress=False, language='en')
+    if _STT_CFG and hasattr(_STT_CFG, 'models_dir'):
+        models_dir = os.path.join(_project_root, _STT_CFG.models_dir)
+    else:
+        models_dir = default_model_dir
+    
+    stt_model = _STT_CFG.model if _STT_CFG and hasattr(_STT_CFG, 'model') else 'small.en'
+    stt_device = _STT_CFG.device if _STT_CFG and hasattr(_STT_CFG, 'device') else 'cpu'
+    stt_compute = _STT_CFG.compute_type if _STT_CFG and hasattr(_STT_CFG, 'compute_type') else 'int8'
+    
+    # Force fallback for Mac testing even if config requests CUDA
+    if platform.system() == "Darwin" and stt_device != "cpu":
+        logging.warning("[STT] MacOS detected. Forcing device=cpu and compute_type=int8 for faster-whisper.")
+        stt_device = "cpu"
+        stt_compute = "int8"
+    
+    # faster-whisper: CUDA-aware model loading
+    print(f"        [STT] Loading Whisper ({stt_model}) on {stt_device}...")
+    whisper_model = WhisperModel(stt_model, device=stt_device, compute_type=stt_compute, download_root=models_dir)
     kws_model = whisper_model  # Reuse for wake-word detection on short clips
     
     agent = AgentricAI()
@@ -319,16 +343,17 @@ def run_conversation_loop():
             if time.time() - kws_last_trigger_time < KWS_COOLDOWN_S:
                 continue
             
-            # VAD + Energy check on the frame
-            rms = np.sqrt(np.mean(indata**2))
-            pcm_data = (indata * 32767).astype(np.int16)
+            # VAD + Energy check on the frame (flattened for 1D calculation)
+            flat_data = indata.flatten()
+            rms = np.sqrt(np.mean(flat_data**2))
+            pcm_data = (flat_data * 32767).astype(np.int16)
             
             try:
-                frame_is_speech = vad.is_speech(pcm_data.tobytes(), SAMPLE_RATE) and rms > NOISE_GATE_THRESHOLD
+                is_speech = vad.is_speech(pcm_data.tobytes(), SAMPLE_RATE) and rms > NOISE_GATE_THRESHOLD
             except Exception:
                 continue
             
-            if frame_is_speech:
+            if is_speech:
                 kws_consecutive_count += 1
                 kws_speech_frames.append(indata)
                 
@@ -363,8 +388,10 @@ def run_conversation_loop():
                 if len(indata) != FRAME_SIZE: continue
                 
                 # --- Noise Clearance / Audio Pre-processing ---
-                rms = np.sqrt(np.mean(indata**2))
-                pcm_data = (indata * 32767).astype(np.int16)
+                # sounddevice returns 2D chunks (frames, channels), we need 1D for VAD and Whisper
+                flat_data = indata.flatten()
+                rms = np.sqrt(np.mean(flat_data**2))
+                pcm_data = (flat_data * 32767).astype(np.int16)
                 
                 try:
                     is_speech = vad.is_speech(pcm_data.tobytes(), SAMPLE_RATE) and rms > NOISE_GATE_THRESHOLD
@@ -394,7 +421,7 @@ def run_conversation_loop():
                             if 0 < peak < 0.5:
                                 full_audio = full_audio / peak
                                 
-                            segments = whisper_model.transcribe(full_audio)
+                            segments, _info = whisper_model.transcribe(full_audio, beam_size=5, language="en")
                             text = "".join([s.text for s in segments]).strip()
                             
                             if not text: continue
@@ -595,4 +622,5 @@ def run_conversation_loop():
 if __name__ == "__main__":
     run_conversation_loop()
     # Force clean exit to prevent PyTorch cleanup crash on macOS
-    os._exit(0)
+    if platform.system() == "Darwin":
+        os._exit(0)

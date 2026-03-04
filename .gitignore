@@ -7,6 +7,9 @@ env/
 venv/
 ENV/
 
+# Runtime data directory (never commit)
+lara_runtime/
+
 # OS-specific
 .DS_Store
 .DS_Store?
@@ -42,6 +45,11 @@ pretrained_models/
 *.weights
 *.tflite
 *.pb
+
+# Dashboard build artifacts
+dashboard/frontend/node_modules/
+dashboard/frontend/dist/
+dashboard/backend/target/
 
 # Misc
 *.pyc

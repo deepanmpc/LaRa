@@ -3,6 +3,19 @@ LaRa Vision Perception — Configuration v2.1
 All tuneable parameters for the vision pipeline.
 Edit here to change behaviour without touching code.
 """
+import os
+import logging
+
+# Try to load from main config.yaml
+try:
+    import sys
+    _root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    if _root not in sys.path:
+        sys.path.insert(0, _root)
+    from src.core.config_loader import CONFIG
+    _VISION_CFG = getattr(CONFIG, 'vision', None)
+except Exception:
+    _VISION_CFG = None
 
 # ─── Camera ───────────────────────────────────────────────
 CAMERA_INDEX: int = 0             # 0 = default webcam
@@ -21,8 +34,18 @@ ENGAGEMENT_BUFFER: int = 15       # Rolling window for engagement score
 YOLO_MODEL_PATH: str = "models/yolov8n.pt"
 INSIGHTFACE_MODEL: str = "buffalo_sc"     # Smallest InsightFace model
 
-# ─── Hardware ─────────────────────────────────────────────
-USE_GPU: bool = False              # True = use CUDA if available
+# ─── Hardware ─────────────────────────────────────────
+def _detect_gpu() -> bool:
+    """Auto-detect CUDA availability. Config override takes priority."""
+    if _VISION_CFG and hasattr(_VISION_CFG, 'use_gpu'):
+        return bool(_VISION_CFG.use_gpu)
+    try:
+        import torch
+        return torch.cuda.is_available()
+    except ImportError:
+        return False
+
+USE_GPU: bool = _detect_gpu()
 MAX_MEMORY_MB: int = 1800          # Alert if RSS exceeds this
 
 # ─── Engagement thresholds ────────────────────────────────

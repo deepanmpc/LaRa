@@ -20,8 +20,10 @@ audio:
 # ───────────────────────────────────────────────
 stt:
   model: "small.en"             # Whisper model size
-  device: "cpu"                 # "cpu" or "cuda"
-  compute_type: "int8"          # Quantization: int8 for speed
+  models_dir: "model"           # Relative to project root
+  device: "cuda"                # "cpu" or "cuda" — use "cuda" for A100
+  compute_type: "float16"       # float16 for GPU, int8 for CPU
+  n_threads: 6                  # CPU threads (ignored when device=cuda)
 
 # ───────────────────────────────────────────────
 # LANGUAGE MODEL (Ollama)
@@ -139,3 +141,21 @@ app:
   wake_word: "friday"
   sleep_word: "shutdown"
   interrupt_word: "lara"
+
+# ───────────────────────────────────────────────
+# VISION PERCEPTION
+# ───────────────────────────────────────────────
+vision:
+  use_gpu: true                 # Enable CUDA for YOLO/MediaPipe on A100
+  camera_index: 0               # Camera device index
+  cors_origins:                 # Allowed CORS origins for the vision API
+    - "http://localhost:5173"
+    - "http://localhost:8080"
+
+# ───────────────────────────────────────────────
+# MODEL PATHS
+# ───────────────────────────────────────────────
+models:
+  whisper: "~/lara_runtime/models/whisper"    # faster-whisper model cache
+  yolo: "models/yolov8n.pt"                   # YOLO model (relative to vision_perception/)
+  insightface: "buffalo_sc"                   # InsightFace model name

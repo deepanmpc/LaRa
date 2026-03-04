@@ -9,6 +9,8 @@ import os
 import sys
 import time
 
+from src.core.runtime_paths import get_log_path
+
 try:
     from src.core.config_loader import CONFIG
     _cfg = CONFIG.logging
@@ -70,19 +72,18 @@ def setup_logging(log_dir: str = None):
     Call this once at startup (from main.py).
 
     Args:
-        log_dir: Directory for log files. Defaults to CWD (src/).
+        log_dir: DEPRECATED — log directory is now controlled by LARA_DATA_DIR.
+                 Kept for backward compatibility (ignored if runtime_paths works).
     """
-    if log_dir is None:
-        log_dir = os.path.dirname(os.path.abspath(__file__))
-
     root = logging.getLogger()
     root.setLevel(LOG_LEVEL)
 
     # Remove any pre-existing handlers (from basicConfig calls)
     root.handlers.clear()
 
-    system_path = os.path.join(log_dir, SYSTEM_LOG)
-    interaction_path = os.path.join(log_dir, INTERACTION_LOG)
+    # Use runtime_paths for log file locations
+    system_path = get_log_path(SYSTEM_LOG)
+    interaction_path = get_log_path(INTERACTION_LOG)
 
     root.addHandler(_build_handler(system_path, LOG_LEVEL))
     root.addHandler(_build_handler(interaction_path, logging.INFO))

@@ -68,7 +68,7 @@ class VectorMemory:
         """
         Args:
             persist_dir: Directory to persist ChromaDB data.
-                         Defaults to src/lara_vector_store/
+                         Defaults to $LARA_DATA_DIR/memory/lara_vector_store/
         """
         self._enabled = CHROMADB_AVAILABLE
         self._user_id: Optional[str] = None
@@ -79,12 +79,16 @@ class VectorMemory:
         if not self._enabled:
             return
 
-        # Default persist path next to user_memory.db
+        # Use runtime_paths for persist directory (outside repo)
         if persist_dir is None:
-            persist_dir = os.path.join(
-                os.path.dirname(os.path.abspath(__file__)),
-                "lara_vector_store"
-            )
+            try:
+                from src.core.runtime_paths import get_vector_store_path
+                persist_dir = get_vector_store_path()
+            except Exception:
+                persist_dir = os.path.join(
+                    os.path.dirname(os.path.abspath(__file__)),
+                    "lara_vector_store"
+                )
         os.makedirs(persist_dir, exist_ok=True)
 
         try:

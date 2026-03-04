@@ -42,7 +42,7 @@ def _validate(cfg: dict):
         "audio", "stt", "llm", "tts", "session",
         "mood", "regulation", "reinforcement",
         "preferences", "vector_memory", "memory",
-        "logging", "app",
+        "logging", "app", "vision", "models"
     ]
     missing = [s for s in required_sections if s not in cfg]
     if missing:

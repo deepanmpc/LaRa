@@ -14,23 +14,41 @@ try:
 except ImportError:
     SimpleAudioPipeline = None
 
-# Configure logging for caregiver review
-logging.basicConfig(
-    filename='lara_interaction.log',
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+# Load config — logging is already configured by main.py's setup_logging()
+try:
+    from src.core.config_loader import CONFIG
+    _LLM_CFG = CONFIG.llm
+except Exception:
+    _LLM_CFG = None
 
 class AgentricAI:
-    def __init__(self, model_name="AgentricAi/AgentricAI_TLM:latest"):
-        self.model_name = model_name
-        self.url = "http://localhost:11434/api/generate"
-        
+    def __init__(self, model_name=None):
+        # Read from CONFIG if available, fall back to defaults
+        if _LLM_CFG:
+            self.model_name = model_name or getattr(_LLM_CFG, 'model_name', 'AgentricAi/AgentricAI_TLM:latest')
+            self.url = getattr(_LLM_CFG, 'ollama_url', 'http://localhost:11434/api/generate')
+            self._keep_alive = getattr(_LLM_CFG, 'keep_alive', '1h')
+            self._temperature = getattr(_LLM_CFG, 'temperature', 0.15)
+            self._top_p = getattr(_LLM_CFG, 'top_p', 0.85)
+            self._top_k = getattr(_LLM_CFG, 'top_k', 40)
+            self._num_ctx = getattr(_LLM_CFG, 'num_ctx', 2048)
+            self.MAX_HISTORY_TURNS = getattr(_LLM_CFG, 'history_turns', 5)
+            self.MAX_TURN_CHARS = getattr(_LLM_CFG, 'history_turn_max_chars', 150)
+        else:
+            self.model_name = model_name or 'AgentricAi/AgentricAI_TLM:latest'
+            self.url = 'http://localhost:11434/api/generate'
+            self._keep_alive = '1h'
+            self._temperature = 0.15
+            self._top_p = 0.85
+            self._top_k = 40
+            self._num_ctx = 2048
+            self.MAX_HISTORY_TURNS = 5
+            self.MAX_TURN_CHARS = 150
+
         # LaRa Specific System Prompt (Strict Down Syndrome Constraints)
         self.system_prompt = (
             "You are LaRa (Low-Cost Adaptive Robotic-AI Assistant), a gentle, highly predictable, and encouraging therapy assistant for children with Down syndrome.\n"
             "Your highest priorities are emotional safety, clarity, and predictability over speed or novelty. Keep your thoughts clear and complete.\n\n"
-            
             "--- ENFORCED BEHAVIORAL CONSTRAINTS ---\n"
             "1. Predictability & Pacing: Provide exactly one clear, simple thought or instruction at a time. Never rush or overwhelm.\n"
             "2. Sentence Structure: Use short sentences and simple, concrete vocabulary. Do not ramble.\n"
@@ -42,23 +60,21 @@ class AgentricAI:
             "8. No Hallucinations: Do not invent new tasks, games, or behavioral states without explicit permission.\n\n"
             "Always prioritize clarity over novelty. End every response peacefully."
         )
-        
+
         print(f"Initializing LaRa Assistant (Model: {self.model_name})...")
         logging.info(f"System initialized with model: {self.model_name}")
-        
-        # Pre-load model into memory and keep alive for 1 hour to prevent cold-starts
+
+        # Pre-load model into memory and keep alive to prevent cold-starts
         try:
-            requests.post(self.url.replace('/api/generate', '/api/chat'), json={"model": self.model_name, "keep_alive": "1h"}, timeout=2)
+            requests.post(self.url.replace('/api/generate', '/api/chat'), json={"model": self.model_name, "keep_alive": self._keep_alive}, timeout=2)
         except requests.exceptions.RequestException:
-            pass # Non-blocking
-        
+            pass  # Non-blocking
+
         self.audio_pipeline = None
-        
+
         # Conversation history buffer (sliding window for context)
         self.conversation_history = []
-        self.MAX_HISTORY_TURNS = 5      # Keep last 5 turns
-        self.MAX_TURN_CHARS = 150       # Truncate long turns for token efficiency
-    
+
     def _format_history(self):
         """Format conversation history as prior dialogue turns."""
         if not self.conversation_history:
@@ -151,12 +167,12 @@ class AgentricAI:
             "model": self.model_name,
             "prompt": full_prompt,
             "stream": True,
-            "keep_alive": "1h",
+            "keep_alive": self._keep_alive,
             "options": {
-                "temperature": 0.15,
-                "top_p": 0.85,
-                "top_k": 40,
-                "num_ctx": 2048,
+                "temperature": self._temperature,
+                "top_p": self._top_p,
+                "top_k": self._top_k,
+                "num_ctx": self._num_ctx,
                 "num_predict": max_tokens,
                 "stop": ["User:"]  # Only stop on dialogue turn markers
             }
@@ -199,8 +215,8 @@ class AgentricAI:
             "model": self.model_name,
             "prompt": full_prompt,
             "stream": False,
-            "keep_alive": "1h",
-            "options": {"temperature": 0.3, "num_ctx": 1024}
+            "keep_alive": self._keep_alive,
+            "options": {"temperature": self._temperature, "num_ctx": self._num_ctx}
         }
         try:
             response = requests.post(self.url, json=payload)

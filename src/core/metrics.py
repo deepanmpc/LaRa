@@ -24,7 +24,11 @@ try:
 except Exception:
     _METRICS_LOG = "lara_metrics.log"
 
-_METRICS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), _METRICS_LOG)
+try:
+    from src.core.runtime_paths import get_log_path
+    _METRICS_PATH = get_log_path(_METRICS_LOG)
+except Exception:
+    _METRICS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), _METRICS_LOG)
 
 
 # ── In-memory summary ──────────────────────────────────────────────────────────

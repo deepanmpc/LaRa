@@ -86,6 +86,10 @@ class LaRaSpeech:
         try:
             # Speed controlled by recovery strategy (default 0.9 for neurodiverse pacing)
             generator = self.pipeline(text, voice=self.voice_id, speed=self.speed)
+            
+            # Use isolated OutputStream to prevent global sd.stop() from killing the microphone
+            stream = sd.OutputStream(samplerate=24000, channels=1)
+            stream.start()
 
             for i, (gs, ps, audio) in enumerate(generator):
                 # Check for interrupt BEFORE playing each chunk
@@ -93,7 +97,7 @@ class LaRaSpeech:
                     was_interrupted = True
                     break
 
-                # Convert to numpy (prevents bus error on Apple Silicon)
+                # Convert tensor to numpy array (cross-platform safe)
                 audio_np = audio.numpy() if hasattr(audio, 'numpy') else np.array(audio, dtype=np.float32)
 
                 # Amplitude check
@@ -101,19 +105,17 @@ class LaRaSpeech:
                 if max_amp > 0.99:
                     logging.warning(f"Audio amplitude spike detected ({max_amp:.3f}). Potential clipping.")
 
-                # Play chunk and wait for completion
-                sd.play(audio_np, 24000)
+                # Play chunk synchronously on the stream. It blocks until played or broken.
+                stream.write(audio_np)
 
-                # Poll while playing — check for interrupt every 50ms
-                while sd.get_stream().active:
-                    if self._interrupt_requested:
-                        sd.stop()
-                        was_interrupted = True
-                        break
-                    time.sleep(0.05)
-
-                if was_interrupted:
+                # If interrupt triggered during write/chunk transitions, abort
+                if self._interrupt_requested:
+                    was_interrupted = True
                     break
+
+            # Gracefully close the isolated stream
+            stream.stop()
+            stream.close()
 
             playback_duration = time.time() - playback_start
 
@@ -133,3 +135,10 @@ class LaRaSpeech:
             self._interrupt_requested = False
 
         return not was_interrupted
+
+    def stop_speaking(self):
+        """Immediately stop speaking (Barge-in / Interrupt)."""
+        if self.is_speaking:
+            self._interrupt_requested = True
+            # DO NOT call sd.stop() here — it kills the microphone InputStream and causes a Bus Error.
+            # The 'self._interrupt_requested' flag tells the active OutputStream chunk loop to abort cleanly.
