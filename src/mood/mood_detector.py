@@ -108,6 +108,14 @@ MOOD_KEYWORDS = {
     ],
 }
 
+# PRE-COMPILATION OF REGEX PATTERNS (HPC Optimization)
+# Compiles the raw string combinations into high-performance Regex matchers for fast iterations
+# instead of recompiling during every loop of _keyword_match_count
+PRECOMPILED_PATTERNS = {
+    mood: [re.compile(r'\b' + re.escape(kw) + r'\b') for kw in keywords]
+    for mood, keywords in MOOD_KEYWORDS.items()
+}
+
 # Audio prosody thresholds
 LOUD_RMS_THRESHOLD = 0.15      # Above this = high arousal (excited/upset)
 QUIET_RMS_THRESHOLD = 0.02     # Below this = withdrawn/quiet
@@ -118,16 +126,15 @@ MAX_SPEAKING_RATE = 6.0        # Cap to prevent artificial spikes
 MIN_DURATION_FOR_RATE = 0.5    # Ignore speaking rate below this duration
 
 
-def _keyword_match_count(keywords: list, text_lower: str) -> int:
+def _keyword_match_count(patterns: list, text_lower: str) -> int:
     """
-    Count keyword matches using word-boundary regex.
+    Count keyword matches using precompiled regex patterns.
     Prevents false positives like 'I don't hate it' triggering on 'hate'.
     Multi-word phrases (e.g. 'too hard', 'not fair') are supported.
     """
     count = 0
-    for kw in keywords:
-        pattern = r'\b' + re.escape(kw) + r'\b'
-        if re.search(pattern, text_lower):
+    for pattern in patterns:
+        if pattern.search(text_lower):
             count += 1
     return count
 
@@ -245,12 +252,12 @@ class MoodDetector:
             # No signal — default to quiet (low confidence)
             return Mood.QUIET, 0.3
         
-        # Full utterance: count keyword matches using word-boundary regex
-        scores = {}
-        for mood, keywords in MOOD_KEYWORDS.items():
-            matches = _keyword_match_count(keywords, text_lower)
+        # Full utterance: count keyword matches using precompiled regex patterns
+        scores = {mood: 0 for mood in PRECOMPILED_PATTERNS.keys()}
+        for mood, patterns in PRECOMPILED_PATTERNS.items():
+            matches = _keyword_match_count(patterns, text_lower)
             # Normalize by keyword list length for fair comparison
-            scores[mood] = matches / len(keywords) if keywords else 0
+            scores[mood] = matches / len(MOOD_KEYWORDS[mood]) if MOOD_KEYWORDS[mood] else 0
         
         # Find the dominant mood
         best_mood = max(scores, key=scores.get)

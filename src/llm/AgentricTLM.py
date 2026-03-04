@@ -194,14 +194,16 @@ class AgentricAI:
             
             logging.info(f"Interaction - User: {prompt} | LaRa: {full_response}")
             
-            # Store turn in conversation history for continuity
+            # Store turn in            # Append to history
             self.conversation_history.append({
-                "user": prompt[:self.MAX_TURN_CHARS],
+                "user": prompt,
                 "lara": full_response[:self.MAX_TURN_CHARS],
             })
-            # Keep only last N turns
-            if len(self.conversation_history) > self.MAX_HISTORY_TURNS:
-                self.conversation_history = self.conversation_history[-self.MAX_HISTORY_TURNS:]
+            
+            # HPC SAFETY LIMIT: Cap history sliding window to 10 turns
+            MAX_HISTORY_TURNS = 10
+            if len(self.conversation_history) > MAX_HISTORY_TURNS:
+                self.conversation_history = self.conversation_history[-MAX_HISTORY_TURNS:]
             
         except Exception as e:
             error_msg = "I am sorry, I am having trouble thinking right now. Let us try again."
@@ -233,7 +235,7 @@ class AgentricAI:
         Extracts clean text securely, prioritizing emotional safety and low latency.
          Streams the LLM response back.
         """
-        if not self.initialize_audio_pipeline():
+        if not self.setup_audio_pipeline(): # Changed initialize_audio_pipeline to setup_audio_pipeline
             # Safe Fallback: gentle response if audio system fails
             yield "There is a problem hearing your voice. Let us type for now."
             return
@@ -258,6 +260,24 @@ class AgentricAI:
             # Constraints: Never escalate intensity automatically on failure
             logging.error(f"Pipeline Error: {e}")
             yield "I am listening, but it is a bit noisy. Let us take our time."
+
+# --- SINGLETON LLM SERVICE ---
+class LLMService:
+    _instance = None
+    
+    def __init__(self):
+        if LLMService._instance is not None:
+            raise RuntimeError("LLMService is a singleton. Use LLMService.get()")
+            
+        logging.info("[LLMService] Initializing AgentricAI subsystem...")
+        self.model = AgentricAI()
+        LLMService._instance = self
+
+    @staticmethod
+    def get() -> AgentricAI:
+        if LLMService._instance is None:
+            LLMService()
+        return LLMService._instance.model
 
 if __name__ == "__main__":
     agent = AgentricAI()

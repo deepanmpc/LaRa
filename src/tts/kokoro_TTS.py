@@ -142,3 +142,26 @@ class LaRaSpeech:
             self._interrupt_requested = True
             # DO NOT call sd.stop() here — it kills the microphone InputStream and causes a Bus Error.
             # The 'self._interrupt_requested' flag tells the active OutputStream chunk loop to abort cleanly.
+
+# --- SINGLETON TTS SERVICE ---
+class TTSService:
+    _instance = None
+    
+    def __init__(self):
+        if TTSService._instance is not None:
+            raise RuntimeError("TTSService is a singleton. Use TTSService.get()")
+            
+        logging.info("[TTSService] Initializing Kokoro TTS subsystem...")
+        try:
+            self.model = LaRaSpeech(voice='af_bella')
+        except Exception as e:
+            logging.error(f"[TTSService] Failed to initialize Voice engine: {e}")
+            self.model = None
+            
+        TTSService._instance = self
+
+    @staticmethod
+    def get():
+        if TTSService._instance is None:
+            TTSService()
+        return TTSService._instance.model

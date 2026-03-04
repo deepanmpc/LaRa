@@ -36,7 +36,8 @@ setup_logging()
 
 # ── Step 3: Import everything else after logging is ready ──────────────────────
 try:
-    from src.perception.whispercpp_STT import run_conversation_loop
+    from src.system.bootstrap import initialize as initialize_system
+    from src.perception.speech_to_text import run_conversation_loop
 except ImportError as e:
     logging.error(f"[Main] Could not import conversation loop: {e}")
     sys.exit(1)
@@ -73,6 +74,13 @@ def run():
     print("=" * 60)
 
     try:
+        # Load singletons BEFORE entering the loop
+        print("\n\033[93m[System Boot]\033[0m Initializing neural services (STT, TTS, LLM)...")
+        import time
+        t0 = time.time()
+        initialize_system()
+        print(f"\033[93m[System Boot]\033[0m Complete. Services loaded in {time.time()-t0:.2f}s\n")
+        
         run_conversation_loop()
     except KeyboardInterrupt:
         pass

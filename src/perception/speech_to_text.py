@@ -11,6 +11,7 @@ import time
 import logging
 from enum import Enum
 from faster_whisper import WhisperModel
+from src.utils.gpu_manager import get_device_and_compute_type, check_vram
 
 # Logging is already configured by main.py's setup_logging() — do NOT call basicConfig here
 
@@ -95,6 +96,70 @@ try:
 except ImportError as e:
     logging.warning(f"Could not import VectorMemory: {e}")
     VectorMemory = None
+
+# --- SINGLETON STT SERVICE ---
+class STTService:
+    _instance = None
+    
+    def __init__(self):
+        if STTService._instance is not None:
+            raise RuntimeError("STTService is a singleton. Use STTService.get()")
+            
+        logging.info("[STTService] Initializing Faster-Whisper subsystem...")
+        try:
+            from src.core.config_loader import CONFIG
+            _local_cfg = CONFIG.stt
+            if hasattr(CONFIG, 'models') and hasattr(CONFIG.models, 'whisper'):
+                models_dir = os.path.expanduser(CONFIG.models.whisper)
+            else:
+                raise ValueError("models_dir not found in config")
+        except Exception:
+            _project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            models_dir = os.path.join(_project_root, 'model')
+            _local_cfg = None
+
+        stt_model_name = _local_cfg.model if _local_cfg and hasattr(_local_cfg, 'model') else 'small.en'
+        config_device = _local_cfg.device if _local_cfg and hasattr(_local_cfg, 'device') else 'cpu'
+        config_compute = _local_cfg.compute_type if _local_cfg and hasattr(_local_cfg, 'compute_type') else 'int8'
+        
+        # Enforce robust device fallback matching the rest of the application
+        stt_device, stt_compute = get_device_and_compute_type(config_device, config_compute)
+        
+        # Check VRAM limits (Wait until device is confirmed as CUDA)
+        if stt_device == "cuda":
+            # Require at least 2GB of VRAM for the small.en Whisper + CTranslate2 runtime
+            check_vram(2.0)
+            
+        print(f"        [STT] Loading Faster-Whisper ({stt_model_name}) on {stt_device}...")
+        
+        start_time = time.time()
+        self.model = WhisperModel(
+            stt_model_name, 
+            device=stt_device, 
+            compute_type=stt_compute, 
+            download_root=models_dir
+        )
+        
+        # WARMUP INFERENCE:
+        # Pytorch / CTranslate2 lazy-loads CUDA kernels on the first forward pass.
+        # Run a silent zeros array through transribe() so the user interaction isn't artificially delayed.
+        logging.info("[STTService] Running warmup inference to pre-compile CUDA kernels...")
+        dummy_audio = np.zeros(16000, dtype=np.float32)
+        try:
+            self.model.transcribe(dummy_audio, beam_size=1, language="en")
+        except Exception as e:
+            logging.warning(f"[STTService] Warmup inference failed (benign): {e}")
+            
+        load_time = time.time() - start_time
+        logging.info(f"[STTService] Faster-Whisper {stt_model_name} initialized in {load_time:.2f}s")
+        
+        STTService._instance = self
+
+    @staticmethod
+    def get():
+        if STTService._instance is None:
+            STTService()
+        return STTService._instance
 
 
 # --- System Mode ---
@@ -194,40 +259,16 @@ def check_wake_word_in_clip(audio_frames, kws_model):
 def run_conversation_loop():
     """Main conversation loop — called by main.py or directly."""
     
-    # Resolve model directory from config or runtime_paths
-    _project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    try:
-        from src.core.runtime_paths import get_models_dir
-        default_model_dir = get_models_dir()
-    except Exception:
-        default_model_dir = os.path.join(_project_root, 'model')
-    
-    if _STT_CFG and hasattr(_STT_CFG, 'models_dir'):
-        models_dir = os.path.join(_project_root, _STT_CFG.models_dir)
-    else:
-        models_dir = default_model_dir
-    
-    stt_model = _STT_CFG.model if _STT_CFG and hasattr(_STT_CFG, 'model') else 'small.en'
-    stt_device = _STT_CFG.device if _STT_CFG and hasattr(_STT_CFG, 'device') else 'cpu'
-    stt_compute = _STT_CFG.compute_type if _STT_CFG and hasattr(_STT_CFG, 'compute_type') else 'int8'
-    
-    # Force fallback for Mac testing even if config requests CUDA
-    if platform.system() == "Darwin" and stt_device != "cpu":
-        logging.warning("[STT] MacOS detected. Forcing device=cpu and compute_type=int8 for faster-whisper.")
-        stt_device = "cpu"
-        stt_compute = "int8"
-    
-    # faster-whisper: CUDA-aware model loading
-    print(f"        [STT] Loading Whisper ({stt_model}) on {stt_device}...")
-    whisper_model = WhisperModel(stt_model, device=stt_device, compute_type=stt_compute, download_root=models_dir)
+    # Retrieve singletons
+    stt_service = STTService.get()
+    whisper_model = stt_service.model
     kws_model = whisper_model  # Reuse for wake-word detection on short clips
     
-    agent = AgentricAI()
+    from src.llm.AgentricTLM import LLMService
+    agent = LLMService.get()
     
-    # Initialize Kokoro TTS
-    lara_voice = None
-    if LaRaSpeech:
-        lara_voice = LaRaSpeech(voice='af_bella')
+    from src.tts.kokoro_TTS import TTSService
+    lara_voice = TTSService.get()
     
     # Initialize Mood Detector and Recovery Strategy
     mood_detector = MoodDetector() if MoodDetector else None

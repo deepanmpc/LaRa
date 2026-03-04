@@ -14,9 +14,11 @@ Rules:
 """
 
 import logging
-import time
 import os
-from dataclasses import dataclass, field
+import time
+import threading
+import queue
+from dataclasses import dataclass
 from typing import Optional
 
 try:
@@ -107,6 +109,32 @@ class VectorMemory:
         except Exception as e:
             logging.error(f"[VectorMemory] Failed to initialize ChromaDB: {e}")
             self._enabled = False
+            
+        # HPC Optimization: Async Background Queue for Embeddings
+        self._write_queue = queue.Queue()
+        self._worker_thread = threading.Thread(target=self._embedding_worker, daemon=True)
+        if self._enabled:
+            self._worker_thread.start()
+
+    def _embedding_worker(self):
+        """Background daemon processing ChromaDB writes avoiding main thread stutter."""
+        while True:
+            try:
+                task = self._write_queue.get()
+                if task is None:
+                    break
+                
+                doc_id, summary, metadata = task
+                self._collection.add(
+                    ids=[doc_id],
+                    documents=[summary],
+                    metadatas=[metadata]
+                )
+                logging.info(f"[VectorMemory] Async Stored: [{metadata['concept']}] {summary[:60]}")
+            except Exception as e:
+                logging.error(f"[VectorMemory] Async Store failed: {e}")
+            finally:
+                self._write_queue.task_done()
 
     def set_user(self, user_id: str):
         """Set active user and reset session retrieval counter."""
@@ -148,20 +176,19 @@ class VectorMemory:
         now = time.time()
         doc_id = f"{self._user_id}_{concept}_{int(now)}"
 
+        metadata = {
+            "user_id": self._user_id,
+            "concept": concept,
+            "timestamp": now,
+        }
+
+        # Push to async queue instead of blocking execution
         try:
-            self._collection.add(
-                ids=[doc_id],
-                documents=[summary],
-                metadatas=[{
-                    "user_id": self._user_id,
-                    "concept": concept,
-                    "timestamp": now,
-                }]
-            )
-            logging.info(f"[VectorMemory] Stored: [{concept}] {summary[:60]}")
+            self._write_queue.put((doc_id, summary, metadata))
+            logging.debug(f"[VectorMemory] Queued async memory write for [{concept}]")
             return True
         except Exception as e:
-            logging.error(f"[VectorMemory] Store failed: {e}")
+            logging.error(f"[VectorMemory] Failed to enqueue async write: {e}")
             return False
 
     # ══════════════════════════════════════════════════════════════════════════
