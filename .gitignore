@@ -7,8 +7,12 @@ env/
 venv/
 ENV/
 
-# Runtime data directory (never commit)
-lara_runtime/
+# Runtime data directory (never commit contents)
+runtime/
+!runtime/.keep
+data/*.docx
+data/*.pdf
+
 
 # OS-specific
 .DS_Store
@@ -20,7 +24,6 @@ ehthumbs.db
 Thumbs.db
 
 # Runtime artifacts — generated at runtime, never committed
-data/
 *.log
 *.db
 *.sqlite3

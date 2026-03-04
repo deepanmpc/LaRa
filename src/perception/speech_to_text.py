@@ -107,17 +107,15 @@ class STTService:
             raise RuntimeError("STTService is a singleton. Use STTService.get()")
             
         logging.info("[STTService] Initializing Faster-Whisper subsystem...")
+        from src.core.runtime_paths import get_models_dir
         try:
             from src.core.config_loader import CONFIG
             _local_cfg = CONFIG.stt
-            if hasattr(CONFIG, 'models') and hasattr(CONFIG.models, 'whisper'):
-                models_dir = os.path.expanduser(CONFIG.models.whisper)
-            else:
-                raise ValueError("models_dir not found in config")
         except Exception:
-            _project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            models_dir = os.path.join(_project_root, 'model')
             _local_cfg = None
+
+        models_dir = get_models_dir()
+
 
         stt_model_name = _local_cfg.model if _local_cfg and hasattr(_local_cfg, 'model') else 'small.en'
         config_device = _local_cfg.device if _local_cfg and hasattr(_local_cfg, 'device') else 'cpu'

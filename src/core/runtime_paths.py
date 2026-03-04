@@ -8,7 +8,7 @@ Environment variable:
     LARA_DATA_DIR  –  override the default runtime root
 
 Default runtime root:
-    ~/lara_runtime
+    <project_root>/runtime
 
 Directory layout (auto-created on import):
     <runtime_root>/
@@ -24,8 +24,9 @@ import logging
 _logger = logging.getLogger(__name__)
 
 # ── Resolve runtime root ─────────────────────────────────────
-
-_DEFAULT_ROOT = os.path.join(os.path.expanduser("~"), "lara_runtime")
+_this_dir = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.dirname(os.path.dirname(_this_dir))
+_DEFAULT_ROOT = os.path.join(_project_root, "runtime")
 
 RUNTIME_ROOT: str = os.environ.get("LARA_DATA_DIR", _DEFAULT_ROOT)
 

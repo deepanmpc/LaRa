@@ -31,8 +31,16 @@ HEAD_POSE_BUFFER: int = 5         # Moving average window for head pose
 ENGAGEMENT_BUFFER: int = 15       # Rolling window for engagement score
 
 # ─── Model paths ─────────────────────────────────────────
-YOLO_MODEL_PATH: str = "models/yolov8n.pt"
+try:
+    from src.core.runtime_paths import get_models_dir
+    _MODELS_DIR = get_models_dir()
+except Exception:
+    _MODELS_DIR = "models"
+
+YOLO_MODEL_PATH: str = os.path.join(_MODELS_DIR, "yolov8n.pt")
+INSIGHTFACE_MODEL_DIR: str = os.path.join(_MODELS_DIR, "insightface")
 INSIGHTFACE_MODEL: str = "buffalo_sc"     # Smallest InsightFace model
+
 
 # ─── Hardware ─────────────────────────────────────────
 def _detect_gpu() -> bool:
