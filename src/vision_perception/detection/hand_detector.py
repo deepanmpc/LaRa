@@ -31,21 +31,21 @@ class HandDetector:
         )
         log.info("HandDetector initialised (MediaPipe Hands, complexity=0)")
 
-    def process(self, frame: np.ndarray) -> str:
+    def process(self, rgb_frame: np.ndarray) -> str:
         """
         Returns a gesture label string (legacy API — keeps tests passing).
         """
-        gesture, _ = self.process_with_confidence(frame)
+        gesture, _ = self.process_with_confidence(rgb_frame)
         return gesture
 
-    def process_with_confidence(self, frame: np.ndarray) -> tuple:
+    def process_with_confidence(self, rgb_frame: np.ndarray) -> tuple:
         """
+        Args:
+            rgb_frame: Pre-computed RGB image array.
         Returns (gesture_str, confidence_float).
         Confidence = MediaPipe hand detection score, or 0.0 if no hand found.
         """
-        import cv2
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = self._hands.process(rgb)
+        results = self._hands.process(rgb_frame)
 
         if not results.multi_hand_landmarks:
             return "NONE", 0.0

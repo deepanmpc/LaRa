@@ -275,9 +275,12 @@ class PerceptionEngine:
     # ── Frame processing ──────────────────────────────────────────
 
     def _process_frame(self, frame: np.ndarray) -> PerceptionOutput:
-        face_out = self._face.process(frame)
-        gesture, gesture_conf = self._hand.process_with_confidence(frame)
-        objects, obj_conf = self._objects.process(frame)
+        import cv2
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        
+        face_out = self._face.process(rgb_frame)
+        gesture, gesture_conf = self._hand.process_with_confidence(rgb_frame)
+        objects, obj_conf = self._objects.process(frame) # YOLO works on BGR default
 
         # Fix 4: unpack dual-track engagement scores
         score, ui_score = self._engagement.update(

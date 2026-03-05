@@ -47,7 +47,7 @@ class FaceDetector:
         self._face_mesh = mp.solutions.face_mesh.FaceMesh(
             static_image_mode=False,
             max_num_faces=1,
-            refine_landmarks=True,
+            refine_landmarks=False,
             min_detection_confidence=0.5,
             min_tracking_confidence=0.5,
         )
@@ -58,15 +58,16 @@ class FaceDetector:
         self._cam_cache: dict = {}
         log.info("FaceDetector v2.1 initialised (pose confidence layer active)")
 
-    def process(self, frame: np.ndarray) -> dict:
+    def process(self, rgb_frame: np.ndarray) -> dict:
         """
+        Args:
+            rgb_frame: Pre-computed RGB image array.
         Returns:
             presence (bool), yaw (float), pitch (float),
             lookingAtScreen (bool), confidence (float), pose_confidence (float)
         """
-        h, w = frame.shape[:2]
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = self._face_mesh.process(rgb)
+        h, w = rgb_frame.shape[:2]
+        results = self._face_mesh.process(rgb_frame)
 
         if not results.multi_face_landmarks:
             return {
