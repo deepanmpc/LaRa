@@ -28,10 +28,10 @@ except Exception:
     _DB_OVERRIDE    = None
     _DECAY_FACTOR   = 0.95
 
-from src.core.runtime_paths import get_memory_db_path
+from src.core.runtime_paths import get_sessions_dir
 
 _db_file = _DB_OVERRIDE if _DB_OVERRIDE else "lara_memory.db"
-DB_PATH = get_memory_db_path(_db_file)
+DB_PATH = os.path.join(get_sessions_dir(), _db_file)
 
 # Emotional metric decay
 METRIC_DECAY_FACTOR    = _DECAY_FACTOR

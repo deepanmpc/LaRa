@@ -4,6 +4,29 @@
 
 ------------------------------------------------------------------------
 
+## Setup
+
+```bash
+# 1. Clone the repository
+git clone <repo-url>
+cd LaRa
+
+# 2. Create a virtual environment and install dependencies
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+# 3. Download all required AI models (one-time setup)
+python scripts/download_models.py
+
+# 4. Start LaRa
+python src/main.py
+```
+
+> **Note**: Models are stored in `runtime/models/` and reused across sessions.
+> Set `LARA_DATA_DIR` to override the runtime path for cluster deployments.
+
+------------------------------------------------------------------------
+
 ## Overview
 
 LaRa (Low-Cost Adaptive Robotic-AI Therapy System) is an emotion-aware

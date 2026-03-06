@@ -107,17 +107,13 @@ class STTService:
             raise RuntimeError("STTService is a singleton. Use STTService.get()")
             
         logging.info("[STTService] Initializing Faster-Whisper subsystem...")
-        from src.core.runtime_paths import get_models_dir
+        from src.core.runtime_paths import get_whisper_dir
         try:
             from src.core.config_loader import CONFIG
             _local_cfg = CONFIG.stt
         except Exception:
             _local_cfg = None
-
-        models_dir = get_models_dir()
-
-
-        stt_model_name = _local_cfg.model if _local_cfg and hasattr(_local_cfg, 'model') else 'small.en'
+        models_dir = get_whisper_dir()
         config_device = _local_cfg.device if _local_cfg and hasattr(_local_cfg, 'device') else 'cpu'
         config_compute = _local_cfg.compute_type if _local_cfg and hasattr(_local_cfg, 'compute_type') else 'int8'
         

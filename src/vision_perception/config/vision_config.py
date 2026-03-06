@@ -32,14 +32,14 @@ ENGAGEMENT_BUFFER: int = 15       # Rolling window for engagement score
 
 # ─── Model paths ─────────────────────────────────────────
 try:
-    from src.core.runtime_paths import get_models_dir
-    _MODELS_DIR = get_models_dir()
+    from src.core.runtime_paths import get_vision_dir
+    _VISION_MODELS_DIR = get_vision_dir()
 except Exception:
-    _MODELS_DIR = "models"
+    _VISION_MODELS_DIR = os.path.join("runtime", "models", "vision")
 
-YOLO_MODEL_PATH: str = os.path.join(_MODELS_DIR, "yolov8n.pt")
-INSIGHTFACE_MODEL_DIR: str = os.path.join(_MODELS_DIR, "insightface")
-INSIGHTFACE_MODEL: str = "buffalo_sc"     # Smallest InsightFace model
+YOLO_MODEL_PATH: str = os.path.join(_VISION_MODELS_DIR, "yolov8n.pt")
+INSIGHTFACE_MODEL_DIR: str = os.path.join(_VISION_MODELS_DIR, "insightface")
+INSIGHTFACE_MODEL: str = "buffalo_sc"
 
 
 # ─── Hardware ─────────────────────────────────────────

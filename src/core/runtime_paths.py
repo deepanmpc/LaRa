@@ -32,7 +32,15 @@ RUNTIME_ROOT: str = os.environ.get("LARA_DATA_DIR", _DEFAULT_ROOT)
 
 # ── Required sub-directories ─────────────────────────────────
 
-_SUBDIRS = ["logs", "memory", "sessions", "models"]
+_SUBDIRS = [
+    "logs",
+    "memory",
+    "sessions",
+    "models",
+    "models/whisper",
+    "models/vision",
+    "models/tts",
+]
 
 
 def initialize() -> None:
@@ -89,6 +97,21 @@ def get_models_dir() -> str:
 def get_model_path(filename: str) -> str:
     """Return absolute path for a model file inside the models directory."""
     return os.path.join(RUNTIME_ROOT, "models", filename)
+
+
+def get_whisper_dir() -> str:
+    """Return the whisper model subdirectory path."""
+    return os.path.join(RUNTIME_ROOT, "models", "whisper")
+
+
+def get_vision_dir() -> str:
+    """Return the YOLO/vision model subdirectory path."""
+    return os.path.join(RUNTIME_ROOT, "models", "vision")
+
+
+def get_tts_dir() -> str:
+    """Return the TTS model subdirectory path."""
+    return os.path.join(RUNTIME_ROOT, "models", "tts")
 
 
 # ── Summary on import ─────────────────────────────────────────
