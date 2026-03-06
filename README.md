@@ -8,7 +8,7 @@
 
 ```bash
 # 1. Clone the repository
-git clone <repo-url>
+git clone https://github.com/deepanmpc/LaRa.git
 cd LaRa
 
 # 2. Create a virtual environment and install dependencies
