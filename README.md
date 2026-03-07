@@ -4,28 +4,6 @@
 
 ------------------------------------------------------------------------
 
-## Setup
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/deepanmpc/LaRa.git
-cd LaRa
-
-# 2. Create a virtual environment and install dependencies
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-
-# 3. Download all required AI models (one-time setup)
-python scripts/download_models.py
-
-# 4. Start LaRa
-python src/main.py
-```
-
-> **Note**: Models are stored in `runtime/models/` and reused across sessions.
-> Set `LARA_DATA_DIR` to override the runtime path for cluster deployments.
-
-------------------------------------------------------------------------
 
 ## Overview
 
@@ -154,5 +132,59 @@ for safe and explainable interaction.
 
 ------------------------------------------------------------------------
 
-LaRa demonstrates a structured integration of perception models and
-language models within a safety-bounded robotic therapy support system.
+LaRa demonstrates a structured integration of perception models and language models within a safety-bounded robotic therapy support system.
+
+------------------------------------------------------------------------
+
+## Project Journey & Achievements
+
+We have successfully developed the core foundational layers of LaRa, achieving significant milestones:
+- **Core Engine**: Developed a robust Perception, Decision, and Generation engine that allows LaRa to perceive and respond deterministically to emotions.
+- **Persistent Runtime Storage**: Refactored the architecture to ensure secure, local persistence of session artifacts, vector stores (RAG), and SQLite memory outside of the Git repository, preserving continuity across therapeutic sessions.
+- **Real-time Pipeline Optimization**: Optimized the AI pipeline for speed and efficiency, strictly adhering to constraints critical for neurodiverse interactions—such as maintaining gentle pacing, high predictability, and structured engagement.
+- **Clinical Dashboard Overhaul**: Completely redesigned the Tier 2 Clinical Dashboard UI, transforming it from an AI research interface into a clean, light-themed, professional hospital UI designed for therapists to monitor interactions.
+
+## Current Focus
+
+Our immediate priorities to refine the LaRa system include:
+- **Dashboard Enhancements**: Refining the Tier 2 Clinical Dashboard to provide therapists with structured metric cards, subtle trend tracking, and actionable insights.
+- **Latency Optimization**: Conducting continuous optimization of the real-time interaction loop to ensure completely natural and fluid conversational pacing.
+- **Memory Logic Refinement**: Improving the underlying memory retrieval logic (`AgentricTLM` and `lara_vector_store`) to enable deeper, more personalized, long-term therapeutic engagement.
+
+## Future Roadmap
+
+Looking ahead, we are expanding LaRa's capabilities to maximize its therapeutic impact:
+- **Physical Embodiment**: Integrating the software core with full physical robotic hardware to transition from a digital assistant to a tangible companion.
+- **Advanced RAG Architecture**: Expanding the memory architecture for sophisticated long-term personalization, allowing LaRa to remember distinct preferences and interaction history across months and years.
+- **Multilingual Support**: Adding comprehensive multilingual capabilities to serve diverse demographics and classroom environments.
+- **HIS Integration**: Developing secure API extensions for seamless integration with existing Hospital Information Systems and electronic health records.
+
+## Startup Outcomes & Impact
+
+LaRa is positioned to redefine therapeutic support by:
+- **Democratizing Access**: Establishing a highly scalable, low-cost therapeutic tool that makes quality engagement available in budget-constrained classrooms and homes.
+- **Pioneering Ethical AI**: Leading the development of ethical, deterministic-AI hybrid systems for pediatric care that prioritize safety over unconstrained AI autonomy.
+- **Empowering Caregivers**: Significantly reducing therapist workload by acting as an asynchronous engagement assistant, extending therapeutic support beyond the conventional clinic.
+
+------------------------------------------------------------------------
+
+## Setup
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/deepanmpc/LaRa.git
+cd LaRa
+
+# 2. Create a virtual environment and install dependencies
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+# 3. Download all required AI models (one-time setup)
+python scripts/download_models.py
+
+# 4. Start LaRa
+python src/main.py
+```
+
+> **Note**: Models are stored in `runtime/models/` and reused across sessions.
+> Set `LARA_DATA_DIR` to override the runtime path for cluster deployments.
