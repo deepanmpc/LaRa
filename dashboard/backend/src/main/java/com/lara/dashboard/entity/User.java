@@ -41,6 +41,6 @@ public class User {
     private UserStatus status;
 
     @CreationTimestamp
-    @Column(name = "created_at", updatable = false)
+    @Column(updatable = false)
     private LocalDateTime createdAt;
 }
