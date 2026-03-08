@@ -166,3 +166,16 @@ def test_stall_count_resets_on_set_running():
     state.stall_count = 7
     state.set_running()
     assert state.stall_count == 0
+
+# ── Parallel Execution tests ──────────────────────────────────
+from unittest.mock import patch
+
+@patch('core.engine.FaceDetector')
+@patch('core.engine.HandDetector')
+@patch('core.engine.ObjectDetector')
+def test_engine_executor_parallel(mock_obj, mock_hand, mock_face):
+    from core.engine import PerceptionEngine
+    engine = PerceptionEngine()
+    assert hasattr(engine, '_executor')
+    engine.stop()
+

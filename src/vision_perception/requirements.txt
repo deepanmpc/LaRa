@@ -8,7 +8,6 @@ uvicorn[standard]>=0.29.0
 opencv-python-headless>=4.9.0
 mediapipe>=0.10.11
 ultralytics>=8.2.0         # YOLOv8n (auto-downloads model on first run)
-insightface>=0.7.3         # Lightweight face embedding
 
 # Science / Math
 numpy<2

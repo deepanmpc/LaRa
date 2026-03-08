@@ -27,6 +27,7 @@ v2.2 risk surface fixes:
     so the peak-climb detector accumulates data at restart boundaries.
 """
 
+import concurrent.futures
 import dataclasses
 import threading
 import time
@@ -70,6 +71,7 @@ class PerceptionEngine:
 
         self._thread:   Optional[threading.Thread] = None
         self._watchdog: Optional[threading.Thread] = None
+        self._executor  = concurrent.futures.ThreadPoolExecutor(max_workers=2)
         self._last_tick: float = time.monotonic()
         self._frame_counter: int = 0
 
@@ -105,6 +107,8 @@ class PerceptionEngine:
         if self._watchdog:
             self._watchdog.join(timeout=2.0)
             self._watchdog = None
+        if hasattr(self, '_executor') and self._executor:
+            self._executor.shutdown(wait=False)
         self._camera.stop()
         self._close_detectors()
         log.info("PerceptionEngine v2.2 stopped cleanly")
@@ -278,8 +282,12 @@ class PerceptionEngine:
         import cv2
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         
-        face_out = self._face.process(rgb_frame)
-        gesture, gesture_conf = self._hand.process_with_confidence(rgb_frame)
+        future_face = self._executor.submit(self._face.process, rgb_frame)
+        future_hand = self._executor.submit(self._hand.process_with_confidence, rgb_frame)
+        
+        face_out = future_face.result()
+        gesture, gesture_conf = future_hand.result()
+        
         objects, obj_conf = self._objects.process(frame) # YOLO works on BGR default
 
         # Fix 4: unpack dual-track engagement scores
