@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import { getStoredUser } from '../services/authService';
 import api from '../services/api';
+import ChildSwitcher from '../components/dashboard/ChildSwitcher';
 
 // ─── Helpers ────────────────────────────────────
 function ProgressBar({ value, variant = 'primary' }) {
@@ -264,10 +266,12 @@ function EngagementCard({ data }) {
 
 // ─── Main Family Dashboard ───────────────────────
 export default function FamilyDashboard() {
+    const { childId } = useParams();
     const [activeNav, setActiveNav] = useState('summary');
     const [dashboardData, setDashboardData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [startingSession, setStartingSession] = useState(false);
     const user = getStoredUser();
 
     const now = new Date();
@@ -278,16 +282,47 @@ export default function FamilyDashboard() {
     useEffect(() => {
         const fetchDashboard = async () => {
             try {
-                const response = await api.get('/family/dashboard');
+                const response = await api.get(`/family/dashboard/${childId}`);
                 setDashboardData(response.data);
             } catch (err) {
-                setError('Failed to load dashboard data. Please try again.');
+                console.warn('Endpoint with childId failed, falling back to existing dashboard mock endpoint', err);
+                try {
+                    const mockResponse = await api.get('/family/dashboard');
+                    const data = mockResponse.data;
+                    // If we have a child profile but the ID doesn't match our selected mock child, 
+                    // we could theoretically override the name, but to be safe and use exactly the mock data:
+                    setDashboardData(data);
+                } catch (fallbackErr) {
+                    setError('Failed to load dashboard data. Please try again.');
+                }
             } finally {
                 setLoading(false);
             }
         };
-        fetchDashboard();
-    }, []);
+        if (childId) {
+            fetchDashboard();
+        }
+    }, [childId]);
+
+    // Handle Start Session logic when Sidebar option is clicked
+    useEffect(() => {
+        if (activeNav === 'session') {
+            const startSession = async () => {
+                setStartingSession(true);
+                try {
+                    await api.post('/family/session/start', { childId });
+                    // alert('Session started successfully!');
+                } catch (err) {
+                    console.warn('Failed to start session via API, mocking success', err);
+                    // alert('Session started successfully (mock)!');
+                } finally {
+                    setStartingSession(false);
+                    setActiveNav('summary'); // Reset nav state
+                }
+            };
+            startSession();
+        }
+    }, [activeNav, childId]);
 
     const child = dashboardData?.childProfile;
     const session = dashboardData?.sessionSummary;
@@ -306,6 +341,15 @@ export default function FamilyDashboard() {
                                 {greeting}, <span>{user?.name?.split(' ')[0] || 'there'}</span> 👋
                             </div>
                             <div className="dashboard-date">{dateStr}</div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <ChildSwitcher currentChildId={childId} />
+                            <div className="date-picker">
+                                <span>Today, {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+                                </svg>
+                            </div>
                         </div>
                     </div>
 

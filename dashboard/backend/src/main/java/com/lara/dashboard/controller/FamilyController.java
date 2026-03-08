@@ -14,10 +14,10 @@ public class FamilyController {
 
     private final MockFamilyDashboardService dashboardService;
 
-    @GetMapping("/dashboard")
-    public ResponseEntity<FamilyDashboardResponse> getDashboard(Authentication authentication) {
+    @GetMapping({"/dashboard", "/dashboard/{childId}"})
+    public ResponseEntity<FamilyDashboardResponse> getDashboard(Authentication authentication, @PathVariable(required = false) Long childId) {
         String email = authentication.getName();
-        FamilyDashboardResponse response = dashboardService.getDashboardData(email);
+        FamilyDashboardResponse response = dashboardService.getDashboardData(email, childId);
         return ResponseEntity.ok(response);
     }
 }

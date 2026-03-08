@@ -4,6 +4,7 @@ import Signup from './pages/Signup';
 import FamilyDashboard from './pages/FamilyDashboard';
 import ClinicianPending from './pages/ClinicianPending';
 import ProtectedRoute from './components/ProtectedRoute';
+import ChildrenList from './pages/dashboard/ChildrenList';
 
 export default function App() {
     return (
@@ -13,7 +14,15 @@ export default function App() {
                 <Route path="/login" element={<Login />} />
                 <Route path="/signup" element={<Signup />} />
                 <Route
-                    path="/dashboard/family"
+                    path="/dashboard/children"
+                    element={
+                        <ProtectedRoute requiredRole="ROLE_FAMILY">
+                            <ChildrenList />
+                        </ProtectedRoute>
+                    }
+                />
+                <Route
+                    path="/dashboard/family/:childId"
                     element={
                         <ProtectedRoute requiredRole="ROLE_FAMILY">
                             <FamilyDashboard />

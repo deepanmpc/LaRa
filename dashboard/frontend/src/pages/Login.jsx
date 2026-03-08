@@ -16,11 +16,11 @@ export default function Login() {
         try {
             const data = await login(email, password);
             if (data.role === 'ROLE_FAMILY') {
-                navigate('/dashboard/family');
+                navigate('/dashboard/children');
             } else if (data.role === 'ROLE_CLINICIAN') {
                 navigate('/clinician/pending');
             } else {
-                navigate('/dashboard/family');
+                navigate('/dashboard/children');
             }
         } catch (err) {
             setError(err.response?.data?.error || 'Invalid email or password');

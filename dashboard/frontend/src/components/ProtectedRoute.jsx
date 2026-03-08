@@ -15,7 +15,7 @@ export default function ProtectedRoute({ children, requiredRole }) {
     if (requiredRole && user.role !== requiredRole) {
         // Route to the appropriate dashboard for the user's role
         if (user.role === 'ROLE_FAMILY') {
-            return <Navigate to="/dashboard/family" replace />;
+            return <Navigate to="/dashboard/children" replace />;
         }
         if (user.role === 'ROLE_CLINICIAN') {
             return <Navigate to="/clinician/pending" replace />;

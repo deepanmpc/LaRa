@@ -1,9 +1,12 @@
 /Users/midhunpalanisamy/Documents/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/DashboardApplication.java
 /Users/midhunpalanisamy/Documents/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/config/SecurityConfig.java
 /Users/midhunpalanisamy/Documents/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/controller/AuthController.java
+/Users/midhunpalanisamy/Documents/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/controller/ChildController.java
 /Users/midhunpalanisamy/Documents/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/controller/ClinicianController.java
 /Users/midhunpalanisamy/Documents/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/controller/FamilyController.java
 /Users/midhunpalanisamy/Documents/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/dto/AuthResponse.java
+/Users/midhunpalanisamy/Documents/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/dto/ChildRequest.java
+/Users/midhunpalanisamy/Documents/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/dto/ChildResponse.java
 /Users/midhunpalanisamy/Documents/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/dto/FamilyDashboardResponse.java
 /Users/midhunpalanisamy/Documents/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/dto/LoginRequest.java
 /Users/midhunpalanisamy/Documents/LaRa/dashboard/backend/src/main/java/com/lara/dashboard/dto/RegisterRequest.java

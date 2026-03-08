@@ -54,7 +54,7 @@ export default function Signup() {
             const data = await register(payload);
 
             if (data.role === 'ROLE_FAMILY') {
-                navigate('/dashboard/family');
+                navigate('/dashboard/children');
             } else if (data.role === 'ROLE_CLINICIAN') {
                 navigate('/clinician/pending');
             }
