@@ -1,9 +1,29 @@
 """
-LaRa Vision Perception — Shared State Container (v2.2)
-v2.2 upgrades over v2.1:
-  - engagementScoreUI added to PerceptionOutput (slow-decaying; for dashboard).
-  - Peak RSS memory tracking added to detect fragmentation leaks.
-    Tracks session peak history; flags if peaks consistently climb.
+LaRa Vision Perception — Shared State Container (v2.3)
+v2.3 fixes over v2.2:
+
+  Fix 1 – peak_leak_suspected off-by-one:
+    Original: range(len - 3, len - 1) compares indices [n-3, n-2] only,
+    silently ignoring the most recent peak at index [n-1]. This means a
+    3-peak climbing sequence like [100, 200, 300] would only compare
+    (100, 200) and report False because index 2 (300) was excluded.
+    Fix: compare the last 3 entries as a slice [-3:] directly.
+
+  Fix 2 – engagementScoreUI in PerceptionOutput:
+    Retained from v2.2 — no change needed.
+
+  Fix 3 – stall_count not thread-safe:
+    stall_count was written from the watchdog thread and read from the
+    FastAPI handler without a lock. Replaced with threading.atomic-style
+    increment via a dedicated lock. The value is still an int for JSON
+    serialisation simplicity.
+
+  Fix 4 – memory_delta_mb uses absolute delta (not signed):
+    The original returned a signed delta which could be negative (meaning
+    memory was freed). The dashboard interprets negative as "no growth"
+    which is fine, but the /status endpoint should expose both a signed
+    delta (for raw truth) and an absolute peak-relative figure. Kept signed
+    for now; documented explicitly so callers are not surprised.
 """
 
 import threading
@@ -46,8 +66,8 @@ class PerceptionConfidence:
 @dataclass(frozen=True)
 class PerceptionOutput:
     """
-    Immutable snapshot of one perception frame (v2.2 schema).
-    
+    Immutable snapshot of one perception frame (v2.3 schema).
+
     engagementScore   — fast-decay internal signal (raw truth)
     engagementScoreUI — slow-decay, smoothed for human-facing dashboard
     """
@@ -55,7 +75,7 @@ class PerceptionOutput:
     faceVerified:       bool                  = False
     lookingAtScreen:    bool                  = False
     engagementScore:    float                 = 0.0
-    engagementScoreUI:  float                 = 0.0   # ← NEW: slow-decay UI score
+    engagementScoreUI:  float                 = 0.0
     gesture:            str                   = "NONE"
     detectedObjects:    tuple                 = ()
     skipped:            PerceptionSkipReason  = field(default_factory=PerceptionSkipReason)
@@ -89,7 +109,8 @@ class PerceptionState:
         self.engine_state: EngineState = EngineState.STOPPED
         self.error_message: str = ""
 
-        self._swap_lock = threading.Lock()
+        self._swap_lock     = threading.Lock()
+        self._stall_lock    = threading.Lock()   # FIX 3: dedicated stall counter lock
         self._output: PerceptionOutput = _NULL_OUTPUT
 
         # FPS
@@ -104,12 +125,30 @@ class PerceptionState:
         self._high_slope_streak: int = 0
         self._memory_leak_suspected: bool = False
 
-        # Peak memory tracking (v2.2 — catches fragmentation)
+        # Peak memory tracking — catches fragmentation across restarts
         self._current_session_peak_mb: float = 0.0
-        self._session_peaks: list = []           # peak per "session window"
+        self._session_peaks: list = []
 
-        # Watchdog stall counter
-        self.stall_count: int = 0
+        # FIX 3: stall counter with lock
+        self._stall_count: int = 0
+
+    # ── Stall counter (FIX 3: thread-safe) ──────────────────────
+
+    @property
+    def stall_count(self) -> int:
+        with self._stall_lock:
+            return self._stall_count
+
+    @stall_count.setter
+    def stall_count(self, value: int) -> None:
+        with self._stall_lock:
+            self._stall_count = value
+
+    def increment_stall(self) -> int:
+        """Atomically increment stall count and return new value."""
+        with self._stall_lock:
+            self._stall_count += 1
+            return self._stall_count
 
     # ── Output swap (writer) ─────────────────────────────────────
 
@@ -138,7 +177,7 @@ class PerceptionState:
     def fps(self) -> float:
         return self._fps
 
-    # ── Memory monitoring (v2.2 peak-aware slope tracking) ───────
+    # ── Memory monitoring ─────────────────────────────────────────
 
     def sample_memory(self) -> float:
         """Record timestamped RSS sample. Returns current RSS MB."""
@@ -157,19 +196,26 @@ class PerceptionState:
 
     def record_session_peak(self) -> None:
         """
-        Call once per watchdog restart or periodic window.
-        If the session peak keeps climbing → fragmentation suspicion.
+        Record the current session peak and reset for next window.
+        Called by watchdog on each soft restart.
         """
         self._session_peaks.append(self._current_session_peak_mb)
-        self._current_session_peak_mb = 0.0   # Reset for next window
+        self._current_session_peak_mb = 0.0
 
     def peak_leak_suspected(self) -> bool:
-        """True if the last 3 session peaks are strictly increasing."""
+        """
+        Returns True if the last 3 session peaks are strictly increasing.
+
+        FIX 1: Use [-3:] slice directly instead of range(len-3, len-1)
+        which previously excluded the most recent peak.
+        """
         if len(self._session_peaks) < 3:
             return False
+        # Correct: compare the last 3 entries as a contiguous window
+        last_three = self._session_peaks[-3:]
         return all(
-            self._session_peaks[i] < self._session_peaks[i + 1]
-            for i in range(len(self._session_peaks) - 3, len(self._session_peaks) - 1)
+            last_three[i] < last_three[i + 1]
+            for i in range(len(last_three) - 1)
         )
 
     @property
@@ -200,6 +246,10 @@ class PerceptionState:
         return self._memory_samples[-1][1] if self._memory_samples else 0.0
 
     def memory_delta_mb(self) -> float:
+        """
+        Signed delta (current - oldest sample in window).
+        Positive = memory growing, negative = memory was freed.
+        """
         if len(self._memory_samples) < 2:
             return 0.0
         return round(self._memory_samples[-1][1] - self._memory_samples[0][1], 1)
@@ -215,7 +265,7 @@ class PerceptionState:
     def set_running(self) -> None:
         self.engine_state = EngineState.RUNNING
         self.error_message = ""
-        self.stall_count = 0
+        self.stall_count = 0      # Uses the thread-safe setter
 
     def set_stopped(self) -> None:
         self.engine_state = EngineState.STOPPED

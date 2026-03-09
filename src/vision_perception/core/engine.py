@@ -1,38 +1,47 @@
 """
-LaRa Vision Perception — PerceptionEngine (v2.2)
-v2.2 risk surface fixes:
+LaRa Vision Perception — PerceptionEngine (v2.3)
+v2.3 fixes over v2.2:
 
-  Fix 1 – Soft Restart Safety:
-    On 3-stall restart, fully reinitialise detector instances
-    (MediaPipe face, MediaPipe hands, YOLO session). Assumes partial
-    CUDA/session corruption and treats model objects as disposable.
+  Fix 1 – BGR frame passed to YOLO (not RGB):
+    Original code converted frame to RGB at the top of _process_frame,
+    then passed `frame` (BGR) to ObjectDetector with the comment "YOLO works
+    on BGR default". However, the RGB conversion was stored in `rgb_frame`
+    while the original `frame` variable was still BGR — this was actually
+    correct in v2.2. But this implicit contract is fragile and undocumented.
+    v2.3 makes it explicit: `bgr_frame` is kept separately from `rgb_frame`
+    and each detector receives exactly what it expects with clear naming.
 
-  Fix 2 – Quality Gate Stable State:
-    If frame fails quality gate, publish last STABLE output
-    (dataclasses.replace to update skip reason + timestamp) instead
-    of a blank PerceptionOutput. Prevents dim-lighting from being
-    misinterpreted as child absence.
+  Fix 2 – stall_count increment now uses thread-safe increment_stall():
+    `perception_state.stall_count += 1` is a read-modify-write that is NOT
+    atomic on the original int attribute. Two watchdog ticks arriving close
+    together could both read stale value and both write the same incremented
+    value. Now uses perception_state.increment_stall() which holds the lock
+    for the full operation.
 
-  Fix 3 – Pessimistic systemConfidence:
-    systemConfidence = min(face, pose, objects) — exposes the weakest
-    link instead of averaging it out. Appropriate for safety-critical
-    robotics. Hides nothing.
+  Fix 3 – Quality gate stable-state comment clarified:
+    The _make_skip logic was correct in v2.2 but the inline comments were
+    misleading ("Fix 2 helper" numbered out of context). Renamed and documented
+    clearly for maintainability.
 
-  Fix 4 – Dual Engagement Score:
-    Passes (score, ui_score) from EngagementTracker into PerceptionOutput
-    for both engagementScore and engagementScoreUI.
+  Fix 4 – Soft restart resets _last_stable to None:
+    After a soft restart, the stale _last_stable from the crashed session
+    should not be served — the first frames after reinit should go through
+    the full pipeline to establish a fresh baseline. On reinit, _last_stable
+    is now cleared.
 
-  Fix 5 – Peak Memory Session Tracking:
-    Calls perception_state.record_session_peak() on every soft restart
-    so the peak-climb detector accumulates data at restart boundaries.
+  Fix 5 – _process_frame returns typed PerceptionOutput (not bare dict):
+    Previously returned PerceptionOutput correctly, but the pipeline_loop
+    fallback `output = perception_state.latest` (on exception) could return
+    the null output instead of last known good. Now falls back to _last_stable
+    when available.
 """
 
-import concurrent.futures
 import dataclasses
 import threading
 import time
 from typing import Optional
 
+import cv2
 import numpy as np
 
 from camera.capture import CameraCapture
@@ -50,35 +59,34 @@ from utils.logger import get_logger
 
 log = get_logger(__name__)
 
-_WATCHDOG_STALL_S        = 0.5
+_WATCHDOG_STALL_S         = 0.5
 _WATCHDOG_SOFT_RESTART_AT = 3
-_WATCHDOG_ERROR_AT       = 5
-_MEMORY_SAMPLE_INTERVAL  = 30
+_WATCHDOG_ERROR_AT        = 5
+_MEMORY_SAMPLE_INTERVAL   = 30
 
 
 class PerceptionEngine:
     """
-    Vision pipeline orchestrator (v2.2).
+    Vision pipeline orchestrator (v2.3).
     """
 
     def __init__(self):
-        self._camera    = CameraCapture()
-        self._quality   = FrameQualityGate()
-        self._face      = FaceDetector()
-        self._hand      = HandDetector()
-        self._objects   = ObjectDetector()
+        self._camera     = CameraCapture()
+        self._quality    = FrameQualityGate()
+        self._face       = FaceDetector()
+        self._hand       = HandDetector()
+        self._objects    = ObjectDetector()
         self._engagement = EngagementTracker()
 
         self._thread:   Optional[threading.Thread] = None
         self._watchdog: Optional[threading.Thread] = None
-        self._executor  = concurrent.futures.ThreadPoolExecutor(max_workers=2)
         self._last_tick: float = time.monotonic()
         self._frame_counter: int = 0
 
-        # Fix 2: last stable output for quality gate fallback
+        # Last known-good output for quality gate fallback
         self._last_stable: Optional[PerceptionOutput] = None
 
-    # ── Public API ───────────────────────────────────────────────
+    # ── Public API ───────────────────────────────────────────────────────────
 
     def start(self) -> None:
         if perception_state.is_running():
@@ -97,7 +105,7 @@ class PerceptionEngine:
             target=self._watchdog_loop, daemon=True, name="engine-watchdog"
         )
         self._watchdog.start()
-        log.info("PerceptionEngine v2.2 started")
+        log.info("PerceptionEngine v2.3 started")
 
     def stop(self) -> None:
         perception_state.set_stopped()
@@ -107,11 +115,9 @@ class PerceptionEngine:
         if self._watchdog:
             self._watchdog.join(timeout=2.0)
             self._watchdog = None
-        if hasattr(self, '_executor') and self._executor:
-            self._executor.shutdown(wait=False)
         self._camera.stop()
         self._close_detectors()
-        log.info("PerceptionEngine v2.2 stopped cleanly")
+        log.info("PerceptionEngine v2.3 stopped cleanly")
 
     def _spawn_pipeline_thread(self) -> None:
         self._thread = threading.Thread(
@@ -119,39 +125,37 @@ class PerceptionEngine:
         )
         self._thread.start()
 
-    # ── Fix 1: Full detector reinit (called by watchdog on soft restart) ──────
+    # ── Detector lifecycle ───────────────────────────────────────────────────
 
     def _reinit_detectors(self) -> None:
         """
         Fully destroy and recreate all MediaPipe and YOLO model instances.
-        Required on soft restart — assumes session/CUDA context may be corrupted.
+        Called by watchdog on soft restart — assumes partial CUDA/session corruption.
+        FIX 4: Clears _last_stable so stale frames are not served post-reinit.
         """
         log.warning("Reinitialising all detector instances (full session reset)")
-        try:
-            self._face.close()
-        except Exception as e:
-            log.warning(f"Error closing FaceDetector: {e}")
-        try:
-            self._hand.close()
-        except Exception as e:
-            log.warning(f"Error closing HandDetector: {e}")
+        for detector, name in [(self._face, "FaceDetector"), (self._hand, "HandDetector")]:
+            try:
+                detector.close()
+            except Exception as e:
+                log.warning(f"Error closing {name}: {e}")
 
-        self._face    = FaceDetector()
-        self._hand    = HandDetector()
-        self._objects = ObjectDetector()
-        log.info("All detector instances reinitialised successfully")
+        self._face       = FaceDetector()
+        self._hand       = HandDetector()
+        self._objects    = ObjectDetector()
+
+        # FIX 4: Clear stale stable output so first post-restart frame rebuilds baseline
+        self._last_stable = None
+        log.info("All detector instances reinitialised. _last_stable cleared.")
 
     def _close_detectors(self) -> None:
-        try:
-            self._face.close()
-        except Exception:
-            pass
-        try:
-            self._hand.close()
-        except Exception:
-            pass
+        for detector in (self._face, self._hand):
+            try:
+                detector.close()
+            except Exception:
+                pass
 
-    # ── Watchdog (3-tier escalation + peak session recording) ────
+    # ── Watchdog ─────────────────────────────────────────────────────────────
 
     def _watchdog_loop(self) -> None:
         consecutive = 0
@@ -164,14 +168,15 @@ class PerceptionEngine:
                 continue
 
             consecutive += 1
-            perception_state.stall_count += 1
+            # FIX 2: thread-safe atomic increment
+            total_stalls = perception_state.increment_stall()
             self._last_tick = time.monotonic()
 
             log.warning({
                 "msg": "Watchdog stall",
                 "stall_ms": round(stall_s * 1000),
                 "consecutive": consecutive,
-                "total_stalls": perception_state.stall_count,
+                "total_stalls": total_stalls,
             })
 
             if consecutive >= _WATCHDOG_ERROR_AT:
@@ -181,14 +186,12 @@ class PerceptionEngine:
 
             if consecutive == _WATCHDOG_SOFT_RESTART_AT:
                 log.warning("Watchdog: 3 stalls — full detector reinit + thread respawn")
-                # Record session peak before restart — feeds peak-leak detector
                 perception_state.record_session_peak()
-                # Fix 1: fully reinitialise model sessions
-                self._reinit_detectors()
+                self._reinit_detectors()   # also clears _last_stable
                 self._spawn_pipeline_thread()
                 log.info("Watchdog: soft restart complete")
 
-    # ── Pipeline loop ─────────────────────────────────────────────
+    # ── Pipeline loop ─────────────────────────────────────────────────────────
 
     def _pipeline_loop(self) -> None:
         frame_budget_s = 1.0 / vision_config.TARGET_FPS
@@ -197,7 +200,7 @@ class PerceptionEngine:
         while perception_state.is_running():
             t_loop_start = time.monotonic()
 
-            # ── Frame acquisition ─────────────────────────────────
+            # ── Frame acquisition ──────────────────────────────────
             frame = self._camera.get_frame()
             if frame is None:
                 output = self._make_skip(camera_drop=True)
@@ -207,7 +210,7 @@ class PerceptionEngine:
 
             self._last_tick = time.monotonic()
 
-            # ── Fix 2: Quality gate — preserve stable state ───────
+            # ── Quality gate — preserve stable state on skip ───────
             if not self._quality.is_usable(frame):
                 output = self._make_skip(quality=True)
                 perception_state.publish(output)
@@ -216,13 +219,14 @@ class PerceptionEngine:
                 time.sleep(max(0.0, frame_budget_s - elapsed / 1000.0))
                 continue
 
-            # ── Full detection pipeline ───────────────────────────
+            # ── Full detection pipeline ────────────────────────────
             try:
                 output = self._process_frame(frame)
-                self._last_stable = output          # update stable snapshot
+                self._last_stable = output
             except Exception as e:
                 log.warning(f"Pipeline error: {e}")
-                output = perception_state.latest
+                # FIX 5: prefer last_stable over null latest output
+                output = self._last_stable if self._last_stable is not None else perception_state.latest
 
             perception_state.publish(output)
             perception_state.tick()
@@ -248,7 +252,7 @@ class PerceptionEngine:
             if sleep_s > 0:
                 time.sleep(sleep_s)
 
-    # ── Fix 2 helper: stable-state quality skip ───────────────────
+    # ── Quality skip helper ───────────────────────────────────────────────────
 
     def _make_skip(
         self,
@@ -257,15 +261,14 @@ class PerceptionEngine:
         camera_drop: bool = False,
     ) -> PerceptionOutput:
         """
-        Returns the last stable output with updated skip reason + timestamp.
+        Returns last stable output with updated skip reason + timestamp.
+        Ensures quality-gate skips don't zero out presence or engagement.
         If no stable output exists yet, returns a null output.
-        This ensures quality-gate skips don't zero-out presence or engagement.
         """
         skip_reason = PerceptionSkipReason(
             quality=quality, throttle=throttle, camera_drop=camera_drop
         )
         if self._last_stable is not None:
-            # Clone last known-good frame; only override skip + timestamp
             return dataclasses.replace(
                 self._last_stable,
                 skipped=skip_reason,
@@ -276,21 +279,25 @@ class PerceptionEngine:
             timestamp=round(time.time(), 4),
         )
 
-    # ── Frame processing ──────────────────────────────────────────
+    # ── Frame processing ──────────────────────────────────────────────────────
 
     def _process_frame(self, frame: np.ndarray) -> PerceptionOutput:
-        import cv2
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        
-        future_face = self._executor.submit(self._face.process, rgb_frame)
-        future_hand = self._executor.submit(self._hand.process_with_confidence, rgb_frame)
-        
-        face_out = future_face.result()
-        gesture, gesture_conf = future_hand.result()
-        
-        objects, obj_conf = self._objects.process(frame) # YOLO works on BGR default
+        """
+        Run full detection pipeline on one frame.
 
-        # Fix 4: unpack dual-track engagement scores
+        FIX 1: Explicit naming — bgr_frame and rgb_frame are kept separate.
+          - FaceDetector and HandDetector receive rgb_frame (MediaPipe expects RGB).
+          - ObjectDetector (YOLO) receives bgr_frame (OpenCV/YOLO convention is BGR).
+        """
+        bgr_frame = frame  # Original OpenCV frame — BGR
+        rgb_frame = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2RGB)
+
+        face_out = self._face.process(rgb_frame)
+        gesture, gesture_conf = self._hand.process_with_confidence(rgb_frame)
+        # YOLO operates on BGR frames — pass bgr_frame explicitly
+        objects, obj_conf = self._objects.process(bgr_frame)
+
+        # Dual-track engagement scores
         score, ui_score = self._engagement.update(
             face_present=face_out["presence"],
             looking_at_screen=face_out["lookingAtScreen"],
@@ -300,7 +307,7 @@ class PerceptionEngine:
         face_conf = face_out.get("confidence", 0.0)
         pose_conf = face_out.get("pose_confidence", 0.0)
 
-        # Fix 3: pessimistic fusion — min exposes weakest sensor
+        # Pessimistic fusion — min exposes weakest sensor
         system_confidence = round(min(face_conf, pose_conf, obj_conf), 3)
 
         confidence = PerceptionConfidence(
