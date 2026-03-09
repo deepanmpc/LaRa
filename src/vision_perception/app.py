@@ -1,5 +1,18 @@
 """
-LaRa Vision Perception — FastAPI Entrypoint
+LaRa Vision Perception — FastAPI Entrypoint (v2.3)
+v2.3 fixes over v2.2:
+
+  Fix 1 – Deprecated @app.on_event("shutdown") replaced with lifespan:
+    FastAPI deprecated @app.on_event() in v0.93 and removes it in v0.100+.
+    The correct pattern is an asynccontextmanager lifespan function passed
+    to FastAPI(lifespan=...). This silences the DeprecationWarning and
+    ensures shutdown logic runs correctly on newer FastAPI/Starlette versions.
+
+  Fix 2 – /status exposes increment_stall-compatible stall_count:
+    stall_count is now fetched via the thread-safe property rather than
+    direct attribute access (which was previously fine but is now routed
+    through a lock in state.py v2.3).
+
 Run: uvicorn app:app --host 0.0.0.0 --port 8001
 Test: python app.py --test
 """
@@ -9,6 +22,7 @@ import asyncio
 import sys
 import time
 import os
+from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
@@ -36,11 +50,35 @@ from utils.logger import get_logger
 
 log = get_logger(__name__)
 
-# ── App & CORS ───────────────────────────────────────────────
+# Module-level engine instance (single per process)
+_engine: PerceptionEngine = PerceptionEngine()
+
+
+# ── FIX 1: Lifespan context manager replaces deprecated on_event ────────────
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Manages application startup and shutdown lifecycle.
+    Replaces @app.on_event("startup") / @app.on_event("shutdown") which are
+    deprecated in FastAPI >= 0.93.
+    """
+    # Startup: nothing to do — engine is started explicitly via POST /start
+    log.info("LaRa Vision Perception service started (lifespan context)")
+    yield
+    # Shutdown: stop the engine cleanly if it is still running
+    if perception_state.is_running():
+        log.info("FastAPI shutdown — stopping PerceptionEngine")
+        _engine.stop()
+
+
+# ── App & CORS ───────────────────────────────────────────────────────────────
+
 app = FastAPI(
     title="LaRa Vision Perception",
     description="Independent vision microservice for the LaRa learning companion system.",
-    version="2.2.0",
+    version="2.3.0",
+    lifespan=lifespan,   # FIX 1: pass lifespan here
 )
 
 app.add_middleware(
@@ -50,19 +88,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Module-level engine instance (single per process)
-_engine: PerceptionEngine = PerceptionEngine()
 
-
-# ── Lifecycle ────────────────────────────────────────────────
-@app.on_event("shutdown")
-async def _on_shutdown():
-    if perception_state.is_running():
-        log.info("FastAPI shutdown — stopping PerceptionEngine")
-        _engine.stop()
-
-
-# ── Routes ───────────────────────────────────────────────────
+# ── Routes ───────────────────────────────────────────────────────────────────
 
 @app.get("/health")
 async def health():
@@ -73,7 +100,7 @@ async def health():
 @app.get("/status")
 async def status():
     """Returns engine state, FPS, memory stats, watchdog stall count, and YOLO interval."""
-    mem_mb = perception_state.sample_memory()
+    mem_mb   = perception_state.sample_memory()
     over_limit = mem_mb > vision_config.MAX_MEMORY_MB
 
     return {
@@ -86,6 +113,7 @@ async def status():
         "memory_leak_suspected":          perception_state.memory_leak_suspected(),
         "current_peak_mb":                perception_state.current_session_peak_mb,
         "peak_fragmentation_suspected":   perception_state.peak_leak_suspected(),
+        # FIX 2: uses thread-safe property
         "stall_count":                    perception_state.stall_count,
         "yolo_interval":                  _engine._objects.current_interval,
         "error":                          perception_state.error_message or None,
@@ -99,7 +127,6 @@ async def start():
         return {"status": "already_running", "state": perception_state.engine_state.value}
 
     try:
-        # Run in thread pool so FastAPI event loop is not blocked
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, _engine.start)
         log.info("Engine started via /start")
@@ -134,7 +161,7 @@ async def latest():
     return perception_state.latest.to_dict()
 
 
-# ── Test Mode (CLI) ──────────────────────────────────────────
+# ── Test Mode (CLI) ──────────────────────────────────────────────────────────
 
 def _run_test_mode():
     """
@@ -165,7 +192,7 @@ def _run_test_mode():
         print("Engine stopped cleanly.")
 
 
-# ── Entrypoint ────────────────────────────────────────────────
+# ── Entrypoint ────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="LaRa Vision Perception Service")
