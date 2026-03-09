@@ -85,6 +85,7 @@ LANDMARK_VISIBILITY_MIN: float = 0.5
 # ─── Frame quality gate ────────────────────────────────────
 MIN_BRIGHTNESS: float = 30.0      # 0–255
 MIN_SHARPNESS:  float = 50.0      # Laplacian variance
+QUALITY_SKIP_ABSENCE_THRESHOLD: int = 10  # NEW: consecutive skips before treating as absence
 
 # ─── Adaptive YOLO throttle ───────────────────────────────
 YOLO_MIN_INTERVAL: int = 1

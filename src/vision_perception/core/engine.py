@@ -85,6 +85,7 @@ class PerceptionEngine:
 
         # Last known-good output for quality gate fallback
         self._last_stable: Optional[PerceptionOutput] = None
+        self._consecutive_quality_skips: int = 0  # NEW
 
     # ── Public API ───────────────────────────────────────────────────────────
 
@@ -147,6 +148,7 @@ class PerceptionEngine:
 
         # FIX 4: Clear stale stable output so first post-restart frame rebuilds baseline
         self._last_stable = None
+        self._consecutive_quality_skips = 0  # NEW
         log.info("All detector instances and trackers reinitialised. _last_stable cleared.")
 
     def _close_detectors(self) -> None:
@@ -213,12 +215,42 @@ class PerceptionEngine:
 
             # ── Quality gate — preserve stable state on skip ───────
             if not self._quality.is_usable(frame):
+                self._consecutive_quality_skips += 1
+
+                # Decay engagement on every quality skip
+                score, ui_score = self._engagement.update(
+                    face_present=False,
+                    looking_at_screen=False,
+                    gesture="NONE",
+                )
+
                 output = self._make_skip(quality=True)
+
+                # After threshold: treat as absence — update scores in output
+                if self._consecutive_quality_skips >= vision_config.QUALITY_SKIP_ABSENCE_THRESHOLD:
+                    output = dataclasses.replace(
+                        output,
+                        presence=False,
+                        lookingAtScreen=False,
+                        engagementScore=score,
+                        engagementScoreUI=ui_score,
+                    )
+                else:
+                    # Within grace period: preserve presence but decay scores
+                    output = dataclasses.replace(
+                        output,
+                        engagementScore=score,
+                        engagementScoreUI=ui_score,
+                    )
+
                 perception_state.publish(output)
                 perception_state.tick()
                 elapsed = (time.monotonic() - t_loop_start) * 1000
                 time.sleep(max(0.0, frame_budget_s - elapsed / 1000.0))
                 continue
+
+            # Reset skip counter on a usable frame
+            self._consecutive_quality_skips = 0
 
             # ── Full detection pipeline ────────────────────────────
             try:
