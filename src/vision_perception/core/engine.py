@@ -143,10 +143,11 @@ class PerceptionEngine:
         self._face       = FaceDetector()
         self._hand       = HandDetector()
         self._objects    = ObjectDetector()
+        self._engagement = EngagementTracker()
 
         # FIX 4: Clear stale stable output so first post-restart frame rebuilds baseline
         self._last_stable = None
-        log.info("All detector instances reinitialised. _last_stable cleared.")
+        log.info("All detector instances and trackers reinitialised. _last_stable cleared.")
 
     def _close_detectors(self) -> None:
         for detector in (self._face, self._hand):
@@ -307,8 +308,17 @@ class PerceptionEngine:
         face_conf = face_out.get("confidence", 0.0)
         pose_conf = face_out.get("pose_confidence", 0.0)
 
-        # Pessimistic fusion — min exposes weakest sensor
-        system_confidence = round(min(face_conf, pose_conf, obj_conf), 3)
+        # Weighted fusion excluding objects if 0 (no objects detected is not a failure)
+        w_face = vision_config.SYSTEM_CONF_W_FACE
+        w_pose = vision_config.SYSTEM_CONF_W_POSE
+        w_obj = vision_config.SYSTEM_CONF_W_OBJECTS
+
+        if obj_conf == 0.0:
+            total_w = w_face + w_pose
+            system_confidence = round((w_face * face_conf + w_pose * pose_conf) / total_w, 3) if total_w > 0 else 0.0
+        else:
+            total_w = w_face + w_pose + w_obj
+            system_confidence = round((w_face * face_conf + w_pose * pose_conf + w_obj * obj_conf) / total_w, 3) if total_w > 0 else 0.0
 
         confidence = PerceptionConfidence(
             face=face_conf,
