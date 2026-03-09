@@ -6,11 +6,11 @@ uvicorn[standard]>=0.29.0
 
 # Computer Vision
 opencv-python-headless>=4.9.0
-mediapipe>=0.10.11
+mediapipe==0.10.9
 ultralytics>=8.2.0         # YOLOv8n (auto-downloads model on first run)
 
 # Science / Math
-numpy<2
+numpy==1.26.4
 scipy>=1.13.0
 
 # Monitoring
