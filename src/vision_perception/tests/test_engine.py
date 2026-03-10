@@ -88,6 +88,8 @@ def test_output_to_dict_has_all_keys():
     assert "engagementScore" in d
     assert "engagementScoreUI" in d
     assert "systemConfidence" in d
+    assert "attentionState" in d
+    assert "distractionFrames" in d
     assert "skipped" in d
     assert "confidence" in d
     assert isinstance(d["detectedObjects"], list)

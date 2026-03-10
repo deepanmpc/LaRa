@@ -209,8 +209,17 @@ class PerceptionEngine:
             # ── Frame acquisition ──────────────────────────────────
             frame = self._camera.get_frame()
             if frame is None:
+                attention_state, distraction_frames = self._attention.update(
+                    presence=False, looking_at_screen=False
+                )
                 output = self._make_skip(camera_drop=True)
+                output = dataclasses.replace(
+                    output,
+                    attentionState=attention_state,
+                    distractionFrames=distraction_frames,
+                )
                 perception_state.publish(output)
+                self._consecutive_quality_skips = 0
                 time.sleep(0.005)
                 continue
 

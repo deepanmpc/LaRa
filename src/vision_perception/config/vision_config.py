@@ -87,6 +87,10 @@ MIN_BRIGHTNESS: float = 30.0      # 0–255
 MIN_SHARPNESS:  float = 50.0      # Laplacian variance
 QUALITY_SKIP_ABSENCE_THRESHOLD: int = 10  # NEW: consecutive skips before treating as absence
 
+# ─── Attention thresholds ────────────────────────────────────
+ATTENTION_FOCUS_CONFIRM_FRAMES:    int = 5
+ATTENTION_DISTRACT_CONFIRM_FRAMES: int = 8
+
 # ─── Adaptive YOLO throttle ───────────────────────────────
 YOLO_MIN_INTERVAL: int = 1
 YOLO_MAX_INTERVAL: int = 6
