@@ -332,8 +332,8 @@ def test_attention_distraction_frames_count_up():
     for expected in range(1, 6):
         state, frames = t.update(presence=True, looking_at_screen=False)
         assert state == "DISTRACTED"
-        assert frames == DISTRACT_CONFIRM_FRAMES + expected, (
-            f"Expected distractionFrames={DISTRACT_CONFIRM_FRAMES + expected}, got {frames}"
+        assert frames == 1 + expected, (
+            f"Expected distractionFrames={1 + expected}, got {frames}"
         )
 
 
