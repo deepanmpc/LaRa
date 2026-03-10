@@ -232,7 +232,8 @@ class PerceptionEngine:
                 if self._consecutive_quality_skips >= vision_config.QUALITY_SKIP_ABSENCE_THRESHOLD:
                     # Full absence — zero out everything
                     attention_state, distraction_frames = self._attention.update(
-                        presence=False, looking_at_screen=False
+                        presence=False,
+                        looking_at_screen=False,
                     )
                     output = dataclasses.replace(
                         output,
@@ -247,6 +248,10 @@ class PerceptionEngine:
                     )
                 else:
                     # Grace period — decay scores but also decay confidence proportionally
+                    attention_state, distraction_frames = self._attention.update(
+                        presence=False,
+                        looking_at_screen=False,
+                    )
                     skip_ratio = self._consecutive_quality_skips / vision_config.QUALITY_SKIP_ABSENCE_THRESHOLD
                     prev_conf = output.confidence
                     decayed_conf = PerceptionConfidence(
@@ -259,6 +264,8 @@ class PerceptionEngine:
                         output,
                         engagementScore=score,
                         engagementScoreUI=ui_score,
+                        attentionState=attention_state,
+                        distractionFrames=distraction_frames,
                         confidence=decayed_conf,
                         systemConfidence=round(
                             (decayed_conf.face * vision_config.SYSTEM_CONF_W_FACE
