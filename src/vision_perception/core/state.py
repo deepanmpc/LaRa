@@ -66,10 +66,12 @@ class PerceptionConfidence:
 @dataclass(frozen=True)
 class PerceptionOutput:
     """
-    Immutable snapshot of one perception frame (v2.3 schema).
+    Immutable snapshot of one perception frame (v2.4 schema).
 
     engagementScore   — fast-decay internal signal (raw truth)
     engagementScoreUI — slow-decay, smoothed for human-facing dashboard
+    attentionState    — smoothed: FOCUSED / DISTRACTED / ABSENT / UNKNOWN
+    distractionFrames — consecutive frames child has not been looking at screen
     """
     presence:           bool                  = False
     faceVerified:       bool                  = False

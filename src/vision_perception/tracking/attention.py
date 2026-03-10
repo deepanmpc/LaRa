@@ -17,8 +17,8 @@ log = get_logger(__name__)
 
 # Minimum consecutive frames before state transition is accepted
 # At 15fps: 5 frames = ~0.33s, 15 frames = ~1s
-FOCUS_CONFIRM_FRAMES    = 5   # Must look at screen for N frames to become FOCUSED
-DISTRACT_CONFIRM_FRAMES = 8   # Must look away for N frames to become DISTRACTED
+FOCUS_CONFIRM_FRAMES    = vision_config.ATTENTION_FOCUS_CONFIRM_FRAMES
+DISTRACT_CONFIRM_FRAMES = vision_config.ATTENTION_DISTRACT_CONFIRM_FRAMES
 
 
 class AttentionTracker:
