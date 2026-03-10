@@ -226,21 +226,38 @@ class PerceptionEngine:
 
                 output = self._make_skip(quality=True)
 
-                # After threshold: treat as absence — update scores in output
                 if self._consecutive_quality_skips >= vision_config.QUALITY_SKIP_ABSENCE_THRESHOLD:
+                    # Full absence — zero out everything
                     output = dataclasses.replace(
                         output,
                         presence=False,
                         lookingAtScreen=False,
                         engagementScore=score,
                         engagementScoreUI=ui_score,
+                        confidence=PerceptionConfidence(),   # ← zeros all confidence fields
+                        systemConfidence=0.0,
                     )
                 else:
-                    # Within grace period: preserve presence but decay scores
+                    # Grace period — decay scores but also decay confidence proportionally
+                    skip_ratio = self._consecutive_quality_skips / vision_config.QUALITY_SKIP_ABSENCE_THRESHOLD
+                    prev_conf = output.confidence
+                    decayed_conf = PerceptionConfidence(
+                        face=round(prev_conf.face * (1.0 - skip_ratio), 3),
+                        gesture=0.0,
+                        objects=0.0,
+                        pose=round(prev_conf.pose * (1.0 - skip_ratio), 3),
+                    )
                     output = dataclasses.replace(
                         output,
                         engagementScore=score,
                         engagementScoreUI=ui_score,
+                        confidence=decayed_conf,
+                        systemConfidence=round(
+                            (decayed_conf.face * vision_config.SYSTEM_CONF_W_FACE
+                             + decayed_conf.pose * vision_config.SYSTEM_CONF_W_POSE)
+                            / (vision_config.SYSTEM_CONF_W_FACE + vision_config.SYSTEM_CONF_W_POSE),
+                            3,
+                        ),
                     )
 
                 perception_state.publish(output)
