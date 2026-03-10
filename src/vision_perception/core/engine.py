@@ -54,6 +54,7 @@ from detection.face_detector import FaceDetector
 from detection.hand_detector import HandDetector
 from detection.object_detector import ObjectDetector
 from tracking.engagement import EngagementTracker
+from tracking.attention import AttentionTracker
 from config import vision_config
 from utils.logger import get_logger
 
@@ -77,6 +78,7 @@ class PerceptionEngine:
         self._hand       = HandDetector()
         self._objects    = ObjectDetector()
         self._engagement = EngagementTracker()
+        self._attention  = AttentionTracker()
 
         self._thread:   Optional[threading.Thread] = None
         self._watchdog: Optional[threading.Thread] = None
@@ -145,6 +147,7 @@ class PerceptionEngine:
         self._hand       = HandDetector()
         self._objects    = ObjectDetector()
         self._engagement = EngagementTracker()
+        self._attention  = AttentionTracker()
 
         # FIX 4: Clear stale stable output so first post-restart frame rebuilds baseline
         self._last_stable = None
@@ -228,12 +231,17 @@ class PerceptionEngine:
 
                 if self._consecutive_quality_skips >= vision_config.QUALITY_SKIP_ABSENCE_THRESHOLD:
                     # Full absence — zero out everything
+                    attention_state, distraction_frames = self._attention.update(
+                        presence=False, looking_at_screen=False
+                    )
                     output = dataclasses.replace(
                         output,
                         presence=False,
                         lookingAtScreen=False,
                         engagementScore=score,
                         engagementScoreUI=ui_score,
+                        attentionState=attention_state,
+                        distractionFrames=distraction_frames,
                         confidence=PerceptionConfidence(),   # ← zeros all confidence fields
                         systemConfidence=0.0,
                     )
@@ -354,6 +362,11 @@ class PerceptionEngine:
             gesture=gesture,
         )
 
+        attention_state, distraction_frames = self._attention.update(
+            presence=face_out["presence"],
+            looking_at_screen=face_out["lookingAtScreen"],
+        )
+
         face_conf = face_out.get("confidence", 0.0)
         pose_conf = face_out.get("pose_confidence", 0.0)
 
@@ -382,6 +395,8 @@ class PerceptionEngine:
             lookingAtScreen=face_out["lookingAtScreen"],
             engagementScore=score,
             engagementScoreUI=ui_score,
+            attentionState=attention_state,
+            distractionFrames=distraction_frames,
             gesture=gesture,
             detectedObjects=tuple(objects),
             skipped=PerceptionSkipReason(),
