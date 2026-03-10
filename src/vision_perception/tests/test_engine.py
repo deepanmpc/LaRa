@@ -242,3 +242,276 @@ def test_peak_leak_not_suspected_with_only_two_peaks():
     state = PerceptionState()
     state._session_peaks = [100.0, 200.0]
     assert state.peak_leak_suspected() is False
+
+
+# ── AttentionTracker tests ────────────────────────────────────────────────────
+
+from tracking.attention import AttentionTracker
+
+
+def test_attention_initial_state_is_unknown():
+    """Fresh tracker must start in UNKNOWN state."""
+    t = AttentionTracker()
+    assert t.state == "UNKNOWN"
+
+
+def test_attention_absent_on_no_presence():
+    """If face is not present, state must immediately be ABSENT regardless of history."""
+    t = AttentionTracker()
+    state, frames = t.update(presence=False, looking_at_screen=False)
+    assert state == "ABSENT"
+    assert frames == 0
+
+
+def test_attention_absent_clears_distraction_counter():
+    """Going absent must reset distractionFrames to 0."""
+    t = AttentionTracker()
+    # Build up distraction
+    for _ in range(20):
+        t.update(presence=True, looking_at_screen=False)
+    # Then go absent
+    state, frames = t.update(presence=False, looking_at_screen=False)
+    assert state == "ABSENT"
+    assert frames == 0
+
+
+def test_attention_focused_requires_confirm_threshold():
+    """
+    FOCUSED must not be reported until FOCUS_CONFIRM_FRAMES consecutive
+    looking_at_screen=True frames have been seen.
+    Before threshold: state stays UNKNOWN (or previous state).
+    At threshold: state becomes FOCUSED.
+    """
+    from tracking.attention import FOCUS_CONFIRM_FRAMES
+    t = AttentionTracker()
+
+    # One frame short of threshold — should NOT be FOCUSED yet
+    for i in range(FOCUS_CONFIRM_FRAMES - 1):
+        state, _ = t.update(presence=True, looking_at_screen=True)
+        assert state != "FOCUSED", (
+            f"Should not be FOCUSED before threshold at frame {i+1}"
+        )
+
+    # Exactly at threshold — must now be FOCUSED
+    state, _ = t.update(presence=True, looking_at_screen=True)
+    assert state == "FOCUSED"
+
+
+def test_attention_distracted_requires_confirm_threshold():
+    """
+    DISTRACTED must not be reported until DISTRACT_CONFIRM_FRAMES consecutive
+    looking_at_screen=False frames have been seen (with presence=True).
+    """
+    from tracking.attention import DISTRACT_CONFIRM_FRAMES
+    t = AttentionTracker()
+
+    # One frame short of threshold
+    for i in range(DISTRACT_CONFIRM_FRAMES - 1):
+        state, _ = t.update(presence=True, looking_at_screen=False)
+        assert state != "DISTRACTED", (
+            f"Should not be DISTRACTED before threshold at frame {i+1}"
+        )
+
+    # Exactly at threshold — must now be DISTRACTED
+    state, _ = t.update(presence=True, looking_at_screen=False)
+    assert state == "DISTRACTED"
+
+
+def test_attention_distraction_frames_count_up():
+    """
+    distractionFrames must increment by 1 each frame while DISTRACTED.
+    """
+    from tracking.attention import DISTRACT_CONFIRM_FRAMES
+    t = AttentionTracker()
+
+    # Reach DISTRACTED state
+    for _ in range(DISTRACT_CONFIRM_FRAMES):
+        t.update(presence=True, looking_at_screen=False)
+
+    # Now count up
+    for expected in range(1, 6):
+        state, frames = t.update(presence=True, looking_at_screen=False)
+        assert state == "DISTRACTED"
+        assert frames == DISTRACT_CONFIRM_FRAMES + expected, (
+            f"Expected distractionFrames={DISTRACT_CONFIRM_FRAMES + expected}, got {frames}"
+        )
+
+
+def test_attention_distraction_frames_reset_on_focused():
+    """
+    distractionFrames must reset to 0 once state transitions back to FOCUSED.
+    """
+    from tracking.attention import DISTRACT_CONFIRM_FRAMES, FOCUS_CONFIRM_FRAMES
+    t = AttentionTracker()
+
+    # Go DISTRACTED
+    for _ in range(DISTRACT_CONFIRM_FRAMES + 5):
+        t.update(presence=True, looking_at_screen=False)
+
+    # Go back FOCUSED
+    for _ in range(FOCUS_CONFIRM_FRAMES):
+        state, frames = t.update(presence=True, looking_at_screen=True)
+
+    assert state == "FOCUSED"
+    assert frames == 0
+
+
+def test_attention_brief_look_away_does_not_trigger_distracted():
+    """
+    A brief glance away (fewer frames than DISTRACT_CONFIRM_FRAMES) must NOT
+    transition to DISTRACTED. This is the hysteresis protection for children
+    who briefly turn their heads.
+    """
+    from tracking.attention import FOCUS_CONFIRM_FRAMES, DISTRACT_CONFIRM_FRAMES
+    t = AttentionTracker()
+
+    # Establish FOCUSED
+    for _ in range(FOCUS_CONFIRM_FRAMES):
+        t.update(presence=True, looking_at_screen=True)
+    assert t.state == "FOCUSED"
+
+    # Look away briefly — one fewer than threshold
+    for _ in range(DISTRACT_CONFIRM_FRAMES - 1):
+        t.update(presence=True, looking_at_screen=False)
+
+    # Must still be FOCUSED
+    assert t.state == "FOCUSED", (
+        "Brief look-away should not trigger DISTRACTED due to hysteresis"
+    )
+
+
+def test_attention_brief_look_away_then_returns_to_focused():
+    """
+    After a brief look-away that did NOT trigger DISTRACTED, looking back
+    at screen must quickly re-confirm FOCUSED.
+    """
+    from tracking.attention import FOCUS_CONFIRM_FRAMES, DISTRACT_CONFIRM_FRAMES
+    t = AttentionTracker()
+
+    # Establish FOCUSED
+    for _ in range(FOCUS_CONFIRM_FRAMES):
+        t.update(presence=True, looking_at_screen=True)
+
+    # Brief look-away (not enough to trigger DISTRACTED)
+    for _ in range(DISTRACT_CONFIRM_FRAMES - 1):
+        t.update(presence=True, looking_at_screen=False)
+
+    # Look back — should re-confirm FOCUSED quickly
+    for _ in range(FOCUS_CONFIRM_FRAMES):
+        t.update(presence=True, looking_at_screen=True)
+
+    assert t.state == "FOCUSED"
+
+
+def test_attention_reset_clears_all_state():
+    """
+    reset() must bring tracker back to UNKNOWN with zero counters,
+    as if it was just constructed.
+    """
+    from tracking.attention import DISTRACT_CONFIRM_FRAMES
+    t = AttentionTracker()
+
+    # Build up state
+    for _ in range(DISTRACT_CONFIRM_FRAMES + 10):
+        t.update(presence=True, looking_at_screen=False)
+    assert t.state == "DISTRACTED"
+
+    t.reset()
+    assert t.state == "UNKNOWN"
+    state, frames = t.update(presence=False, looking_at_screen=False)
+    assert state == "ABSENT"
+    assert frames == 0
+
+
+def test_attention_absent_to_focused_full_path():
+    """
+    Full path: UNKNOWN → ABSENT → FOCUSED.
+    Simulates a child sitting down and starting to look at the screen.
+    """
+    from tracking.attention import FOCUS_CONFIRM_FRAMES
+    t = AttentionTracker()
+
+    # No face yet
+    state, _ = t.update(presence=False, looking_at_screen=False)
+    assert state == "ABSENT"
+
+    # Face appears, looking at screen
+    for _ in range(FOCUS_CONFIRM_FRAMES):
+        state, _ = t.update(presence=True, looking_at_screen=True)
+
+    assert state == "FOCUSED"
+
+
+def test_attention_focused_to_distracted_to_focused_cycle():
+    """
+    Full attention cycle: FOCUSED → DISTRACTED → FOCUSED.
+    Simulates a child getting distracted and then re-engaging.
+    """
+    from tracking.attention import FOCUS_CONFIRM_FRAMES, DISTRACT_CONFIRM_FRAMES
+    t = AttentionTracker()
+
+    # Establish FOCUSED
+    for _ in range(FOCUS_CONFIRM_FRAMES):
+        t.update(presence=True, looking_at_screen=True)
+    assert t.state == "FOCUSED"
+
+    # Child looks away long enough
+    for _ in range(DISTRACT_CONFIRM_FRAMES):
+        t.update(presence=True, looking_at_screen=False)
+    assert t.state == "DISTRACTED"
+
+    # Child looks back
+    for _ in range(FOCUS_CONFIRM_FRAMES):
+        t.update(presence=True, looking_at_screen=True)
+    assert t.state == "FOCUSED"
+
+
+def test_attention_output_in_perception_output():
+    """
+    PerceptionOutput must contain attentionState and distractionFrames fields
+    with correct defaults and correct serialisation via to_dict().
+    """
+    out = PerceptionOutput(
+        presence=True,
+        lookingAtScreen=True,
+        engagementScore=0.9,
+        attentionState="FOCUSED",
+        distractionFrames=0,
+        timestamp=1234567890.0,
+    )
+    assert out.attentionState == "FOCUSED"
+    assert out.distractionFrames == 0
+
+    d = out.to_dict()
+    assert "attentionState" in d
+    assert "distractionFrames" in d
+    assert d["attentionState"] == "FOCUSED"
+    assert d["distractionFrames"] == 0
+
+
+def test_attention_distracted_output_in_perception_output():
+    """
+    PerceptionOutput with DISTRACTED state and non-zero distractionFrames
+    must serialise correctly.
+    """
+    out = PerceptionOutput(
+        presence=True,
+        lookingAtScreen=False,
+        engagementScore=0.45,
+        attentionState="DISTRACTED",
+        distractionFrames=42,
+        timestamp=9999.0,
+    )
+    d = out.to_dict()
+    assert d["attentionState"] == "DISTRACTED"
+    assert d["distractionFrames"] == 42
+
+
+def test_attention_default_unknown_in_perception_output():
+    """
+    Default PerceptionOutput (no fields set) must have UNKNOWN attentionState
+    and 0 distractionFrames.
+    """
+    out = PerceptionOutput()
+    assert out.attentionState == "UNKNOWN"
+    assert out.distractionFrames == 0

@@ -23,44 +23,71 @@ DISTRACT_CONFIRM_FRAMES = 8   # Must look away for N frames to become DISTRACTED
 
 class AttentionTracker:
     """
-    Smoothed attention state machine.
-    Prevents rapid flickering between FOCUSED / DISTRACTED.
+    Smoothed attention state machine for child engagement monitoring.
+
+    Designed for neurodiverse children — uses hysteresis so brief head
+    movements do not trigger distraction alerts. A child must consistently
+    look away for ~0.5s before DISTRACTED is reported.
     """
 
     def __init__(self):
         self._state: str = "UNKNOWN"
         self._candidate: str = "UNKNOWN"
         self._candidate_frames: int = 0
-        self._distraction_frames: int = 0  # Total consecutive off-screen frames
-        log.info("AttentionTracker initialised")
+        self._distraction_frames: int = 0
+        log.info(
+            f"AttentionTracker v1.0 initialised "
+            f"(focus_confirm={FOCUS_CONFIRM_FRAMES}, "
+            f"distract_confirm={DISTRACT_CONFIRM_FRAMES})"
+        )
 
-    def update(self, presence: bool, looking_at_screen: bool) -> tuple[str, int]:
+    def update(self, presence: bool, looking_at_screen: bool) -> tuple:
         """
-        Returns (attentionState: str, distractionFrames: int).
+        Call once per frame.
+
+        Args:
+            presence:         True if a face is detected in the frame.
+            looking_at_screen: True if head pose indicates child is looking at screen.
+
+        Returns:
+            (attentionState: str, distractionFrames: int)
         """
+        # ── Absence path ──────────────────────────────────────────
         if not presence:
             self._state = "ABSENT"
-            self._distraction_frames = 0
+            self._candidate = "UNKNOWN"
             self._candidate_frames = 0
+            self._distraction_frames = 0
             return self._state, 0
 
+        # ── Candidate state ───────────────────────────────────────
         candidate = "FOCUSED" if looking_at_screen else "DISTRACTED"
 
         if candidate == self._candidate:
             self._candidate_frames += 1
         else:
+            # Reset streak on direction change
             self._candidate = candidate
             self._candidate_frames = 1
 
-        # Confirm threshold depends on which direction we're transitioning
-        threshold = FOCUS_CONFIRM_FRAMES if candidate == "FOCUSED" else DISTRACT_CONFIRM_FRAMES
+        # ── Threshold check ───────────────────────────────────────
+        threshold = (
+            FOCUS_CONFIRM_FRAMES
+            if candidate == "FOCUSED"
+            else DISTRACT_CONFIRM_FRAMES
+        )
 
         if self._candidate_frames >= threshold:
             if self._state != candidate:
-                log.info(f"AttentionTracker: {self._state} → {candidate}")
+                log.info({
+                    "msg": "AttentionTracker state transition",
+                    "from": self._state,
+                    "to": candidate,
+                    "confirmed_after_frames": self._candidate_frames,
+                })
             self._state = candidate
 
-        # Track distraction duration
+        # ── Distraction frame counter ─────────────────────────────
         if self._state == "DISTRACTED":
             self._distraction_frames += 1
         else:
@@ -68,5 +95,15 @@ class AttentionTracker:
 
         return self._state, self._distraction_frames
 
+    @property
+    def state(self) -> str:
+        """Current confirmed attention state."""
+        return self._state
+
     def reset(self) -> None:
-        self.__init__()
+        """Reset all state — call on soft restart."""
+        self._state = "UNKNOWN"
+        self._candidate = "UNKNOWN"
+        self._candidate_frames = 0
+        self._distraction_frames = 0
+        log.info("AttentionTracker reset")
