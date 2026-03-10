@@ -76,6 +76,8 @@ class PerceptionOutput:
     lookingAtScreen:    bool                  = False
     engagementScore:    float                 = 0.0
     engagementScoreUI:  float                 = 0.0
+    attentionState:     str                   = "UNKNOWN"
+    distractionFrames:  int                   = 0
     gesture:            str                   = "NONE"
     detectedObjects:    tuple                 = ()
     skipped:            PerceptionSkipReason  = field(default_factory=PerceptionSkipReason)
