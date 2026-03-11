@@ -313,11 +313,11 @@ export default function FamilyDashboard() {
                 try {
                     const res = await api.post('/family/session/start', { childId });
                     const sessionUuid = res.data?.sessionUuid || `mock-${Date.now()}`;
-                    navigate(`/child-session/${childId || 'demo'}/${sessionUuid}`);
+                    navigate(`/voice-session/${childId || 'demo'}/${sessionUuid}`);
                 } catch (err) {
                     console.warn('Failed to start session via API, mocking success', err);
                     const sessionUuid = `mock-${Date.now()}`;
-                    navigate(`/child-session/${childId || 'demo'}/${sessionUuid}`);
+                    navigate(`/voice-session/${childId || 'demo'}/${sessionUuid}`);
                 } finally {
                     setStartingSession(false);
                     setActiveNav('summary'); // Reset nav state if they hit back

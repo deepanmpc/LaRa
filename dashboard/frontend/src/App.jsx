@@ -5,7 +5,7 @@ import FamilyDashboard from './pages/FamilyDashboard';
 import ClinicianPending from './pages/ClinicianPending';
 import ProtectedRoute from './components/ProtectedRoute';
 import ChildrenList from './pages/dashboard/ChildrenList';
-import ChildSessionPage from './pages/child/ChildSessionPage';
+import VoiceSessionPage from './pages/voice/VoiceSessionPage';
 
 export default function App() {
     return (
@@ -39,8 +39,8 @@ export default function App() {
                     }
                 />
                 
-                {/* Child Fullscreen Kiosk Flow (Phase 1) */}
-                <Route path="/child-session/:childId/:sessionUuid" element={<ChildSessionPage />} />
+                {/* Voice Kiosk Flow (ChatGPT Style) */}
+                <Route path="/voice-session/:childId/:sessionUuid" element={<VoiceSessionPage />} />
 
                 <Route path="*" element={<Navigate to="/login" replace />} />
             </Routes>
