@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import { getStoredUser } from '../services/authService';
 import api from '../services/api';
@@ -267,6 +267,7 @@ function EngagementCard({ data }) {
 // ─── Main Family Dashboard ───────────────────────
 export default function FamilyDashboard() {
     const { childId } = useParams();
+    const navigate = useNavigate();
     const [activeNav, setActiveNav] = useState('summary');
     const [dashboardData, setDashboardData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -310,19 +311,21 @@ export default function FamilyDashboard() {
             const startSession = async () => {
                 setStartingSession(true);
                 try {
-                    await api.post('/family/session/start', { childId });
-                    // alert('Session started successfully!');
+                    const res = await api.post('/family/session/start', { childId });
+                    const sessionUuid = res.data?.sessionUuid || `mock-${Date.now()}`;
+                    navigate(`/child-session/${childId || 'demo'}/${sessionUuid}`);
                 } catch (err) {
                     console.warn('Failed to start session via API, mocking success', err);
-                    // alert('Session started successfully (mock)!');
+                    const sessionUuid = `mock-${Date.now()}`;
+                    navigate(`/child-session/${childId || 'demo'}/${sessionUuid}`);
                 } finally {
                     setStartingSession(false);
-                    setActiveNav('summary'); // Reset nav state
+                    setActiveNav('summary'); // Reset nav state if they hit back
                 }
             };
             startSession();
         }
-    }, [activeNav, childId]);
+    }, [activeNav, childId, navigate]);
 
     const child = dashboardData?.childProfile;
     const session = dashboardData?.sessionSummary;
