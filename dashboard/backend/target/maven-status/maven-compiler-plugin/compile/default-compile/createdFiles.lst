@@ -4,7 +4,9 @@ com/lara/dashboard/dto/LoginRequest.class
 com/lara/dashboard/dto/LoginRequest$LoginRequestBuilder.class
 com/lara/dashboard/entity/Child$ChildBuilder.class
 com/lara/dashboard/entity/Child.class
+com/lara/dashboard/service/AdminService.class
 com/lara/dashboard/dto/FamilyDashboardResponse$FamilyDashboardResponseBuilder.class
+com/lara/dashboard/dto/ClinicianResponse$ClinicianResponseBuilder.class
 com/lara/dashboard/service/AuthService.class
 com/lara/dashboard/entity/ClinicianProfile.class
 com/lara/dashboard/controller/ClinicianController.class
@@ -26,8 +28,10 @@ com/lara/dashboard/controller/AuthController.class
 com/lara/dashboard/dto/FamilyDashboardResponse.class
 com/lara/dashboard/controller/FamilyController.class
 com/lara/dashboard/dto/ChildResponse.class
+com/lara/dashboard/dto/ClinicianResponse.class
 com/lara/dashboard/service/MockFamilyDashboardService.class
 com/lara/dashboard/repository/ClinicianProfileRepository.class
+com/lara/dashboard/controller/AdminController.class
 com/lara/dashboard/entity/ClinicianProfile$ClinicianProfileBuilder.class
 com/lara/dashboard/controller/ChildController.class
 com/lara/dashboard/entity/User$UserBuilder.class

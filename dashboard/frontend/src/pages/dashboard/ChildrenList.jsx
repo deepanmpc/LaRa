@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+
 import api from '../../services/api';
 import ChildCard from '../../components/dashboard/ChildCard';
 import AddChildCard from '../../components/dashboard/AddChildCard';
@@ -9,7 +9,6 @@ export default function ChildrenList() {
     const [children, setChildren] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const navigate = useNavigate();
 
     const fetchChildren = async () => {
         try {

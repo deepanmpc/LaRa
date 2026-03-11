@@ -56,6 +56,8 @@ public class AuthService {
         if (role == Role.ROLE_CLINICIAN) {
             ClinicianProfile profile = ClinicianProfile.builder()
                     .user(user)
+                    .phone(request.getPhone())
+                    .organization(request.getOrganization())
                     .licenseNumber(request.getLicenseNumber())
                     .specialization(request.getSpecialization())
                     .yearsOfExperience(request.getYearsOfExperience())

@@ -5,20 +5,21 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class RegisterRequest {
+public class ClinicianResponse {
+    private Long id; // User ID
     private String name;
     private String email;
-    private String password;
-    private String role; // "ROLE_FAMILY" or "ROLE_CLINICIAN"
-
-    // Optional clinician fields
     private String phone;
     private String organization;
-    private String licenseNumber;
     private String specialization;
+    private String licenseNumber;
     private Integer yearsOfExperience;
+    private String status;
+    private LocalDateTime createdAt;
 }

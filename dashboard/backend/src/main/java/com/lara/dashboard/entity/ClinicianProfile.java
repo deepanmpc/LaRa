@@ -22,6 +22,9 @@ public class ClinicianProfile {
     @JoinColumn(name = "user_id", nullable = false, unique = true)
     private User user;
 
+    private String phone;
+    private String organization;
+
     @Column(name = "license_number")
     private String licenseNumber;
 

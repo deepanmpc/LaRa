@@ -10,6 +10,8 @@ export default function Signup() {
         password: '',
         confirmPassword: '',
         role: 'ROLE_FAMILY',
+        phone: '',
+        organization: '',
         licenseNumber: '',
         specialization: '',
         yearsOfExperience: '',
@@ -45,6 +47,8 @@ export default function Signup() {
                 password: formData.password,
                 role: formData.role,
                 ...(isClinicianRole && {
+                    phone: formData.phone,
+                    organization: formData.organization,
                     licenseNumber: formData.licenseNumber,
                     specialization: formData.specialization,
                     yearsOfExperience: formData.yearsOfExperience ? parseInt(formData.yearsOfExperience) : null,
@@ -132,6 +136,30 @@ export default function Signup() {
                                 color: '#0369a1'
                             }}>
                                 ℹ️ Clinician accounts require admin approval before activation.
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label" htmlFor="signup-phone">Phone Number</label>
+                                <input
+                                    id="signup-phone"
+                                    name="phone"
+                                    type="tel"
+                                    className="form-input"
+                                    placeholder="e.g. 555-123-4567"
+                                    value={formData.phone}
+                                    onChange={handleChange}
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label" htmlFor="signup-organization">Organization / Clinic</label>
+                                <input
+                                    id="signup-organization"
+                                    name="organization"
+                                    type="text"
+                                    className="form-input"
+                                    placeholder="e.g. Mindful Care Center"
+                                    value={formData.organization}
+                                    onChange={handleChange}
+                                />
                             </div>
                             <div className="form-group">
                                 <label className="form-label" htmlFor="signup-license">License Number</label>
