@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { login, getStoredUser } from '../services/authService';
+import { login } from '../services/authService';
 
 export default function Login() {
     const navigate = useNavigate();
@@ -18,7 +18,13 @@ export default function Login() {
             if (data.role === 'ROLE_FAMILY') {
                 navigate('/dashboard/children');
             } else if (data.role === 'ROLE_CLINICIAN') {
-                navigate('/clinician/pending');
+                if (data.status === 'APPROVED') {
+                    navigate('/dashboard/clinical');
+                } else {
+                    navigate('/clinician/pending');
+                }
+            } else if (data.role === 'ROLE_ADMIN') {
+                navigate('/dashboard/admin');
             } else {
                 navigate('/dashboard/children');
             }
