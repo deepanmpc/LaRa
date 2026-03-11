@@ -16,8 +16,8 @@ const FreePlayActivity = () => {
             <div className="relative flex justify-center items-center">
                 
                 {/* Expanding sonar rings */}
-                <div className="absolute w-64 h-64 bg-rose-200 rounded-full animate-[ping_3s_cubic-bezier(0,0,0.2,1)_infinite] opacity-75"></div>
-                <div className="absolute w-48 h-48 bg-rose-300 rounded-full animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite] opacity-75"></div>
+                <div className="absolute w-64 h-64 bg-rose-200 rounded-full animate-ping-slow opacity-75"></div>
+                <div className="absolute w-48 h-48 bg-rose-300 rounded-full animate-ping-slower opacity-75"></div>
                 
                 {/* Core Mic Button */}
                 <button 

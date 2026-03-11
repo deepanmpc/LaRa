@@ -9,11 +9,11 @@ const LaraAvatar = ({ state, isDistracted }) => {
     
     switch (state) {
         case 'idle':
-            animationClass = "animate-[pulse_4s_ease-in-out_infinite]"; // Gentle breathing
+            animationClass = "animate-pulse-slow"; // Gentle breathing
             expression = "😊";
             break;
         case 'speaking':
-            animationClass = "animate-[bounce_0.5s_ease-in-out_infinite]"; // Mouth movement abstraction
+            animationClass = "animate-custom-bounce"; // Mouth movement abstraction
             expression = "💬";
             break;
         case 'waiting':
@@ -21,7 +21,7 @@ const LaraAvatar = ({ state, isDistracted }) => {
             expression = "🤔";
             break;
         case 'celebrating':
-            animationClass = "animate-[bounce_1s_ease-in-out_infinite] scale-110 drop-shadow-[0_0_20px_rgba(250,204,21,0.8)]"; // Bounce + sparkle ring
+            animationClass = "animate-custom-bounce-wide scale-110 drop-shadow-[0_0_20px_rgba(250,204,21,0.8)]"; // Bounce + sparkle ring
             expression = "🎉";
             break;
         default:
