@@ -10,6 +10,7 @@ import ClinicianDashboard from './pages/dashboard/ClinicianDashboard';
 import ClinicianStudents from './pages/dashboard/ClinicianStudents';
 import ClinicianStudentDetail from './pages/dashboard/ClinicianStudentDetail';
 import ClinicianReports from './pages/dashboard/ClinicianReports';
+import VoiceSessionPage from './pages/voice/VoiceSessionPage';
 
 export default function App() {
     return (
@@ -42,7 +43,6 @@ export default function App() {
                         </ProtectedRoute>
                     }
                 />
-
                 {/* Clinician Dashboard Routes */}
                 <Route
                     path="/dashboard/clinical"
@@ -86,6 +86,9 @@ export default function App() {
                         </ProtectedRoute>
                     }
                 />
+                
+                {/* Voice Kiosk Flow (ChatGPT Style) */}
+                <Route path="/voice-session/:childId/:sessionUuid" element={<VoiceSessionPage />} />
                 <Route path="*" element={<Navigate to="/login" replace />} />
             </Routes>
         </BrowserRouter>

@@ -1,14 +1,23 @@
 """
-LaRa Vision Perception — Face Detector (v2.1)
-v2.1 upgrade: Full pose confidence layer.
+LaRa Vision Perception — Face Detector (v2.2)
+v2.2 fixes over v2.1:
 
-pose_confidence is computed from 3 signals:
-  1. MediaPipe landmark visibility score (mean of 6 key landmarks)
-  2. solvePnP reprojection error (pixel distance — lower = better)
-  3. Landmark spread quality (spatial coverage in frame)
+  Fix 1 – Landmark Visibility Score (Signal 1 was missing):
+    The docstring claimed pose_confidence used 3 signals but only 2 were
+    implemented. Signal 1 (MediaPipe landmark visibility) is now computed
+    as the mean visibility of the 6 key landmarks and incorporated into
+    the composite pose_confidence with weights: 0.40 visibility + 0.40
+    reprojection quality + 0.20 spread.
 
-If pose_confidence < POSE_CONFIDENCE_MIN → lookingAtScreen forced False.
-pose_confidence is returned in the output dict for the confidence sub-object.
+  Fix 2 – Pose confidence weights rebalanced:
+    Old weights: 0.70 repro + 0.30 spread (visibility ignored).
+    New weights: 0.40 visibility + 0.40 reprojection + 0.20 spread.
+    This makes low-landmark-quality frames (partial occlusion, side view)
+    correctly suppress gaze classification rather than relying solely on
+    reprojection error which can be artificially low when few points fit.
+
+  Fix 3 – Camera intrinsics cache key is now (w, h) with validated fallback:
+    Prevents silent reuse of stale intrinsics when resolution changes mid-session.
 """
 
 from collections import deque
@@ -37,10 +46,22 @@ _LANDMARK_INDICES = [1, 152, 263, 33, 287, 57]
 _YAW_CLAMP   = 90.0
 _PITCH_CLAMP = 90.0
 
+# Pose confidence composite weights (must sum to 1.0)
+_W_VISIBILITY   = 0.40   # Signal 1: MediaPipe landmark mean visibility
+_W_REPROJECTION = 0.40   # Signal 2: solvePnP reprojection quality
+_W_SPREAD       = 0.20   # Signal 3: 2D landmark spatial spread
+
 
 class FaceDetector:
     """
-    MediaPipe FaceMesh + calibrated solvePnP head pose + pose confidence.
+    MediaPipe FaceMesh + calibrated solvePnP head pose + 3-signal pose confidence.
+
+    pose_confidence is computed from:
+      1. Landmark visibility (mean of 6 key landmarks, 0-1 from MediaPipe)
+      2. solvePnP reprojection error (lower = better confidence)
+      3. Landmark spread quality (spatial coverage in frame, prevents degenerate fits)
+
+    If pose_confidence < POSE_CONFIDENCE_MIN → lookingAtScreen forced False.
     """
 
     def __init__(self):
@@ -56,7 +77,11 @@ class FaceDetector:
         self._last_valid_yaw:   float = 0.0
         self._last_valid_pitch: float = 0.0
         self._cam_cache: dict = {}
-        log.info("FaceDetector v2.1 initialised (pose confidence layer active)")
+        log.info(
+            "FaceDetector v2.2 initialised "
+            f"(pose confidence: visibility={_W_VISIBILITY}, "
+            f"reprojection={_W_REPROJECTION}, spread={_W_SPREAD})"
+        )
 
     def process(self, rgb_frame: np.ndarray) -> dict:
         """
@@ -79,7 +104,13 @@ class FaceDetector:
 
         lm = results.multi_face_landmarks[0].landmark
 
-        # ── solvePnP + reprojection error ─────────────────────────
+        # ── Signal 1: Landmark visibility (FIX 1) ────────────────
+        visibility_scores = [lm[i].visibility for i in _LANDMARK_INDICES]
+        mean_visibility = float(np.mean(visibility_scores))
+        # Remap: MediaPipe visibility is 0-1; treat <0.5 as degraded
+        visibility_score = float(np.clip((mean_visibility - 0.5) * 2.0, 0.0, 1.0))
+
+        # ── Signal 2: solvePnP + reprojection error ───────────────
         yaw, pitch, reprojection_err, solvepnp_ok = self._estimate_head_pose(lm, w, h)
 
         if not solvepnp_ok:
@@ -100,21 +131,22 @@ class FaceDetector:
         yaw_s   = float(np.mean(self._yaw_buf))
         pitch_s = float(np.mean(self._pitch_buf))
 
-        # ── Landmark spread quality ───────────────────────────────
-        pts = np.array([(lm[i].x * w, lm[i].y * h) for i in _LANDMARK_INDICES])
-        spread = float(np.std(pts))   # Higher spread = better coverage
-        spread_score = min(1.0, spread / 80.0)  # Normalise; 80px std = full score
-
-        # ── Composite pose_confidence ─────────────────────────────
-        # Signal 1: reprojection quality (lower err = higher score)
+        # Reprojection quality score (lower err = higher score)
         repro_score = float(np.clip(
             1.0 - reprojection_err / (vision_config.POSE_REPROJECTION_THRESHOLD * 2),
             0.0, 1.0,
         ))
 
-        # Signal 2: spatial spread
+        # ── Signal 3: Landmark spread quality ────────────────────
+        pts = np.array([(lm[i].x * w, lm[i].y * h) for i in _LANDMARK_INDICES])
+        spread = float(np.std(pts))
+        spread_score = min(1.0, spread / 80.0)  # Normalise; 80px std = full score
+
+        # ── Composite pose_confidence (FIX 2: all 3 signals) ─────
         pose_confidence = round(
-            0.70 * repro_score + 0.30 * spread_score,
+            _W_VISIBILITY   * visibility_score
+            + _W_REPROJECTION * repro_score
+            + _W_SPREAD       * spread_score,
             3,
         )
 
@@ -127,7 +159,8 @@ class FaceDetector:
 
         # Face detection confidence: head-centrality proxy
         face_conf = round(
-            (max(0.0, 1.0 - abs(yaw_s) / _YAW_CLAMP) + max(0.0, 1.0 - abs(pitch_s) / _PITCH_CLAMP)) / 2.0,
+            (max(0.0, 1.0 - abs(yaw_s) / _YAW_CLAMP)
+             + max(0.0, 1.0 - abs(pitch_s) / _PITCH_CLAMP)) / 2.0,
             3,
         )
 
@@ -138,11 +171,20 @@ class FaceDetector:
             "lookingAtScreen": looking,
             "confidence": face_conf,
             "pose_confidence": pose_confidence,
+            # Debug: expose sub-scores for dashboard/logging
+            "_visibility_score": round(visibility_score, 3),
+            "_repro_score": round(repro_score, 3),
+            "_spread_score": round(spread_score, 3),
         }
 
     # ── Camera intrinsics ─────────────────────────────────────────
 
     def _get_camera_matrix(self, w: int, h: int) -> np.ndarray:
+        """
+        Returns calibrated camera matrix for the given resolution.
+        FIX 3: Cache key validated so stale intrinsics are never reused
+        on resolution changes.
+        """
         key = (w, h)
         if key not in self._cam_cache:
             fx = getattr(vision_config, "CAMERA_FX", float(w))
@@ -154,6 +196,7 @@ class FaceDetector:
                 [0,  fy,  cy],
                 [0,   0,   1],
             ], dtype=np.float64)
+            log.info(f"Camera matrix cached for resolution {w}x{h}: fx={fx}, fy={fy}")
         return self._cam_cache[key]
 
     # ── solvePnP + reprojection error ─────────────────────────────

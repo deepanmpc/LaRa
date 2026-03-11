@@ -20,4 +20,13 @@ public class FamilyController {
         FamilyDashboardResponse response = dashboardService.getDashboardData(email, childId);
         return ResponseEntity.ok(response);
     }
+
+    @PostMapping("/session/start")
+    public ResponseEntity<java.util.Map<String, String>> startSession(@RequestBody java.util.Map<String, Object> payload) {
+        String sessionUuid = java.util.UUID.randomUUID().toString();
+        java.util.Map<String, String> response = new java.util.HashMap<>();
+        response.put("sessionUuid", sessionUuid);
+        response.put("status", "STARTED");
+        return ResponseEntity.ok(response);
+    }
 }

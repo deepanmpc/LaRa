@@ -117,6 +117,10 @@ def test_latest_when_running_returns_correct_shape(client):
     assert data["presence"] is True
     assert data["gesture"] == "OPEN_PALM"
     assert data["engagementScore"] == 0.85
+    assert "attentionState" in data
+    assert "distractionFrames" in data
+    assert data["attentionState"] == "UNKNOWN"  # default
+    assert data["distractionFrames"] == 0
 
     # v2.2 new fields
     assert data["engagementScoreUI"] == 0.91
