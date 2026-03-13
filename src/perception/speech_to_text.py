@@ -251,8 +251,16 @@ def check_wake_word_in_clip(audio_frames, kws_model):
         return False
 
 
-def run_conversation_loop():
+def run_conversation_loop(bridge=None):
     """Main conversation loop — called by main.py or directly."""
+    
+    def _emit(event_type: str, **payload):
+        """Emit to bridge if connected. Never raises — bridge failure must not break conversation."""
+        if bridge is not None:
+            try:
+                bridge.emit(event_type, payload)
+            except Exception as e:
+                logging.debug(f"[Bridge] Emit failed silently: {e}")
     
     # Retrieve singletons
     stt_service = STTService.get()
@@ -315,6 +323,7 @@ def run_conversation_loop():
     silence_threshold = int(SILENCE_DURATION_MS / FRAME_DURATION_MS)
     is_speaking = False
     system_mode = SystemMode.RESTING
+    _emit("system_state", mode="resting", turn_count=0, difficulty=session.current_difficulty if session else 2)
     
     # KWS state tracking during SPEAKING mode
     kws_speech_frames = []
@@ -464,6 +473,7 @@ def run_conversation_loop():
 
                             # Handle Shutdown
                             if "shutdown" in text.lower() or "shut down" in text.lower():
+                                _emit("session_ended", reason="shutdown_command", turn_count=session.turn_count if session else 0)
                                 goodbye = "Goodbye! Have a lovely day."
                                 print(f"\n\033[91m[Shutdown]\033[0m LaRa: {goodbye}")
                                 if lara_voice:
@@ -475,6 +485,7 @@ def run_conversation_loop():
                             if system_mode == SystemMode.RESTING:
                                 if "friday" in text.lower():
                                     system_mode = SystemMode.LISTENING
+                                    _emit("system_state", mode="listening", turn_count=0, difficulty=session.current_difficulty if session else 2)
                                     msg = "\n\033[92m[System Transition]\033[0m LaRa is now AWAKE."
                                     print(msg)
                                     logging.info("[SYSTEM_STATE] Transitioned to LISTENING")
@@ -482,14 +493,19 @@ def run_conversation_loop():
                                     print(f"\033[95mLaRa:\033[0m {welcome_text}")
                                     if lara_voice:
                                         system_mode = SystemMode.SPEAKING
+                                        _emit("system_state", mode="speaking", turn_count=0, difficulty=session.current_difficulty if session else 2)
+                                        _emit("lara_response", speaker="lara", text=welcome_text, mood="neutral", mood_confidence=0.0, strategy="neutral")
                                         speak_and_monitor(welcome_text)
                                         system_mode = SystemMode.LISTENING
+                                        _emit("system_state", mode="listening", turn_count=0, difficulty=session.current_difficulty if session else 2)
                                 else:
                                     sys.stdout.write(f"\r\033[90m(Heard: \"{text}\" - say 'friday' to activate)\033[0m")
                                     sys.stdout.flush()
                                 continue
 
                             # --- Active Conversation (LISTENING mode) ---
+                            _emit("system_state", mode="thinking", turn_count=session.turn_count if session else 0, difficulty=session.current_difficulty if session else 2)
+                            _emit("transcript", speaker="child", text=text, timestamp=time.time())
                             print(f"\n\033[94mYou:\033[0m {text}")
                             
                             # Check session TTL
@@ -507,6 +523,12 @@ def run_conversation_loop():
                                 detected_mood, mood_conf = mood_detector.analyze(
                                     text, utterance_frames, utterance_duration
                                 )
+                                _emit("mood_update", mood=detected_mood, confidence=mood_conf,
+                                      regulation={
+                                          "frustration_persistence": regulation.frustration_persistence if regulation else 0,
+                                          "stability_persistence": regulation.stability_persistence if regulation else 0,
+                                          "trend": regulation.emotional_trend_score if regulation else 0.0,
+                                      } if regulation else {})
                                 mood_icon = {"happy": "\U0001f60a", "sad": "\U0001f622", "frustrated": "\U0001f624", "anxious": "\U0001f630", "quiet": "\U0001f92b"}.get(detected_mood, "")
                                 if mood_icon:
                                     print(f"\033[90m[Mood: {detected_mood} {mood_icon}]\033[0m")
@@ -529,11 +551,14 @@ def run_conversation_loop():
                             
                             # --- Difficulty Gating ---
                             if session:
+                                old_d = session.current_difficulty
                                 if session.should_decrease_difficulty():
                                     session.change_difficulty(-1)
+                                    _emit("difficulty_change", old_difficulty=old_d, new_difficulty=session.current_difficulty, direction="down")
                                     print(f"\033[90m[Difficulty: decreased to {session.current_difficulty}]\033[0m")
                                 elif session.should_increase_difficulty():
                                     session.change_difficulty(+1)
+                                    _emit("difficulty_change", old_difficulty=old_d, new_difficulty=session.current_difficulty, direction="up")
                                     print(f"\033[90m[Difficulty: increased to {session.current_difficulty}]\033[0m")
                             
                             # --- Compute RegulationState (Step 1) ---
@@ -591,6 +616,7 @@ def run_conversation_loop():
                                 vector_context=vector_context,
                             ):
                                 full_ai_response += chunk
+                                _emit("lara_chunk", chunk=chunk, index=len(full_ai_response))
                             
                             # Validate response
                             full_ai_response = validate_response(full_ai_response)
@@ -638,8 +664,20 @@ def run_conversation_loop():
                                         lara_voice.speed = strategy.tts_length_scale
                                     
                                     system_mode = SystemMode.SPEAKING
+                                    _emit("system_state", mode="speaking",
+                                        turn_count=session.turn_count if session else 0,
+                                        difficulty=session.current_difficulty if session else 2)
+                                    _emit("lara_response",
+                                        speaker="lara",
+                                        text=full_ai_response,
+                                        mood=detected_mood,
+                                        mood_confidence=mood_conf,
+                                        strategy=strategy.label if strategy else "neutral")
                                     completed = speak_and_monitor(full_ai_response.strip())
                                     system_mode = SystemMode.LISTENING
+                                    _emit("system_state", mode="listening",
+                                        turn_count=session.turn_count if session else 0,
+                                        difficulty=session.current_difficulty if session else 2)
                                     
                                     if not completed:
                                         # Wake-word interrupt occurred — acknowledge calmly
@@ -651,6 +689,7 @@ def run_conversation_loop():
                                 print(f"\033[90m... [User interrupted — listening]\033[0m")
                             
     except KeyboardInterrupt:
+        _emit("session_ended", reason="keyboard_interrupt", turn_count=session.turn_count if session else 0)
         print("\n\n\033[91m[System Transition]\033[0m Stopping gently...")
         logging.info("[SYSTEM_STATE] Transitioned to SHUTDOWN (KeyboardInterrupt)")
     except Exception as e:

@@ -80,7 +80,9 @@ def run():
         # The system initialization and heavy imports are now handled in __main__
         # This function primarily runs the conversation loop.
         from src.perception.speech_to_text import run_conversation_loop
-        run_conversation_loop()
+        from src.bridge.ws_server import LaRaBridge
+        bridge = LaRaBridge.get()
+        run_conversation_loop(bridge=bridge)
     except KeyboardInterrupt:
         pass
     except Exception as e:
@@ -124,6 +126,15 @@ if __name__ == "__main__":
     except Exception as e:
         logging.critical(f"[System Boot] Fatal initialization error: {e}")
         sys.exit(1)
+    
+    # 4b. Start WebSocket bridge for dashboard
+    try:
+        from src.bridge.ws_server import LaRaBridge
+        bridge = LaRaBridge.get()
+        bridge.start()
+        print("\033[93m[System Boot]\033[0m WebSocket bridge started on ws://localhost:8765")
+    except Exception as e:
+        logging.warning(f"[Main] WebSocket bridge failed to start: {e} — continuing without UI bridge")
     
     # 5. Run the main application loop
     run()
