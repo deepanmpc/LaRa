@@ -39,8 +39,8 @@ class LaRaSpeech:
             from kokoro import KPipeline
             from src.core.runtime_paths import get_tts_dir
             tts_dir = get_tts_dir()
-            self.pipeline = KPipeline(lang_code='a', repo_id=repo_id, model_dir=tts_dir)
-            logging.info(f"Successfully loaded Kokoro TTS (voice: {voice}, dir: {tts_dir})")
+            self.pipeline = KPipeline(lang_code='a', repo_id=repo_id)
+            logging.info(f"Successfully loaded Kokoro TTS (voice: {voice})")
         except Exception as e:
             logging.error(f"Failed to load Kokoro TTS: {e}")
             print(f"\033[91m[TTS Error]\033[0m Could not load Kokoro: {e} - System will continue silently.")
