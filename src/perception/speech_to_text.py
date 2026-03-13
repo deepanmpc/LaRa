@@ -116,6 +116,7 @@ class STTService:
         models_dir = get_whisper_dir()
         config_device = _local_cfg.device if _local_cfg and hasattr(_local_cfg, 'device') else 'cpu'
         config_compute = _local_cfg.compute_type if _local_cfg and hasattr(_local_cfg, 'compute_type') else 'int8'
+        stt_model_name = _local_cfg.model if _local_cfg and hasattr(_local_cfg, 'model') else 'small.en'
         
         # Enforce robust device fallback matching the rest of the application
         stt_device, stt_compute = get_device_and_compute_type(config_device, config_compute)
