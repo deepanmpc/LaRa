@@ -183,6 +183,11 @@ const VoiceSessionPage = () => {
 
     const connect = useCallback(() => {
         if (reconnectCountRef.current >= MAX_RECONNECT_ATTEMPTS) { setWsStatus('error'); return; }
+        // Close any existing connection first (prevents StrictMode double-mount duplicates)
+        if (wsRef.current) {
+            wsRef.current.onclose = null; // prevent reconnect loop from old socket
+            wsRef.current.close();
+        }
         setWsStatus('connecting');
         const ws = new WebSocket(WS_URL);
         wsRef.current = ws;
