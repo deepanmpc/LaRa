@@ -90,7 +90,7 @@ class LaRaBridge:
         self._loop.run_until_complete(self._serve())
 
     async def _serve(self):
-        async with websockets.serve(self._handler, WS_HOST, WS_PORT):
+        async with websockets.serve(self._handler, WS_HOST, WS_PORT, origins=None):
             log.info(f"[Bridge] WebSocket server listening on ws://{WS_HOST}:{WS_PORT}")
             await asyncio.Future()  # run forever
 
@@ -99,7 +99,11 @@ class LaRaBridge:
     async def _handler(self, websocket):
         # Origin check — allow all localhost/127.0.0.1 origins for local dev.
         # Blocks requests from external IPs only.
-        origin = websocket.request_headers.get("Origin", "")
+        # websockets v16: headers are on websocket.request.headers
+        try:
+            origin = websocket.request.headers.get("Origin", "")
+        except AttributeError:
+            origin = getattr(websocket, 'request_headers', {}).get("Origin", "")
         if origin:
             from urllib.parse import urlparse
             parsed = urlparse(origin)
