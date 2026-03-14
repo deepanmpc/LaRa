@@ -68,12 +68,12 @@ MOOD_KEYWORDS = {
     Mood.FRUSTRATED: [
         # Core emotions
         "angry", "mad", "furious", "annoyed", "annoying", "irritated",
-        # Refusal
-        "no", "stop", "don't", "won't", "refuse", "not doing",
+        # Refusal (multi-word only — 'no' and 'stop' are too ambiguous)
+        "don't", "won't", "refuse", "not doing",
         "go away", "leave me",
-        # Difficulty
-        "can't", "can't do", "too hard", "hard", "difficult", "impossible",
-        "stuck", "broken", "not working", "wrong", "messed up",
+        # Difficulty (multi-word to avoid false positives)
+        "can't", "can't do", "too hard", "difficult", "impossible",
+        "stuck", "broken", "not working", "messed up",
         # Exclamations
         "ugh", "argh", "grr", "hmph",
         # Injustice
@@ -81,9 +81,9 @@ MOOD_KEYWORDS = {
         # Aggression
         "hate", "stupid", "dumb", "idiot", "shut up", "break",
         "hit", "kick", "throw", "smash", "punch",
-        # Repetition frustration
-        "again", "already", "told you", "i said", "not again",
-        "how many times", "still",
+        # Repetition frustration (multi-word only)
+        "told you", "i said", "not again",
+        "how many times",
     ],
     Mood.ANXIOUS: [
         # Core emotions
@@ -155,7 +155,7 @@ class MoodDetector:
     CONFIDENCE_THRESHOLD = 0.2
     
     # Rolling window size for temporal smoothing
-    SMOOTHING_WINDOW = 2
+    SMOOTHING_WINDOW = 1
 
     def __init__(self):
         self._mood_history = deque(maxlen=self.SMOOTHING_WINDOW)
