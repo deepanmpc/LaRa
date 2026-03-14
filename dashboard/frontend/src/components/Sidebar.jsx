@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { logout, getStoredUser } from '../services/authService';
 
 const NAV_ITEMS = [
@@ -28,7 +28,11 @@ const NAV_ITEMS = [
 
 export default function Sidebar({ activeItem, onNavClick }) {
     const navigate = useNavigate();
+    const location = useLocation();
     const user = getStoredUser();
+
+    // Profile active state
+    const isProfileActive = location.pathname === '/dashboard/profile';
 
     const handleSignOut = () => {
         logout();
@@ -56,6 +60,19 @@ export default function Sidebar({ activeItem, onNavClick }) {
                         {item.label}
                     </button>
                 ))}
+
+                <div className="sidebar-nav-label">Account</div>
+                <button
+                    id="sidebar-nav-profile"
+                    className={`sidebar-nav-item ${isProfileActive ? 'active' : ''}`}
+                    onClick={() => navigate('/dashboard/profile')}
+                >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+                        <circle cx="12" cy="7" r="4" />
+                    </svg>
+                    Profile
+                </button>
 
                 <div className="sidebar-nav-label">Support</div>
                 <button

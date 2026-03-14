@@ -10,6 +10,8 @@ import ClinicianDashboard from './pages/dashboard/ClinicianDashboard';
 import ClinicianStudents from './pages/dashboard/ClinicianStudents';
 import ClinicianStudentDetail from './pages/dashboard/ClinicianStudentDetail';
 import ClinicianReports from './pages/dashboard/ClinicianReports';
+import ClinicalSessions from './pages/dashboard/ClinicalSessions';
+import Profile from './pages/dashboard/Profile';
 import VoiceSessionPage from './pages/voice/VoiceSessionPage';
 
 export default function App() {
@@ -73,6 +75,22 @@ export default function App() {
                     element={
                         <ProtectedRoute requiredRole="ROLE_CLINICIAN" requiredStatus="APPROVED">
                             <ClinicianReports />
+                        </ProtectedRoute>
+                    }
+                />
+                <Route
+                    path="/dashboard/clinical/sessions"
+                    element={
+                        <ProtectedRoute requiredRole="ROLE_CLINICIAN" requiredStatus="APPROVED">
+                            <ClinicalSessions />
+                        </ProtectedRoute>
+                    }
+                />
+                <Route
+                    path="/dashboard/profile"
+                    element={
+                        <ProtectedRoute>
+                            <Profile />
                         </ProtectedRoute>
                     }
                 />
