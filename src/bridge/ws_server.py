@@ -1,16 +1,12 @@
 """
 LaRa WebSocket Bridge Server
-Runs in a background thread. Accepts browser clients.
 
-Changes vs. original:
-  - Handler now reads incoming messages instead of ignoring them.
-  - Supports two commands from the UI:
-        {"type": "session_start"}  → triggers _on_session_start()
-        {"type": "session_stop"}   → triggers _on_session_stop()
-  - Registered callbacks are invoked in a separate daemon thread so the
-    async WS loop is never blocked.
-  - Pipeline calls LaRaBridge.emit(event_type, payload) from any thread
-    (unchanged API).
+Key points:
+  - origins=None on websockets.serve() disables the library's built-in
+    origin rejection (which caused "connection handler failed" spam).
+  - Manual origin check in _handler still rejects non-localhost IPs.
+  - Supports session_start / session_stop commands from the UI.
+  - emit() pushes events from the pipeline to all connected browsers.
 """
 
 import asyncio
@@ -18,6 +14,7 @@ import json
 import logging
 import threading
 from typing import Callable, Optional
+from urllib.parse import urlparse
 
 import websockets
 
@@ -28,14 +25,6 @@ WS_PORT = 8765
 
 
 class LaRaBridge:
-    """
-    Singleton WebSocket server.
-
-    Thread-safe emit()  — called from the pipeline thread → pushes to UI.
-    on_session_start()  — register a callback invoked when UI sends session_start.
-    on_session_stop()   — register a callback invoked when UI sends session_stop.
-    """
-
     _instance: Optional["LaRaBridge"] = None
     _lock = threading.Lock()
 
@@ -43,16 +32,10 @@ class LaRaBridge:
         self._clients: set = set()
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._thread: Optional[threading.Thread] = None
-
-        # Registered pipeline callbacks
         self._start_callback: Optional[Callable] = None
         self._stop_callback:  Optional[Callable] = None
-
-        # Guard: prevent double-starting the pipeline
         self._session_active = False
         self._cb_lock = threading.Lock()
-
-    # ── Singleton ─────────────────────────────────────────────────────────────
 
     @classmethod
     def get(cls) -> "LaRaBridge":
@@ -62,27 +45,20 @@ class LaRaBridge:
                     cls._instance = LaRaBridge()
         return cls._instance
 
-    # ── Callback registration ─────────────────────────────────────────────────
-
     def on_session_start(self, callback: Callable):
-        """Register the function to call when UI sends session_start."""
         self._start_callback = callback
         log.info("[Bridge] session_start callback registered")
 
     def on_session_stop(self, callback: Callable):
-        """Register the function to call when UI sends session_stop."""
         self._stop_callback = callback
         log.info("[Bridge] session_stop callback registered")
 
-    # ── Server lifecycle ──────────────────────────────────────────────────────
-
     def start(self):
-        """Start the WebSocket server in a daemon thread."""
         self._thread = threading.Thread(
             target=self._run_loop, daemon=True, name="lara-ws-bridge"
         )
         self._thread.start()
-        log.info(f"[Bridge] WebSocket server starting on ws://{WS_HOST}:{WS_PORT}")
+        log.info(f"[Bridge] Starting on ws://{WS_HOST}:{WS_PORT}")
 
     def _run_loop(self):
         self._loop = asyncio.new_event_loop()
@@ -90,26 +66,24 @@ class LaRaBridge:
         self._loop.run_until_complete(self._serve())
 
     async def _serve(self):
+        # origins=None disables websockets' built-in origin check entirely.
+        # We do our own check inside _handler.
         async with websockets.serve(self._handler, WS_HOST, WS_PORT, origins=None):
-            log.info(f"[Bridge] WebSocket server listening on ws://{WS_HOST}:{WS_PORT}")
-            await asyncio.Future()  # run forever
-
-    # ── Connection handler ────────────────────────────────────────────────────
+            log.info(f"[Bridge] Listening on ws://{WS_HOST}:{WS_PORT}")
+            await asyncio.Future()
 
     async def _handler(self, websocket):
-        # Origin check — allow all localhost/127.0.0.1 origins for local dev.
-        # Blocks requests from external IPs only.
-        # websockets v16: headers are on websocket.request.headers
+        # Manual origin check — allow localhost only, block external IPs
         try:
             origin = websocket.request.headers.get("Origin", "")
         except AttributeError:
-            origin = getattr(websocket, 'request_headers', {}).get("Origin", "")
+            # Older websockets API
+            origin = getattr(websocket, "request_headers", {}).get("Origin", "")
+
         if origin:
-            from urllib.parse import urlparse
-            parsed = urlparse(origin)
-            host = parsed.hostname or ""
+            host = urlparse(origin).hostname or ""
             if host not in ("localhost", "127.0.0.1", "0.0.0.0", ""):
-                log.warning(f"[Bridge] Rejected connection from external origin: {origin}")
+                log.warning(f"[Bridge] Rejected external origin: {origin}")
                 await websocket.close(1008, "Origin not allowed")
                 return
 
@@ -117,7 +91,7 @@ class LaRaBridge:
         log.info(f"[Bridge] Client connected: {websocket.remote_address}")
 
         try:
-            # Send initial resting state so UI can render immediately
+            # Send initial resting state
             await websocket.send(json.dumps({
                 "type": "system_state",
                 "mode": "resting",
@@ -125,25 +99,19 @@ class LaRaBridge:
                 "difficulty": 2,
             }))
 
-            # ── Read loop — now active, not ignored ───────────────────────────
             async for raw in websocket:
                 try:
                     msg = json.loads(raw)
                 except json.JSONDecodeError:
-                    log.warning(f"[Bridge] Non-JSON message ignored: {raw!r}")
                     continue
 
                 msg_type = msg.get("type")
-                log.info(f"[Bridge] ← received: {msg_type}")
+                log.info(f"[Bridge] <- {msg_type}")
 
                 if msg_type == "session_start":
                     await self._handle_session_start(websocket)
-
                 elif msg_type == "session_stop":
                     await self._handle_session_stop(websocket)
-
-                else:
-                    log.debug(f"[Bridge] Unknown command ignored: {msg_type}")
 
         except websockets.exceptions.ConnectionClosed:
             pass
@@ -151,51 +119,33 @@ class LaRaBridge:
             self._clients.discard(websocket)
             log.info("[Bridge] Client disconnected")
 
-    # ── Command handlers ──────────────────────────────────────────────────────
-
     async def _handle_session_start(self, websocket):
         with self._cb_lock:
             if self._session_active:
-                await websocket.send(json.dumps({
-                    "type": "session_ack",
-                    "status": "already_running",
-                }))
+                await websocket.send(json.dumps({"type": "session_ack", "status": "already_running"}))
                 return
-
             self._session_active = True
 
-        await websocket.send(json.dumps({
-            "type": "session_ack",
-            "status": "starting",
-        }))
+        await websocket.send(json.dumps({"type": "session_ack", "status": "starting"}))
 
-        # Fire callback in a daemon thread so we don't block the WS loop
         if self._start_callback:
-            t = threading.Thread(
+            threading.Thread(
                 target=self._start_callback,
                 daemon=True,
-                name="lara-pipeline",
-            )
-            t.start()
-            log.info("[Bridge] Pipeline start callback fired in background thread")
+                name="lara-pipeline",   # name must match what _stop_pipeline searches for
+            ).start()
+            log.info("[Bridge] Pipeline start callback fired")
         else:
-            log.warning("[Bridge] session_start received but no start callback registered")
+            log.warning("[Bridge] session_start: no callback registered")
 
     async def _handle_session_stop(self, websocket):
         with self._cb_lock:
             if not self._session_active:
-                await websocket.send(json.dumps({
-                    "type": "session_ack",
-                    "status": "not_running",
-                }))
+                await websocket.send(json.dumps({"type": "session_ack", "status": "not_running"}))
                 return
-
             self._session_active = False
 
-        await websocket.send(json.dumps({
-            "type": "session_ack",
-            "status": "stopping",
-        }))
+        await websocket.send(json.dumps({"type": "session_ack", "status": "stopping"}))
 
         if self._stop_callback:
             threading.Thread(
@@ -205,21 +155,13 @@ class LaRaBridge:
             ).start()
             log.info("[Bridge] Pipeline stop callback fired")
         else:
-            log.warning("[Bridge] session_stop received but no stop callback registered")
-
-    # ── Emit (pipeline → UI) ──────────────────────────────────────────────────
+            log.warning("[Bridge] session_stop: no callback registered")
 
     def emit(self, event_type: str, payload: dict):
-        """
-        Thread-safe event emission from the pipeline.
-        Called from the conversation loop thread.
-        """
         if not self._loop or not self._clients:
             return
         message = json.dumps({"type": event_type, **payload})
-        asyncio.run_coroutine_threadsafe(
-            self._broadcast(message), self._loop
-        )
+        asyncio.run_coroutine_threadsafe(self._broadcast(message), self._loop)
 
     async def _broadcast(self, message: str):
         dead = set()
@@ -230,10 +172,7 @@ class LaRaBridge:
                 dead.add(ws)
         self._clients -= dead
 
-    # ── Session state reset (called by pipeline on natural end) ───────────────
-
     def mark_session_ended(self):
-        """Call this when the conversation loop exits naturally."""
         with self._cb_lock:
             self._session_active = False
         self.emit("session_ended", {"reason": "natural_end"})
