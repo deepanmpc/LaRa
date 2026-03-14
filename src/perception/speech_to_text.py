@@ -311,6 +311,18 @@ def run_conversation_loop(bridge=None):
         vector_memory = VectorMemory()
         vector_memory.set_user(USER_ID)
     
+    # State & Context Initialization (prevents UnboundLocalError)
+    regulation = None
+    strategy = None
+    detected_mood = "neutral"
+    mood_conf = 0.0
+    text = ""
+    full_ai_response = ""
+    reinforcement_prompt = ""
+    preference_context = ""
+    summary_context = ""
+    vector_context = ""
+
     clear_console()
     print("="*60)
     print("        \033[95mLaRa: Low-Cost Adaptive Robotic-AI Assistant\033[0m")
@@ -516,6 +528,11 @@ def run_conversation_loop(bridge=None):
                                     reinforcement_manager.persist_session_metrics()
                                 session = SessionState()
                             
+                            # --- Compute RegulationState (Step 1) ---
+                            # Must be computed before mood_update emission
+                            if compute_regulation_state and session:
+                                regulation = compute_regulation_state(session)
+                                
                             # Mood detection (text + audio signals)
                             detected_mood = "neutral"
                             mood_conf = 0.0
@@ -562,11 +579,7 @@ def run_conversation_loop(bridge=None):
                                     _emit("difficulty_change", old_difficulty=old_d, new_difficulty=session.current_difficulty, direction="up")
                                     print(f"\033[90m[Difficulty: increased to {session.current_difficulty}]\033[0m")
                             
-                            # --- Compute RegulationState (Step 1) ---
-                            regulation = None
-                            if compute_regulation_state and session:
-                                regulation = compute_regulation_state(session)
-                            
+                            # --- Compute RegulationState moved up ---
                             # --- Get RecoveryStrategy ---
                             strategy = None
                             if strategy_manager:

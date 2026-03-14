@@ -58,12 +58,6 @@ class LaRaSpeech:
         self._interrupt_requested = True
         self._last_interrupt_time = now
 
-        # Stop sounddevice playback immediately
-        try:
-            sd.stop()
-        except Exception:
-            pass
-
         logging.info("[TTS Interrupt] Speech interrupted by wake-word.")
         return True
 
