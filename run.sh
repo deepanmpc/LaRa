@@ -1,60 +1,134 @@
 #!/usr/bin/env bash
-# LaRa — Unified System Startup Script
-# Starts Backend, Frontend, Vision, and Voice Pipeline.
+# =============================================================================
+#  LaRa — Unified Launcher
+#  Starts all four services:
+#    1. Python pipeline  (src/main.py          → ws://localhost:8765)
+#    2. Vision API       (src/vision_perception → http://localhost:8001)
+#    3. Dashboard backend (Spring Boot          → http://localhost:8080)
+#    4. Dashboard frontend (Vite               → http://localhost:5173)
+#
+#  Usage:  ./run.sh
+#  Stop:   Ctrl+C  (all child processes are cleaned up automatically)
+# =============================================================================
 
 set -e
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR"
 
-# Change to root directory
-cd "$(dirname "$0")"
-ROOT_DIR=$(pwd)
+# ── Colour helpers ────────────────────────────────────────────────────────────
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
+CYAN='\033[0;36m'; BOLD='\033[1m'; RESET='\033[0m'
 
-echo -e "\033[96m"
-echo "============================================================"
-echo "        LaRa — Unified System Startup"
-echo "============================================================"
-echo -e "\033[0m"
+log()  { echo -e "${CYAN}[LaRa]${RESET} $*"; }
+ok()   { echo -e "${GREEN}[✓]${RESET} $*"; }
+warn() { echo -e "${YELLOW}[!]${RESET} $*"; }
+err()  { echo -e "${RED}[✗]${RESET} $*"; }
 
-# 1. Environment Check
-if [ -d ".venv" ]; then
-    echo "[Env] Activating Python 3.11 virtual environment..."
-    source .venv/bin/activate
-else
-    echo "[Warning] .venv not found. Using system Python."
-fi
+# ── PID tracking (for clean shutdown) ────────────────────────────────────────
+PIDS=()
 
-# Function to kill background processes on exit
 cleanup() {
-    echo -e "\n\033[93m[System] Shutting down all services...\033[0m"
-    # Kill the process group to ensure all background tasks are stopped
-    trap - SIGINT SIGTERM # avoid infinite loop
-    kill 0
+    echo ""
+    log "Shutting down all LaRa services…"
+    for pid in "${PIDS[@]}"; do
+        if kill -0 "$pid" 2>/dev/null; then
+            kill "$pid" 2>/dev/null && ok "Stopped PID $pid"
+        fi
+    done
+    log "All services stopped. Goodbye."
+    exit 0
+}
+trap cleanup SIGINT SIGTERM
+
+# ── Prerequisite checks ───────────────────────────────────────────────────────
+check_cmd() {
+    command -v "$1" &>/dev/null || { err "Required command not found: $1"; exit 1; }
 }
 
-trap cleanup SIGINT SIGTERM EXIT
+check_cmd python3
+check_cmd node
+check_cmd npm
+check_cmd mvn
+check_cmd java
 
-# 2. Start Vision Perception Microservice (Port 8001)
-echo "[Vision] Starting Perception service on port 8001..."
-cd "$ROOT_DIR/src/vision_perception"
-uvicorn app:app --host 0.0.0.0 --port 8001 > "$ROOT_DIR/runtime/vision.log" 2>&1 &
-VISION_PID=$!
+echo ""
+echo -e "${BOLD}${CYAN}============================================================${RESET}"
+echo -e "${BOLD}${CYAN}         LaRa — Low-Cost Adaptive Robotic-AI System         ${RESET}"
+echo -e "${BOLD}${CYAN}============================================================${RESET}"
+echo ""
 
-# 3. Start Dashboard Backend (Port 8080)
-echo "[Backend] Starting Spring Boot service on port 8080..."
-cd "$ROOT_DIR/dashboard/backend"
-./run.sh > "$ROOT_DIR/runtime/backend.log" 2>&1 &
-BACKEND_PID=$!
+# ── 1. Python virtual environment ─────────────────────────────────────────────
+if [ -f ".venv/bin/activate" ]; then
+    source .venv/bin/activate
+    ok "Python venv activated"
+elif [ -f "venv/bin/activate" ]; then
+    source venv/bin/activate
+    ok "Python venv activated"
+else
+    warn "No .venv found — using system Python. Consider: python3 -m venv .venv && pip install -r requirements.txt"
+fi
 
-# 4. Start Dashboard Frontend (Port 5173)
-echo "[Frontend] Starting React dev server on port 5173..."
-cd "$ROOT_DIR/dashboard/frontend"
-npm run dev -- --host > "$ROOT_DIR/runtime/frontend.log" 2>&1 &
-FRONTEND_PID=$!
+# ── 2. LaRa Python Pipeline (src/main.py) ─────────────────────────────────────
+# Pipeline boots all singletons and starts the WebSocket bridge.
+# The conversation loop is GATED — it only starts when the UI sends session_start.
+log "Starting Python pipeline (ws://localhost:8765)…"
+python3 src/main.py >> runtime/logs/pipeline.log 2>&1 &
+PIPELINE_PID=$!
+PIDS+=($PIPELINE_PID)
+ok "Pipeline started (PID $PIPELINE_PID)"
 
-# Allow services a moment to warm up
-echo "[System] Services starting in background. Tailing logs to 'runtime/*.log'..."
+# Give the WS bridge a moment to bind
 sleep 2
 
-# 5. Start LaRa Voice Pipeline (Foreground / Interactive)
-echo -e "\n\033[92m[Pipeline] Starting LaRa Voice Pipeline (Interactive)\033[0m"
-cd "$ROOT_DIR"
-python3 src/main.py
+# ── 3. Vision Perception API (FastAPI) ────────────────────────────────────────
+log "Starting Vision Perception API (http://localhost:8001)…"
+(
+    cd src/vision_perception
+    if [ -f ".venv/bin/activate" ]; then
+        source .venv/bin/activate
+    fi
+    python3 -m uvicorn app:app --host 0.0.0.0 --port 8001 --log-level warning
+) >> runtime/logs/vision_api.log 2>&1 &
+VISION_PID=$!
+PIDS+=($VISION_PID)
+ok "Vision API started (PID $VISION_PID)"
+
+# ── 4. Dashboard Backend (Spring Boot) ────────────────────────────────────────
+log "Starting Dashboard Backend (http://localhost:8080)…"
+(
+    cd dashboard/backend
+    if [ -f ".env" ]; then
+        export $(grep -v '^#' .env | xargs)
+    fi
+    export JAVA_HOME=$(java -XshowSettings:properties -version 2>&1 | grep "java.home" | awk '{print $3}')
+    mvn -q spring-boot:run
+) >> runtime/logs/backend.log 2>&1 &
+BACKEND_PID=$!
+PIDS+=($BACKEND_PID)
+ok "Backend started (PID $BACKEND_PID)"
+
+# ── 5. Dashboard Frontend (Vite) ──────────────────────────────────────────────
+log "Starting Dashboard Frontend (http://localhost:5173)…"
+(
+    cd dashboard/frontend
+    npm install --silent
+    npm run dev -- --host
+) >> runtime/logs/frontend.log 2>&1 &
+FRONTEND_PID=$!
+PIDS+=($FRONTEND_PID)
+ok "Frontend started (PID $FRONTEND_PID)"
+
+# ── Ready ─────────────────────────────────────────────────────────────────────
+echo ""
+echo -e "${GREEN}${BOLD}All LaRa services are running:${RESET}"
+echo -e "  ${CYAN}Frontend  ${RESET}→  http://localhost:5173"
+echo -e "  ${CYAN}Backend   ${RESET}→  http://localhost:8080"
+echo -e "  ${CYAN}Vision API${RESET}→  http://localhost:8001"
+echo -e "  ${CYAN}WS Bridge ${RESET}→  ws://localhost:8765"
+echo ""
+echo -e "${YELLOW}Logs:${RESET} runtime/logs/*.log"
+echo -e "${YELLOW}Stop:${RESET} Press Ctrl+C"
+echo ""
+
+# ── Wait for all children ─────────────────────────────────────────────────────
+wait

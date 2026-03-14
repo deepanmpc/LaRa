@@ -1,12 +1,18 @@
 """
 LaRa Main Entrypoint
-Clean application runner that initializes all components and starts the
-conversation loop. Replaces running whispercpp_STT.py directly.
+
+On boot:
+  1. Initializes runtime directories and logging.
+  2. Loads config.
+  3. Initializes all ML singletons (STT, TTS, LLM) — heavy, one-time cost.
+  4. Starts the WebSocket bridge (ws://localhost:8765).
+  5. Registers session_start / session_stop callbacks on the bridge.
+  6. WAITS — the pipeline does NOT start until the UI sends {"type":"session_start"}.
 
 Usage:
     python3 src/main.py
-    
-Or with the CLI entry point (after setup.py install):
+
+Or after setup.py install:
     lara
 """
 
@@ -14,13 +20,14 @@ import sys
 import os
 import signal
 import logging
+import threading
 
-# Ensure project root is on path so `import src.something` works
+# Ensure project root is on path
 _ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT_DIR not in sys.path:
     sys.path.insert(0, _ROOT_DIR)
 
-# ── Step 1: Load config FIRST (before anything else) ──────────────────────────
+# ── Step 1: Load config FIRST ──────────────────────────────────────────────────
 try:
     from src.core.config_loader import CONFIG
 except FileNotFoundError as e:
@@ -34,107 +41,118 @@ except Exception as e:
 from src.core.logger import setup_logging
 setup_logging()
 
-# ── Step 3: Import everything else after logging is ready ──────────────────────
-try:
-    from src.system.bootstrap import initialize as initialize_system
-    from src.perception.speech_to_text import run_conversation_loop
-except ImportError as e:
-    logging.error(f"[Main] Could not import conversation loop: {e}")
-    sys.exit(1)
-
-
 # ── Graceful shutdown handler ──────────────────────────────────────────────────
-_running = True
-
 def _handle_signal(sig, frame):
-    global _running
     logging.info(f"[Main] Signal {sig} received — shutting down gracefully...")
     print("\n[LaRa] Shutting down...")
-    _running = False
     sys.exit(0)
 
 signal.signal(signal.SIGINT,  _handle_signal)
 signal.signal(signal.SIGTERM, _handle_signal)
 
 
-# ── Entrypoint ─────────────────────────────────────────────────────────────────
-from src.core.logger import setup_logging
+# ── Pipeline session control ───────────────────────────────────────────────────
+
+# A threading Event that the bridge flips when session_start arrives from the UI.
+_session_start_event = threading.Event()
+_pipeline_thread: threading.Thread = None
 
 
-def run():
-    """Main entrypoint — called by CLI script or directly."""
-    logging.info(
-        f"[Main] LaRa starting | "
-        f"model={CONFIG.llm.model_name} | "
-        f"user={CONFIG.app.user_id} | "
-        f"wake_word={CONFIG.app.wake_word}"
-    )
+def _start_pipeline():
+    """
+    Called by the WS bridge when the UI sends {"type": "session_start"}.
+    Runs in a daemon thread — does NOT block the WS server.
+    """
+    global _pipeline_thread
 
-    print("=" * 60)
-    print("        \033[95mLaRa — Low-Cost Adaptive Robotic-AI Assistant\033[0m")
-    print(f"        Model: {CONFIG.llm.model_name}")
-    print(f"        Wake word: '{CONFIG.app.wake_word}'")
-    print("=" * 60)
+    logging.info("[Main] session_start received — launching conversation loop")
+    print("\n[LaRa] Session started by UI ▶")
 
     try:
-        # The system initialization and heavy imports are now handled in __main__
-        # This function primarily runs the conversation loop.
         from src.perception.speech_to_text import run_conversation_loop
         from src.bridge.ws_server import LaRaBridge
         bridge = LaRaBridge.get()
         run_conversation_loop(bridge=bridge)
-    except KeyboardInterrupt:
-        pass
     except Exception as e:
-        logging.error(f"[Main] Unexpected error: {e}", exc_info=True)
-        print(f"\n[LaRa] Unexpected error: {e}")
-        sys.exit(1)
+        logging.error(f"[Main] Pipeline error: {e}", exc_info=True)
+        print(f"[LaRa] Pipeline error: {e}")
     finally:
-        logging.info("[Main] LaRa session ended.")
-        print("\n[LaRa] Session ended. Goodbye.")
+        from src.bridge.ws_server import LaRaBridge
+        LaRaBridge.get().mark_session_ended()
+        logging.info("[Main] Conversation loop ended — ready for next session")
+        print("\n[LaRa] Session ended. Ready for next session.")
 
+
+def _stop_pipeline():
+    """
+    Called by the WS bridge when the UI sends {"type": "session_stop"}.
+    Signals the conversation loop to exit cleanly.
+    """
+    logging.info("[Main] session_stop received — stopping pipeline")
+    print("\n[LaRa] Session stopped by UI ■")
+    # The run_conversation_loop checks a global flag; raise KeyboardInterrupt
+    # via thread interrupt to unblock blocking I/O in the loop.
+    if _pipeline_thread and _pipeline_thread.is_alive():
+        import ctypes
+        ctypes.pythonapi.PyThreadState_SetAsyncExc(
+            ctypes.c_ulong(_pipeline_thread.ident),
+            ctypes.py_object(KeyboardInterrupt),
+        )
+
+
+# ── Main ───────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     print("\n\033[96m============================================================\033[0m")
     print("\033[96m        LaRa — Low-Cost Adaptive Robotic-AI Assistant\033[0m")
     print("\033[96m        Model: AgentricAi/AgentricAI_TLM:latest\033[0m")
-    print("\033[96m        Wake word: 'friday'\033[0m")
+    print("\033[96m        Pipeline: GATED — starts on UI session_start\033[0m")
     print("\033[96m============================================================\033[0m\n")
 
-    # 1. Pre-init runtime directories required for all file I/O operations
+    # 1. Pre-init runtime directories
     import src.core.runtime_paths as rp
     rp.initialize()
 
-    # 2. Configure loggers
+    # 2. Configure loggers (already called above, safe to call again)
     setup_logging()
-    
-    # 3. Import heavy components (Lazy-loads CTranslate2, WhisperModel, Torch, etc.)
+
+    # 3. Load heavy ML components
     import time
     t0 = time.time()
     try:
         from src.system.bootstrap import initialize as initialize_system
-        # run_conversation_loop is now imported inside the run() function
     except ImportError as e:
-        logging.error(f"[Main] Could not load conversational logic: {e}")
+        logging.error(f"[Main] Could not load system bootstrap: {e}")
         sys.exit(1)
-    
-    # 4. Spin up singletons
-    print("\033[93m[System Boot]\033[0m Initializing neural services (STT, TTS, LLM)...")
+
+    print("\033[93m[System Boot]\033[0m Initializing neural services (STT, TTS, LLM)…")
     try:
         initialize_system()
-        print(f"\033[93m[System Boot]\033[0m Complete. Services loaded in {time.time()-t0:.2f}s\n")
+        print(f"\033[93m[System Boot]\033[0m Complete in {time.time() - t0:.2f}s\n")
     except Exception as e:
         logging.critical(f"[System Boot] Fatal initialization error: {e}")
         sys.exit(1)
-    
-    # 4b. Start WebSocket bridge for dashboard
+
+    # 4. Start WebSocket bridge
     try:
         from src.bridge.ws_server import LaRaBridge
         bridge = LaRaBridge.get()
+
+        # Register callbacks — pipeline starts ONLY when UI sends session_start
+        bridge.on_session_start(_start_pipeline)
+        bridge.on_session_stop(_stop_pipeline)
+
         bridge.start()
         print("\033[93m[System Boot]\033[0m WebSocket bridge started on ws://localhost:8765")
     except Exception as e:
         logging.warning(f"[Main] WebSocket bridge failed to start: {e} — continuing without UI bridge")
-    
-    # 5. Run the main application loop
-    run()
+
+    print("\n\033[92m[LaRa] Ready. Open the dashboard and click 'Start Session'.\033[0m\n")
+
+    # 5. Keep main thread alive — everything else is in daemon threads
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("\n[LaRa] Shutdown requested. Goodbye.")
+        sys.exit(0)
