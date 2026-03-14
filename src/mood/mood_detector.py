@@ -155,7 +155,7 @@ class MoodDetector:
     CONFIDENCE_THRESHOLD = 0.2
     
     # Rolling window size for temporal smoothing
-    SMOOTHING_WINDOW = 3
+    SMOOTHING_WINDOW = 2
 
     def __init__(self):
         self._mood_history = deque(maxlen=self.SMOOTHING_WINDOW)
@@ -163,7 +163,7 @@ class MoodDetector:
         self._current_confidence = 0.0
         self._consecutive_neutral_count = 0  # For mood decay
         self._last_speaking_rate = 0.0       # For rate smoothing
-        logging.info("[MoodDetector] Initialized with temporal smoothing (window=3)")
+        logging.info("[MoodDetector] Initialized with temporal smoothing (window=2)")
 
     def analyze(self, text: str, audio_frames: list, utterance_duration: float = 0.0) -> tuple:
         """
@@ -186,6 +186,16 @@ class MoodDetector:
         
         # Temporal smoothing
         self._mood_history.append(combined)
+        
+        # High-confidence bypass: if this reading is strong and different from
+        # current mood, switch immediately instead of waiting for smoothing.
+        if combined[1] >= 0.4 and combined[0] != self._current_mood:
+            logging.info(f"[Mood] High-conf bypass: {self._current_mood} → {combined[0]} (conf: {combined[1]:.2f})")
+            self._current_mood = combined[0]
+            self._current_confidence = combined[1]
+            self._consecutive_neutral_count = 0
+            return self._current_mood, self._current_confidence
+        
         smoothed_mood, smoothed_conf = self._smooth()
         
         # Mood decay: if consecutive neutral readings, decay confidence toward neutral
