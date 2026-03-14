@@ -97,12 +97,17 @@ class LaRaBridge:
     # ── Connection handler ────────────────────────────────────────────────────
 
     async def _handler(self, websocket):
-        # Origin check — only allow known dev origins
-        allowed_origins = {"http://localhost:5173", "http://localhost:3000"}
+        # Origin check — allow all localhost/127.0.0.1 origins for local dev.
+        # Blocks requests from external IPs only.
         origin = websocket.request_headers.get("Origin", "")
-        if origin and origin not in allowed_origins:
-            await websocket.close(1008, "Origin not allowed")
-            return
+        if origin:
+            from urllib.parse import urlparse
+            parsed = urlparse(origin)
+            host = parsed.hostname or ""
+            if host not in ("localhost", "127.0.0.1", "0.0.0.0", ""):
+                log.warning(f"[Bridge] Rejected connection from external origin: {origin}")
+                await websocket.close(1008, "Origin not allowed")
+                return
 
         self._clients.add(websocket)
         log.info(f"[Bridge] Client connected: {websocket.remote_address}")

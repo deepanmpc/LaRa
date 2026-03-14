@@ -45,7 +45,7 @@ setup_logging()
 def _handle_signal(sig, frame):
     logging.info(f"[Main] Signal {sig} received — shutting down gracefully...")
     print("\n[LaRa] Shutting down...")
-    sys.exit(0)
+    os._exit(0)
 
 signal.signal(signal.SIGINT,  _handle_signal)
 signal.signal(signal.SIGTERM, _handle_signal)
