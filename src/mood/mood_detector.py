@@ -343,10 +343,15 @@ class MoodDetector:
         """
         Combine text and audio mood signals.
         Text gets 60% weight, audio gets 40% weight.
-        If text confidence is very low, reduce text weight dynamically
-        to prevent Whisper transcription errors from dominating.
+        If one signal is absent (conf=0), use the other directly.
         If both agree, confidence is boosted.
         """
+        # If one signal is absent, use the other directly — no dilution
+        if audio_conf <= 0.01:
+            return text_mood, text_conf
+        if text_conf <= 0.01:
+            return audio_mood, audio_conf
+        
         # Dynamic weight: reduce text influence when confidence is very low
         if text_conf < 0.2:
             TEXT_WEIGHT = 0.35
