@@ -181,19 +181,29 @@ const VoiceSessionPage = () => {
         }
     }, [endSession]);
 
+    const mountedRef = useRef(true);
+
     const connect = useCallback(() => {
+        if (!mountedRef.current) return;
         if (reconnectCountRef.current >= MAX_RECONNECT_ATTEMPTS) { setWsStatus('error'); return; }
-        // Close any existing connection first (prevents StrictMode double-mount duplicates)
+        // Close any existing connection first
         if (wsRef.current) {
-            wsRef.current.onclose = null; // prevent reconnect loop from old socket
+            wsRef.current.onclose = null;
+            wsRef.current.onerror = null;
+            wsRef.current.onmessage = null;
             wsRef.current.close();
+            wsRef.current = null;
         }
         setWsStatus('connecting');
         const ws = new WebSocket(WS_URL);
         wsRef.current = ws;
-        ws.onopen = () => { setWsStatus('connected'); reconnectCountRef.current = 0; setReconnectCount(0); };
+        ws.onopen = () => {
+            if (!mountedRef.current) { ws.close(); return; }
+            setWsStatus('connected'); reconnectCountRef.current = 0; setReconnectCount(0);
+        };
         ws.onmessage = handleMessage;
         ws.onclose = () => {
+            if (!mountedRef.current) return;
             setWsStatus('disconnected');
             reconnectCountRef.current += 1;
             setReconnectCount(reconnectCountRef.current);
@@ -205,8 +215,19 @@ const VoiceSessionPage = () => {
     }, [handleMessage]);
 
     useEffect(() => {
+        mountedRef.current = true;
         connect();
-        return () => { clearTimeout(reconnectTimeoutRef.current); wsRef.current?.close(); };
+        return () => {
+            mountedRef.current = false;
+            clearTimeout(reconnectTimeoutRef.current);
+            if (wsRef.current) {
+                wsRef.current.onclose = null;
+                wsRef.current.onerror = null;
+                wsRef.current.onmessage = null;
+                wsRef.current.close();
+                wsRef.current = null;
+            }
+        };
     }, [connect]);
 
     const sendCommand = (type) => {

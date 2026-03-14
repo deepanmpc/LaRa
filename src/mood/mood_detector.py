@@ -152,7 +152,7 @@ class MoodDetector:
     """
     
     # Minimum confidence to consider a mood signal valid
-    CONFIDENCE_THRESHOLD = 0.3
+    CONFIDENCE_THRESHOLD = 0.2
     
     # Rolling window size for temporal smoothing
     SMOOTHING_WINDOW = 3
@@ -235,22 +235,22 @@ class MoodDetector:
             # Positive short response
             positive_shorts = {"yes", "yeah", "okay", "ok", "good", "sure", "yay", "hi", "hello", "cool", "nice"}
             if cleaned in positive_shorts:
-                return Mood.HAPPY, 0.3
+                return Mood.HAPPY, 0.4
             
             # Check frustration keywords in short utterance
             if _keyword_match_count(PRECOMPILED_PATTERNS[Mood.FRUSTRATED], text_lower) > 0:
-                return Mood.FRUSTRATED, 0.35
+                return Mood.FRUSTRATED, 0.5
             
             # Check anxiety/help-seeking keywords in short utterance
             if _keyword_match_count(PRECOMPILED_PATTERNS[Mood.ANXIOUS], text_lower) > 0:
-                return Mood.ANXIOUS, 0.35
+                return Mood.ANXIOUS, 0.5
             
             # Check sad keywords
             if _keyword_match_count(PRECOMPILED_PATTERNS[Mood.SAD], text_lower) > 0:
-                return Mood.SAD, 0.35
+                return Mood.SAD, 0.5
             
             # No signal — default to quiet (low confidence)
-            return Mood.QUIET, 0.3
+            return Mood.QUIET, 0.35
         
         # Full utterance: count keyword matches using precompiled regex patterns
         scores = {mood: 0 for mood in PRECOMPILED_PATTERNS.keys()}
@@ -267,7 +267,7 @@ class MoodDetector:
             return Mood.NEUTRAL, 0.5
         
         # Scale confidence: even 2-3 keyword matches = moderate confidence
-        confidence = min(best_score * 5.0, 1.0)
+        confidence = min(best_score * 15.0, 1.0)
         
         return best_mood, confidence
 
@@ -381,7 +381,7 @@ class MoodDetector:
         
         # Require at least 2 out of 3 (or 1 out of 1 for first utterance)
         window_size = len(self._mood_history)
-        required = max(1, window_size * 2 // 3)
+        required = max(1, (window_size + 1) // 2)  # majority: 1/1, 1/2, 2/3
         
         if dominant_count >= required:
             avg_conf = mood_total_conf[dominant_mood] / dominant_count
