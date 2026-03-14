@@ -30,7 +30,7 @@ const CLINICIAN_NAV_ITEMS = [
     },
     {
         id: 'sessions',
-        path: '/dashboard/clinical/students',
+        path: '/dashboard/clinical/sessions',
         label: 'Sessions',
         icon: (
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -60,13 +60,8 @@ export default function ClinicianSidebar() {
     const location = useLocation();
     const user = getStoredUser();
 
-    // Fix active state logic: match exactly for dashboard, or match path prefix for others
-    const isActive = (path) => {
-        if (path === '/dashboard/clinical') {
-            return location.pathname === path;
-        }
-        return location.pathname.startsWith(path);
-    };
+    // Exact match only — prevents partial path collisions (e.g. /students matching /sessions)
+    const isActive = (path) => location.pathname === path;
 
     const handleSignOut = () => {
         logout();
@@ -96,8 +91,8 @@ export default function ClinicianSidebar() {
 
                 <div className="sidebar-nav-label">Account</div>
                 <button
-                    className="sidebar-nav-item"
-                    onClick={() => { }}
+                    className={`sidebar-nav-item ${isActive('/dashboard/profile') ? 'active' : ''}`}
+                    onClick={() => navigate('/dashboard/profile')}
                 >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
