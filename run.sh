@@ -87,7 +87,7 @@ log "Starting Vision Perception API (http://localhost:8001)…"
     if [ -f ".venv/bin/activate" ]; then
         source .venv/bin/activate
     fi
-    python3 -m uvicorn app:app --host 0.0.0.0 --port 8001 --log-level warning
+    python3 -m uvicorn app:app --host 127.0.0.1 --port 8001 --log-level warning
 ) >> runtime/logs/vision_api.log 2>&1 &
 VISION_PID=$!
 PIDS+=($VISION_PID)
@@ -112,7 +112,7 @@ log "Starting Dashboard Frontend (http://localhost:5173)…"
 (
     cd dashboard/frontend
     npm install --silent
-    npm run dev -- --host
+    npm run dev
 ) >> runtime/logs/frontend.log 2>&1 &
 FRONTEND_PID=$!
 PIDS+=($FRONTEND_PID)

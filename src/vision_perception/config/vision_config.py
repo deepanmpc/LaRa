@@ -5,17 +5,15 @@ Edit here to change behaviour without touching code.
 """
 import os
 import logging
+import sys
 
-# Try to load from main config.yaml
-try:
-    import sys
-    _root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    if _root not in sys.path:
-        sys.path.insert(0, _root)
-    from src.core.config_loader import CONFIG
-    _VISION_CFG = getattr(CONFIG, 'vision', None)
-except Exception:
-    _VISION_CFG = None
+# Add project root to path for src.* imports
+_project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
+
+from src.core.config_loader import CONFIG
+_VISION_CFG = getattr(CONFIG, 'vision', None)
 
 # ─── Camera ───────────────────────────────────────────────
 CAMERA_INDEX: int = 0             # 0 = default webcam

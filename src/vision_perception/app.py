@@ -31,17 +31,15 @@ from fastapi.middleware.cors import CORSMiddleware
 # Add vision_perception root to path so relative imports work
 sys.path.insert(0, os.path.dirname(__file__))
 
+# Add project root to path for src.* imports
+_project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
+
 # Load CORS origins from config
-_DEFAULT_CORS = ["http://localhost:5173", "http://localhost:8080"]
-try:
-    _root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    if _root not in sys.path:
-        sys.path.insert(0, _root)
-    from src.core.config_loader import CONFIG
-    _cors = getattr(getattr(CONFIG, 'vision', None), 'cors_origins', None)
-    _CORS_ORIGINS = _cors if _cors else _DEFAULT_CORS
-except Exception:
-    _CORS_ORIGINS = _DEFAULT_CORS
+from src.core.config_loader import CONFIG
+_cors = getattr(getattr(CONFIG, 'vision', None), 'cors_origins', None)
+_CORS_ORIGINS = _cors if _cors else _DEFAULT_CORS
 
 from core.engine import PerceptionEngine
 from core.state import perception_state, EngineState
@@ -201,7 +199,7 @@ if __name__ == "__main__":
         action="store_true",
         help="Run in test mode: camera + pipeline + log output (no API server)",
     )
-    parser.add_argument("--host", default="0.0.0.0", help="API host (default: 0.0.0.0)")
+    parser.add_argument("--host", default="127.0.0.1", help="API host (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=8001, help="API port (default: 8001)")
     args = parser.parse_args()
 

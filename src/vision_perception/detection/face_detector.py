@@ -107,8 +107,9 @@ class FaceDetector:
         # ── Signal 1: Landmark visibility (FIX 1) ────────────────
         visibility_scores = [lm[i].visibility for i in _LANDMARK_INDICES]
         mean_visibility = float(np.mean(visibility_scores))
-        # Remap: MediaPipe visibility is 0-1; treat <0.5 as degraded
-        visibility_score = float(np.clip((mean_visibility - 0.5) * 2.0, 0.0, 1.0))
+        # Use config threshold instead of hardcoded 0.5
+        v_min = vision_config.LANDMARK_VISIBILITY_MIN
+        visibility_score = float(np.clip((mean_visibility - v_min) / (1.0 - v_min) if v_min < 1.0 else 0.0, 0.0, 1.0))
 
         # ── Signal 2: solvePnP + reprojection error ───────────────
         yaw, pitch, reprojection_err, solvepnp_ok = self._estimate_head_pose(lm, w, h)

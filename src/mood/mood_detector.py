@@ -44,7 +44,7 @@ MOOD_KEYWORDS = {
         "did it", "i can", "i won", "look", "watch me", "good job",
         "proud", "smart", "strong", "brave", "best", "enjoy",
         # Comfort
-        "warm", "cozy", "safe", "home", "mama", "papa", "family",
+        "warm", "cozy", "safe", "home", "mama", "papa", "family", "satisfied", "content", "delighted",
     ],
     Mood.SAD: [
         # Core emotions
@@ -60,19 +60,18 @@ MOOD_KEYWORDS = {
         # Negative self-talk
         "sorry", "my fault", "bad", "ugly", "wrong", "mess",
         # Despair
-        "never", "nothing", "can't", "give up", "don't care",
-        "doesn't matter", "whatever", "wish", "why",
+        "give up", "don't care", "doesn't matter", "whatever", "wish", "why",
         # Pain
-        "hurt", "hurting", "pain", "ow", "ouch", "sick", "tummy",
+        "hurt", "hurting", "pain", "ow", "ouch", "sick", "tummy", "miserable",
     ],
     Mood.FRUSTRATED: [
         # Core emotions
         "angry", "mad", "furious", "annoyed", "annoying", "irritated",
-        # Refusal (multi-word only — 'no' and 'stop' are too ambiguous)
-        "don't", "won't", "refuse", "not doing",
+        # Refusal
+        "don't want", "won't do", "refuse", "not doing",
         "go away", "leave me",
-        # Difficulty (multi-word to avoid false positives)
-        "can't", "can't do", "too hard", "difficult", "impossible",
+        # Difficulty
+        "cannot do", "too hard", "difficult", "impossible",
         "stuck", "broken", "not working", "messed up",
         # Exclamations
         "ugh", "argh", "grr", "hmph",
@@ -104,7 +103,7 @@ MOOD_KEYWORDS = {
         "help", "help me", "please help", "i need", "stay", "don't go",
         "don't leave", "hold", "come here", "where are you",
         # Panic
-        "panic", "emergency", "hurry", "run", "hide",
+        "panic", "emergency", "hurry", "run", "hide", "shaking", "trembling", "scary",
     ],
 }
 
@@ -125,6 +124,36 @@ SHORT_UTTERANCE_WORDS = 3      # Very short = disengagement or frustration
 MAX_SPEAKING_RATE = 6.0        # Cap to prevent artificial spikes
 MIN_DURATION_FOR_RATE = 0.5    # Ignore speaking rate below this duration
 
+NEGATION_WORDS = {
+    "not", "don't", "dont", "never", "no", "won't", "wont",
+    "can't", "cant", "isn't", "isnt", "aren't", "arent",
+    "nothing", "none", "neither", "nor", "hardly", "seldom",
+    "cannot", "didnt", "didnot", "wouldnt", "couldnt", "shouldnt", "wasnt", "werent"
+}
+
+
+def _is_negated(text_lower: str, match_start: int) -> bool:
+    """
+    Check if the keyword at match_start is preceded by a negation word
+    within a 3-word window.
+    """
+    # Look back at the text before the match
+    prefix = text_lower[:match_start].strip()
+    if not prefix:
+        return False
+    
+    # Get last 3 tokens
+    tokens = prefix.split()
+    window = tokens[-3:]
+    
+    for token in window:
+        # Clean token from basic punctuation
+        clean_token = token.rstrip(".,!?;\"'")
+        if clean_token in NEGATION_WORDS:
+            return True
+            
+    return False
+
 
 def _keyword_match_count(patterns: list, text_lower: str) -> int:
     """
@@ -134,8 +163,9 @@ def _keyword_match_count(patterns: list, text_lower: str) -> int:
     """
     count = 0
     for pattern in patterns:
-        if pattern.search(text_lower):
-            count += 1
+        for match in pattern.finditer(text_lower):
+            if not _is_negated(text_lower, match.start()):
+                count += 1
     return count
 
 
@@ -238,29 +268,32 @@ class MoodDetector:
         text_lower = text.lower().strip()
         word_count = len(text_lower.split())
         
-        # Short utterance handling — check specific keywords before defaulting to QUIET
+        # Short utterance handling — check specific keywords before defaulting to QUIET/NEUTRAL
         if word_count <= SHORT_UTTERANCE_WORDS:
             cleaned = text_lower.rstrip(".!?")
             
-            # Positive short response
+            # 1. Positive short response (common affirmations)
             positive_shorts = {"yes", "yeah", "okay", "ok", "good", "sure", "yay", "hi", "hello", "cool", "nice"}
             if cleaned in positive_shorts:
                 return Mood.HAPPY, 0.4
             
-            # Check frustration keywords in short utterance
-            if _keyword_match_count(PRECOMPILED_PATTERNS[Mood.FRUSTRATED], text_lower) > 0:
-                return Mood.FRUSTRATED, 0.5
+            # 2. Check full keyword lists for ALL moods even in short utterances
+            # This ensures "happy", "sad", "angry" as single words work correctly.
+            best_mood = None
+            best_score = 0
             
-            # Check anxiety/help-seeking keywords in short utterance
-            if _keyword_match_count(PRECOMPILED_PATTERNS[Mood.ANXIOUS], text_lower) > 0:
-                return Mood.ANXIOUS, 0.5
+            for mood, patterns in PRECOMPILED_PATTERNS.items():
+                if _keyword_match_count(patterns, text_lower) > 0:
+                    # In short utterances, any match is significant
+                    return mood, 0.5
             
-            # Check sad keywords
-            if _keyword_match_count(PRECOMPILED_PATTERNS[Mood.SAD], text_lower) > 0:
-                return Mood.SAD, 0.5
-            
-            # No signal — default to quiet (low confidence)
-            return Mood.QUIET, 0.35
+            # No signal — default to neutral (low confidence) instead of quiet 
+            # unless it's truly silent/filler-like "um", "uh".
+            fillers = {"um", "uh", "hmm", "well", "ah"}
+            if cleaned in fillers:
+                return Mood.QUIET, 0.35
+                
+            return Mood.NEUTRAL, 0.3
         
         # Full utterance: count keyword matches using precompiled regex patterns
         scores = {mood: 0 for mood in PRECOMPILED_PATTERNS.keys()}

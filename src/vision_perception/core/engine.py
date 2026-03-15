@@ -1,41 +1,6 @@
 """
 LaRa Vision Perception — PerceptionEngine (v2.3)
-v2.3 fixes over v2.2:
-
-  Fix 1 – BGR frame passed to YOLO (not RGB):
-    Original code converted frame to RGB at the top of _process_frame,
-    then passed `frame` (BGR) to ObjectDetector with the comment "YOLO works
-    on BGR default". However, the RGB conversion was stored in `rgb_frame`
-    while the original `frame` variable was still BGR — this was actually
-    correct in v2.2. But this implicit contract is fragile and undocumented.
-    v2.3 makes it explicit: `bgr_frame` is kept separately from `rgb_frame`
-    and each detector receives exactly what it expects with clear naming.
-
-  Fix 2 – stall_count increment now uses thread-safe increment_stall():
-    `perception_state.stall_count += 1` is a read-modify-write that is NOT
-    atomic on the original int attribute. Two watchdog ticks arriving close
-    together could both read stale value and both write the same incremented
-    value. Now uses perception_state.increment_stall() which holds the lock
-    for the full operation.
-
-  Fix 3 – Quality gate stable-state comment clarified:
-    The _make_skip logic was correct in v2.2 but the inline comments were
-    misleading ("Fix 2 helper" numbered out of context). Renamed and documented
-    clearly for maintainability.
-
-  Fix 4 – Soft restart resets _last_stable to None:
-    After a soft restart, the stale _last_stable from the crashed session
-    should not be served — the first frames after reinit should go through
-    the full pipeline to establish a fresh baseline. On reinit, _last_stable
-    is now cleared.
-
-  Fix 5 – _process_frame returns typed PerceptionOutput (not bare dict):
-    Previously returned PerceptionOutput correctly, but the pipeline_loop
-    fallback `output = perception_state.latest` (on exception) could return
-    the null output instead of last known good. Now falls back to _last_stable
-    when available.
 """
-
 import dataclasses
 import threading
 import time
