@@ -141,8 +141,8 @@ def run_mass_test():
     print("="*40)
     
     if failures:
-        print(f"\nSample Failures (showing first 10 out of {len(failures)}):")
-        for f in failures[:10]:
+        print(f"\nSample Failures (showing first 30 out of {len(failures)}):")
+        for f in failures[:30]:
             print(f"  - {f}")
 
 if __name__ == "__main__":
