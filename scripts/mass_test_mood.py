@@ -1,23 +1,20 @@
 import sys
 import os
-import random
 import time
-from collections import Counter
 
 # Add src to path
 sys.path.append(os.path.join(os.getcwd(), "src"))
 
-from mood.mood_detector import MoodDetector, Mood, PRECOMPILED_PATTERNS, MOOD_KEYWORDS
+from mood.mood_detector import MoodDetector, Mood, PRECOMPILED_PATTERNS, MOOD_KEYWORDS, _keyword_match_count
 
 def generate_cases():
     """Generates thousands of test cases via combinatorial expansion."""
     
     prefixes = ["", "I am ", "I feel ", "It is ", "Feeling ", "You are ", "That is ", "I'm ", "I am so ", "I feel very "]
     negations = ["not ", "never ", "don't feel ", "cannot be ", "isn't ", "is not "]
-    intensifiers = ["really ", "very ", "extremely ", "so ", "quite ", "fairly "]
     suffixes = ["", " today", " now", " right now", "!", ".", "...", " I guess"]
 
-    # Mood keyword samples from the detector's own dictionary
+    # Mood keyword samples
     mood_samples = {
         Mood.HAPPY: ["happy", "excited", "wonderful", "joyful", "great", "amazing", "awesome"],
         Mood.SAD: ["sad", "unhappy", "upset", "crying", "lonely", "hurt", "bad"],
@@ -28,7 +25,7 @@ def generate_cases():
 
     test_cases = []
 
-    # 1. Explicit Positives (~1000 cases)
+    # 1. Explicit Positives
     for mood, words in mood_samples.items():
         if mood == Mood.NEUTRAL: continue
         for p in prefixes:
@@ -38,9 +35,7 @@ def generate_cases():
                         text = f"{p}{i}{w}{s}".strip()
                         test_cases.append((text, mood, "explicit"))
 
-    # 2. Negated Moods (~1500 cases)
-    # Most negations should result in NEUTRAL or a non-source mood.
-    # We'll expect NEUTRAL for "I am not happy".
+    # 2. Negated Moods
     for mood, words in mood_samples.items():
         if mood == Mood.NEUTRAL: continue
         for p in ["I am ", "I feel ", "It's ", "Everything is "]:
@@ -48,10 +43,9 @@ def generate_cases():
                 for w in words:
                     for s in suffixes:
                         text = f"{p}{n}{w}{s}".strip()
-                        # Negated signal should NOT trigger that mood.
                         test_cases.append((text, Mood.NEUTRAL, "negated"))
 
-    # 3. Neutral Fillers (~500 cases)
+    # 3. Neutral Fillers
     filler_phrases = [
         "The weather is nice", "I have a pen", "Where is the cat?", 
         "I am sitting here", "Just a normal day", "Nothing special happened",
@@ -61,11 +55,9 @@ def generate_cases():
         for s in suffixes:
             test_cases.append((f"{f}{s}", Mood.NEUTRAL, "neutral_filler"))
 
-    # 4. Mixed Signals (~500 cases)
-    # "I am happy but a little worried" -> Should pick dominant or stay neutral/mixed.
-    # Detector picks max score.
+    # 4. Mixed Signals
     mixed = [
-        ("I am happy but sad", Mood.HAPPY, "mixed"), # happy usually comes first
+        ("I am happy but sad", Mood.HAPPY, "mixed"), 
         ("I feel great but also a bit nervous", Mood.HAPPY, "mixed"),
         ("It's amazing but I'm scared", Mood.HAPPY, "mixed"),
     ]
@@ -89,30 +81,28 @@ def run_mass_test():
     }
     
     failures = []
-    
     start_time = time.time()
-    
-    # Debug mixed
     mixed_debug_done = 0
     
     for text, expected, category in cases:
         detector._mood_history.clear()
+        detector._current_mood = Mood.NEUTRAL
         
-        # Capture scores if it's mixed
-        text_mood, text_conf = detector._analyze_text(text)
-        
+        # Test the analyze path
         mood, conf = detector.analyze(text, [], 1.0)
         
         results[category]["total"] += 1
         
-        if mood == expected or (category == "negated" and mood == Mood.NEUTRAL):
+        # PASS criteria
+        if mood == expected:
+            results[category]["pass"] += 1
+        elif category == "negated" and mood == Mood.NEUTRAL:
             results[category]["pass"] += 1
         else:
-            msg = f"[{category}] '{text}' -> got {mood}, expected {expected} (text_mood: {text_mood}, conf: {text_conf:.3f})"
+            msg = f"[{category}] '{text}' -> got {mood}, expected {expected} (conf: {conf:.3f})"
             if category == "mixed" and mixed_debug_done < 5:
-                # Re-calculate scores for print
                 text_lower = text.lower()
-                scores = {m: detector._keyword_match_count(p, text_lower) / len(MOOD_KEYWORDS[m]) for m, p in PRECOMPILED_PATTERNS.items()}
+                scores = {m: _keyword_match_count(PRECOMPILED_PATTERNS[m], text_lower) / len(MOOD_KEYWORDS[m]) for m in MOOD_KEYWORDS}
                 msg += f" | Scores: { {m: round(s, 4) for m, s in scores.items() if s > 0} }"
                 mixed_debug_done += 1
             failures.append(msg)
