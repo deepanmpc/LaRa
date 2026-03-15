@@ -82,10 +82,16 @@ class LaRaBridge:
 
         if origin:
             host = urlparse(origin).hostname or ""
-            if host not in ("localhost", "127.0.0.1", "0.0.0.0", ""):
-                log.warning(f"[Bridge] Rejected external origin: {origin}")
+            # Strict allowed hosts for local development
+            if host not in ("localhost", "127.0.0.1"):
+                log.warning(f"[Bridge] Security Alert: Rejected external origin '{origin}' from {websocket.remote_address}")
                 await websocket.close(1008, "Origin not allowed")
                 return
+        else:
+            # Reject clients with no Origin header (prevent non-browser bypass)
+            log.warning(f"[Bridge] Rejected client with no Origin header from {websocket.remote_address}")
+            await websocket.close(1008, "Origin required")
+            return
 
         self._clients.add(websocket)
         log.info(f"[Bridge] Client connected: {websocket.remote_address}")
@@ -99,19 +105,34 @@ class LaRaBridge:
                 "difficulty": 2,
             }))
 
+            # Set a moderate message size limit (10KB is plenty for commands)
+            max_size = 10 * 1024 
+            
             async for raw in websocket:
+                if len(raw) > max_size:
+                    log.warning(f"[Bridge] Rejected oversized message ({len(raw)} bytes)")
+                    continue
+
                 try:
                     msg = json.loads(raw)
                 except json.JSONDecodeError:
+                    log.debug("[Bridge] Malformed JSON received")
+                    continue
+
+                if not isinstance(msg, dict):
                     continue
 
                 msg_type = msg.get("type")
-                log.info(f"[Bridge] <- {msg_type}")
-
+                
+                # Strict command validation
                 if msg_type == "session_start":
+                    log.info(f"[Bridge] <- session_start")
                     await self._handle_session_start(websocket)
                 elif msg_type == "session_stop":
+                    log.info(f"[Bridge] <- session_stop")
                     await self._handle_session_stop(websocket)
+                else:
+                    log.debug(f"[Bridge] Ignored unknown/invalid command type: {msg_type}")
 
         except websockets.exceptions.ConnectionClosed:
             pass
@@ -160,7 +181,16 @@ class LaRaBridge:
     def emit(self, event_type: str, payload: dict):
         if not self._loop or not self._clients:
             return
-        message = json.dumps({"type": event_type, **payload})
+        
+        # Explicit serialization to prevent payload from overwriting 'type'
+        # and ensure no unexpected keys are leaked
+        safe_msg = {"type": event_type}
+        if isinstance(payload, dict):
+            for k, v in payload.items():
+                if k != "type": # Prevent 'type' injection
+                    safe_msg[k] = v
+
+        message = json.dumps(safe_msg)
         asyncio.run_coroutine_threadsafe(self._broadcast(message), self._loop)
 
     async def _broadcast(self, message: str):
