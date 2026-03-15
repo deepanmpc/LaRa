@@ -60,19 +60,18 @@ MOOD_KEYWORDS = {
         # Negative self-talk
         "sorry", "my fault", "bad", "ugly", "wrong", "mess",
         # Despair
-        "never", "nothing", "can't", "give up", "don't care",
-        "doesn't matter", "whatever", "wish", "why",
+        "give up", "don't care", "doesn't matter", "whatever", "wish", "why",
         # Pain
         "hurt", "hurting", "pain", "ow", "ouch", "sick", "tummy", "miserable",
     ],
     Mood.FRUSTRATED: [
         # Core emotions
         "angry", "mad", "furious", "annoyed", "annoying", "irritated",
-        # Refusal (multi-word only — 'no' and 'stop' are too ambiguous)
-        "don't", "won't", "refuse", "not doing",
+        # Refusal
+        "don't want", "won't do", "refuse", "not doing",
         "go away", "leave me",
-        # Difficulty (multi-word to avoid false positives)
-        "can't", "can't do", "too hard", "difficult", "impossible",
+        # Difficulty
+        "cannot do", "too hard", "difficult", "impossible",
         "stuck", "broken", "not working", "messed up",
         # Exclamations
         "ugh", "argh", "grr", "hmph",

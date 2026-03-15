@@ -141,8 +141,14 @@ def run_mass_test():
     print("="*40)
     
     if failures:
-        print(f"\nSample Failures (showing first 30 out of {len(failures)}):")
-        for f in failures[:30]:
+        print("\nMixed Failures:")
+        for f in failures:
+            if "[mixed]" in f:
+                print(f"  - {f}")
+        
+        print(f"\nOther Sample Failures (showing first 30):")
+        other_failures = [f for f in failures if "[mixed]" not in f]
+        for f in other_failures[:30]:
             print(f"  - {f}")
 
 if __name__ == "__main__":
