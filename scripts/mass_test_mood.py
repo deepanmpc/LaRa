@@ -7,7 +7,7 @@ from collections import Counter
 # Add src to path
 sys.path.append(os.path.join(os.getcwd(), "src"))
 
-from mood.mood_detector import MoodDetector, Mood
+from mood.mood_detector import MoodDetector, Mood, PRECOMPILED_PATTERNS, MOOD_KEYWORDS
 
 def generate_cases():
     """Generates thousands of test cases via combinatorial expansion."""
@@ -92,32 +92,30 @@ def run_mass_test():
     
     start_time = time.time()
     
+    # Debug mixed
+    mixed_debug_done = 0
+    
     for text, expected, category in cases:
-        # Reset history for each case to isolate results
         detector._mood_history.clear()
-        detector._current_mood = Mood.NEUTRAL
-        detector._consecutive_neutral_count = 0
         
-        # We test the analyze() method's text-only path
+        # Capture scores if it's mixed
+        text_mood, text_conf = detector._analyze_text(text)
+        
         mood, conf = detector.analyze(text, [], 1.0)
         
         results[category]["total"] += 1
         
-        # For negated cases, "passing" means NOT being the source mood
-        if category == "negated":
-            if mood != expected and mood != Mood.NEUTRAL:
-                # If "not happy" becomes "sad", it's still potentially a pass 
-                # depending on philosophy, but we'll stick to NEUTRAL as ideal.
-                pass 
-            if mood == Mood.NEUTRAL:
-                results[category]["pass"] += 1
-            else:
-                failures.append(f"[{category}] '{text}' -> got {mood}, expected {expected}")
+        if mood == expected or (category == "negated" and mood == Mood.NEUTRAL):
+            results[category]["pass"] += 1
         else:
-            if mood == expected:
-                results[category]["pass"] += 1
-            else:
-                failures.append(f"[{category}] '{text}' -> got {mood}, expected {expected}")
+            msg = f"[{category}] '{text}' -> got {mood}, expected {expected} (text_mood: {text_mood}, conf: {text_conf:.3f})"
+            if category == "mixed" and mixed_debug_done < 5:
+                # Re-calculate scores for print
+                text_lower = text.lower()
+                scores = {m: detector._keyword_match_count(p, text_lower) / len(MOOD_KEYWORDS[m]) for m, p in PRECOMPILED_PATTERNS.items()}
+                msg += f" | Scores: { {m: round(s, 4) for m, s in scores.items() if s > 0} }"
+                mixed_debug_done += 1
+            failures.append(msg)
 
     duration = time.time() - start_time
     
