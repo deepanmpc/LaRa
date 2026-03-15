@@ -125,6 +125,35 @@ SHORT_UTTERANCE_WORDS = 3      # Very short = disengagement or frustration
 MAX_SPEAKING_RATE = 6.0        # Cap to prevent artificial spikes
 MIN_DURATION_FOR_RATE = 0.5    # Ignore speaking rate below this duration
 
+NEGATION_WORDS = {
+    "not", "don't", "dont", "never", "no", "won't", "wont",
+    "can't", "cant", "isn't", "isnt", "aren't", "arent",
+    "nothing", "none", "neither", "nor", "hardly", "seldom"
+}
+
+
+def _is_negated(text_lower: str, match_start: int) -> bool:
+    """
+    Check if the keyword at match_start is preceded by a negation word
+    within a 3-word window.
+    """
+    # Look back at the text before the match
+    prefix = text_lower[:match_start].strip()
+    if not prefix:
+        return False
+    
+    # Get last 3 tokens
+    tokens = prefix.split()
+    window = tokens[-3:]
+    
+    for token in window:
+        # Clean token from basic punctuation
+        clean_token = token.rstrip(".,!?;\"'")
+        if clean_token in NEGATION_WORDS:
+            return True
+            
+    return False
+
 
 def _keyword_match_count(patterns: list, text_lower: str) -> int:
     """
@@ -134,8 +163,9 @@ def _keyword_match_count(patterns: list, text_lower: str) -> int:
     """
     count = 0
     for pattern in patterns:
-        if pattern.search(text_lower):
-            count += 1
+        for match in pattern.finditer(text_lower):
+            if not _is_negated(text_lower, match.start()):
+                count += 1
     return count
 
 
