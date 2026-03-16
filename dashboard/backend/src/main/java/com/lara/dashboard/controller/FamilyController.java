@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 public class FamilyController {
 
     private final MockFamilyDashboardService dashboardService;
+    private final com.lara.dashboard.service.SessionService sessionService;
 
     @GetMapping({"/dashboard", "/dashboard/{childId}"})
     public ResponseEntity<FamilyDashboardResponse> getDashboard(Authentication authentication, @PathVariable(required = false) Long childId) {
@@ -27,6 +28,14 @@ public class FamilyController {
         java.util.Map<String, String> response = new java.util.HashMap<>();
         response.put("sessionUuid", sessionUuid);
         response.put("status", "STARTED");
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/session/end")
+    public ResponseEntity<java.util.Map<String, String>> endSession(@RequestBody com.lara.dashboard.dto.SessionEndRequest request) {
+        sessionService.saveSessionEnd(request);
+        java.util.Map<String, String> response = new java.util.HashMap<>();
+        response.put("status", "SAVED");
         return ResponseEntity.ok(response);
     }
 }
