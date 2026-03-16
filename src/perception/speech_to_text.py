@@ -9,6 +9,7 @@ import sounddevice as sd
 import webrtcvad
 import time
 import logging
+import requests
 from enum import Enum
 from faster_whisper import WhisperModel
 from src.utils.gpu_manager import get_device_and_compute_type, check_vram
@@ -194,6 +195,20 @@ def callback(indata, frames, time_info, status):
 
 def clear_console():
     os.system('cls' if os.name == 'nt' else 'clear')
+
+
+def get_vision_state():
+    """
+    Queries the Vision Perception microservice for the current engagement state.
+    """
+    try:
+        # Use a short timeout to prevent therapy stalls if vision service is down
+        r = requests.get("http://localhost:8001/engagement", timeout=0.1)
+        if r.status_code == 200:
+            return r.json()
+    except Exception:
+        pass
+    return None
 
 
 def validate_response(text: str) -> str:
@@ -583,7 +598,17 @@ def run_conversation_loop(bridge=None):
                             # --- Get RecoveryStrategy ---
                             strategy = None
                             if strategy_manager:
-                                strategy = strategy_manager.get_strategy(detected_mood, mood_conf)
+                                # Prioritize Vision signals for engagement-based overrides
+                                vision_state = get_vision_state()
+                                if vision_state and vision_state.get("engagementScore", 1.0) < 0.3:
+                                    engagement = vision_state.get("engagementScore")
+                                    print(f"\033[91m[Vision] Low engagement detected ({engagement:.2f}) \u2192 forcing recovery.\033[0m")
+                                    logging.info(f"[Vision] Low engagement ({engagement:.2f}) override triggered.")
+                                    # Force 'frustrated' strategy as it simplifies instructions and adds grounding
+                                    strategy = strategy_manager.force_strategy("frustrated")
+                                else:
+                                    strategy = strategy_manager.get_strategy(detected_mood, mood_conf)
+                                
                                 if strategy.label != "neutral":
                                     print(f"\033[90m[Strategy: {strategy.label}]\033[0m")
                             

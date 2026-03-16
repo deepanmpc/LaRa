@@ -251,3 +251,21 @@ class RecoveryStrategyManager:
     def get_previous_strategy(self) -> RecoveryStrategy:
         """Returns the last applied strategy."""
         return self._previous_strategy
+
+    def force_strategy(self, label: str) -> RecoveryStrategy:
+        """
+        Forces a specific strategy by its label, bypassing mood detection.
+        Useful for vision-based overrides (e.g., child is disengaged).
+        """
+        # Search for strategy in high-conf then low-conf tables
+        strategy = STRATEGIES.get(label) or STRATEGIES_LOW_CONF.get(label)
+        
+        if not strategy:
+            logging.warning(f"[RecoveryStrategy] Forced strategy '{label}' not found. Falling back to neutral.")
+            strategy = STRATEGIES["neutral"]
+            
+        if strategy.label != self._previous_strategy.label:
+            logging.info(f"[RecoveryStrategy] FORCED override: {self._previous_strategy.label} \u2192 {strategy.label}")
+            
+        self._previous_strategy = strategy
+        return strategy
