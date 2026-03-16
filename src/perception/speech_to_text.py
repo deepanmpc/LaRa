@@ -167,13 +167,6 @@ class SystemMode(Enum):
 
 
 # --- Configuration ---
-SAMPLE_RATE = 16000
-FRAME_DURATION_MS = 30
-FRAME_SIZE = int(SAMPLE_RATE * FRAME_DURATION_MS / 1000)
-VAD_MODE = 3
-SILENCE_DURATION_MS = 1800  # Gentle pacing: 1.8s for slow/paused speech
-CHANNELS = 1
-
 # Configuration wiring for audio processing (Fixes 2 & Latency 2)
 try:
     from src.core.config_loader import CONFIG
@@ -181,7 +174,7 @@ try:
     SILENCE_DURATION_MS = CONFIG.audio.silence_duration_ms
 except Exception:
     NOISE_GATE_THRESHOLD = 0.005
-    SILENCE_DURATION_MS = 1200  # Reduced default for faster interaction
+    SILENCE_DURATION_MS = 1200  # Default fallback
 
 # Barge-in / KWS hardening: require 300ms of continuous speech before triggering
 BARGE_IN_FRAME_THRESHOLD = 10
@@ -212,7 +205,7 @@ def get_vision_state():
     """
     try:
         # Use a short timeout to prevent therapy stalls if vision service is down
-        r = requests.get("http://localhost:8001/engagement", timeout=0.1)
+        r = requests.get("http://localhost:8001/latest", timeout=0.1)
         if r.status_code == 200:
             return r.json()
     except Exception:
@@ -455,7 +448,7 @@ def run_conversation_loop(bridge=None):
                 kws_speech_frames = []
         
         # Wait for the speech thread to fully finish
-        speech_thread.join(timeout=5.0)
+        speech_thread.join(timeout=10.0)
         
         # Flush queue to prevent echo
         flush_audio_queue()
