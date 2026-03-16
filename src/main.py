@@ -39,9 +39,19 @@ def _handle_signal(sig, frame):
 signal.signal(signal.SIGINT,  _handle_signal)
 signal.signal(signal.SIGTERM, _handle_signal)
 
+_session_lock = threading.Lock()
+_session_active = False
 
 def _start_pipeline():
     """Fired by WS bridge on session_start. Runs in daemon thread named 'lara-pipeline'."""
+    global _session_active
+    
+    with _session_lock:
+        if _session_active:
+            logging.warning("[Main] session_start ignored — session already active")
+            return
+        _session_active = True
+        
     logging.info("[Main] session_start received — launching conversation loop")
     print("\n[LaRa] Session started by UI ▶")
     try:
@@ -64,6 +74,14 @@ def _start_pipeline():
 
 def _stop_pipeline():
     """Fired by WS bridge on session_stop. Raises KeyboardInterrupt in pipeline thread."""
+    global _session_active
+    
+    with _session_lock:
+        if not _session_active:
+            logging.warning("[Main] session_stop ignored — no active session")
+            return
+        _session_active = False
+        
     logging.info("[Main] session_stop received")
     print("\n[LaRa] Session stopped by UI ■")
 

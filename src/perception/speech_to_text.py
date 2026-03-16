@@ -174,11 +174,20 @@ VAD_MODE = 3
 SILENCE_DURATION_MS = 1800  # Gentle pacing: 1.8s for slow/paused speech
 CHANNELS = 1
 
-# Noise clearance threshold (Energy-based gate)
-NOISE_GATE_THRESHOLD = 0.001 
+# Configuration wiring for audio processing (Fixes 2 & Latency 2)
+try:
+    from src.core.config_loader import CONFIG
+    NOISE_GATE_THRESHOLD = CONFIG.audio.noise_gate_threshold
+    SILENCE_DURATION_MS = CONFIG.audio.silence_duration_ms
+except Exception:
+    NOISE_GATE_THRESHOLD = 0.005
+    SILENCE_DURATION_MS = 1200  # Reduced default for faster interaction
 
 # Barge-in / KWS hardening: require 300ms of continuous speech before triggering
 BARGE_IN_FRAME_THRESHOLD = 10
+
+# Memory leak prevention: Max 20 seconds of audio frames per utterance (Fix 7)
+MAX_AUDIO_BUFFER_FRAMES = int(20000 / FRAME_DURATION_MS)
 
 # KWS cooldown: suppress all wake-word detection for this many seconds after an interrupt
 # Prevents echo loop: interrupt → "Okay. I am listening." → KWS hears "LaRa" from speaker → infinite loop
@@ -446,7 +455,7 @@ def run_conversation_loop(bridge=None):
                 kws_speech_frames = []
         
         # Wait for the speech thread to fully finish
-        speech_thread.join(timeout=2.0)
+        speech_thread.join(timeout=5.0)
         
         # Flush queue to prevent echo
         flush_audio_queue()
@@ -460,6 +469,10 @@ def run_conversation_loop(bridge=None):
                 indata = audio_queue.get()
                 if len(indata) != FRAME_SIZE: continue
                 
+                # Prevent memory leaks for extremely long background noise
+                if len(utterance_frames) > MAX_AUDIO_BUFFER_FRAMES:
+                    utterance_frames.pop(0)
+                
                 # --- Noise Clearance / Audio Pre-processing ---
                 # sounddevice returns 2D chunks (frames, channels), we need 1D for VAD and Whisper
                 flat_data = indata.flatten()
@@ -468,7 +481,9 @@ def run_conversation_loop(bridge=None):
                 
                 try:
                     is_speech = vad.is_speech(pcm_data.tobytes(), SAMPLE_RATE) and rms > NOISE_GATE_THRESHOLD
-                except:
+                except Exception as e:
+                    if logging.getLogger().isEnabledFor(logging.DEBUG):
+                        logging.debug(f"[VAD] Frame error: {e}")
                     continue
 
                 if is_speech:
@@ -486,7 +501,7 @@ def run_conversation_loop(bridge=None):
                         if silence_frames >= silence_threshold:
                             is_speaking = False
                             
-                            # Transcribe
+                            # Transcribe (beam_size=1 for latency improvement)
                             full_audio = np.concatenate(utterance_frames).flatten().astype(np.float32)
                             
                             # Normalize only weak signals
@@ -494,7 +509,7 @@ def run_conversation_loop(bridge=None):
                             if 0 < peak < 0.5:
                                 full_audio = full_audio / peak
                                 
-                            segments, _info = whisper_model.transcribe(full_audio, beam_size=5, language="en")
+                            segments, _info = whisper_model.transcribe(full_audio, beam_size=1, language="en")
                             text = "".join([s.text for s in segments]).strip()
                             
                             if not text: continue
@@ -551,7 +566,7 @@ def run_conversation_loop(bridge=None):
                             # Mood detection (text + audio signals)
                             detected_mood = "neutral"
                             mood_conf = 0.0
-                            if mood_detector:
+                            if mood_detector and text:
                                 utterance_duration = len(utterance_frames) * FRAME_DURATION_MS / 1000.0
                                 detected_mood, mood_conf = mood_detector.analyze(
                                     text, utterance_frames, utterance_duration

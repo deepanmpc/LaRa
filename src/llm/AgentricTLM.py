@@ -31,7 +31,7 @@ class AgentricAI:
             self._temperature = getattr(_LLM_CFG, 'temperature', 0.15)
             self._top_p = getattr(_LLM_CFG, 'top_p', 0.85)
             self._top_k = getattr(_LLM_CFG, 'top_k', 40)
-            self._num_ctx = getattr(_LLM_CFG, 'num_ctx', 2048)
+            self._num_ctx = getattr(_LLM_CFG, 'num_ctx', 1024)
             self.MAX_HISTORY_TURNS = getattr(_LLM_CFG, 'history_turns', 5)
             self.MAX_TURN_CHARS = getattr(_LLM_CFG, 'history_turn_max_chars', 150)
         else:
@@ -41,9 +41,10 @@ class AgentricAI:
             self._temperature = 0.15
             self._top_p = 0.85
             self._top_k = 40
-            self._num_ctx = 2048
+            self._num_ctx = 1024
             self.MAX_HISTORY_TURNS = 5
             self.MAX_TURN_CHARS = 150
+
 
         # LaRa Specific System Prompt (Strict Down Syndrome Constraints)
         self.system_prompt = (

@@ -32,7 +32,7 @@ except ImportError:
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 MAX_RETRIEVALS_PER_SESSION = 3
-MIN_SIMILARITY_SCORE       = 0.60   # Only inject if relevance ≥ 60%
+MIN_SIMILARITY_SCORE       = 0.50   # Dynamic lowered threshold
 MAX_SUMMARY_LENGTH         = 200    # Characters — prevent transcript smuggling
 MIN_SUMMARY_LENGTH         = 10     # Reject trivially short summaries
 STORY_EXPIRY_DAYS          = 90     # Soft-expire stories after N days

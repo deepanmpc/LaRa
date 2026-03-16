@@ -81,7 +81,13 @@ class SessionState:
     
     def is_expired(self) -> bool:
         """Check if session has exceeded 24h TTL."""
-        return (time.time() - self.created_at) > SESSION_TTL_SECONDS
+        now = time.time()
+        if (now - self.created_at) > SESSION_TTL_SECONDS:
+            # Enforce expiration limit by resetting
+            self.__init__()
+            self.created_at = now
+            return True
+        return False
     
     def update_pre_decision(self, mood: str, mood_confidence: float):
         """
