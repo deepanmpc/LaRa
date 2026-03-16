@@ -104,14 +104,34 @@ const VoiceSessionPage = () => {
         };
     }, []);
 
-    const endSession = useCallback(() => {
+    const endSession = useCallback(async () => {
         clearInterval(durationTimerRef.current);
         setSessionState('ended');
         setVoiceState('idle');
         const s = buildSummary();
         setSummary(s);
         setShowSummary(true);
-    }, [buildSummary]);
+
+        try {
+            const token = localStorage.getItem('token');
+            await fetch('/api/family/session/end', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': token ? `Bearer ${token}` : ''
+                },
+                body: JSON.stringify({
+                    sessionUuid: sessionUuid,
+                    childIdHashed: childId,
+                    durationSeconds: s.duration,
+                    avgMoodConfidence: moodConf,
+                    totalInterventions: s.laraResponses
+                })
+            });
+        } catch (err) {
+            console.error('[VoiceSession] Persistence Error:', err);
+        }
+    }, [buildSummary, sessionUuid, childId, moodConf]);
 
     const handleMessage = useCallback((event) => {
         let msg;
