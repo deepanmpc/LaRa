@@ -34,7 +34,7 @@ def generate_session_summary(session, learning_manager=None, reinforcement_manag
     if session is None:
         return ""
 
-    # Compute stability trend
+    # Compute stability trend and velocity
     if session.consecutive_stability >= 2:
         trend = "improving"
     elif session.consecutive_frustration >= 2:
@@ -42,10 +42,20 @@ def generate_session_summary(session, learning_manager=None, reinforcement_manag
     else:
         trend = "stable"
 
+    # Delta over last 3 turns
+    trend_velocity = f"S:{session.consecutive_stability}-F:{session.consecutive_frustration}"
+
     # Concept
     concept = session.current_concept or "general"
     difficulty = session.current_difficulty
     turn = session.turn_count
+
+    # Difficulty trajectory
+    diff_hist = session._difficulty_history if hasattr(session, '_difficulty_history') else [difficulty]
+    trajectory = f"trajectory: {diff_hist[-3:]}" if len(diff_hist) >= 3 else f"trajectory: {diff_hist}"
+
+    # Engagement Proxy
+    engagement_proxy = "active" if turn % max(1, session.consecutive_stability) < 2 else "fading"
 
     # Mastery baseline from learning manager
     mastery = "unknown"
@@ -66,14 +76,14 @@ def generate_session_summary(session, learning_manager=None, reinforcement_manag
     # Build structured one-liner summary (compact, no narrative)
     lines = [
         "[Session State]",
-        f"Concept: {concept} | Difficulty: {difficulty}/5 | Turn: {turn}",
-        f"Stability trend: {trend} | Frustration streak: {session.consecutive_frustration} | Stability streak: {session.consecutive_stability}",
-        f"Reinforcement: {r_style} | Mastery: {mastery}/5",
+        f"Concept: {concept} | Difficulty: {difficulty}/5 ({trajectory}) | Turn: {turn} | Engagement: {engagement_proxy}",
+        f"Stability: {trend} (Velocity: {trend_velocity}) | Reinforcement: {r_style} | Mastery: {mastery}/5",
     ]
 
     summary = "\n".join(lines)
     logging.debug(f"[SessionSummary] Generated: {trend} | D{difficulty} | T{turn}")
     return summary
+
 
 
 def export_session_summary(summary: str, session_id: str) -> None:

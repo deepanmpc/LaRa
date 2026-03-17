@@ -84,6 +84,7 @@ class VectorMemory:
         self._enabled = CHROMADB_AVAILABLE
         self._user_id: Optional[str] = None
         self._session_retrievals = 0        # Counter reset each session
+        self._injected_summaries = set()    # Anti-repetition tracker
         self._collection = None
         self._client = None
 
@@ -143,11 +144,13 @@ class VectorMemory:
         """Set active user and reset session retrieval counter."""
         self._user_id = user_id
         self._session_retrievals = 0
+        self._injected_summaries = set()
         logging.info(f"[VectorMemory] User set: {user_id}")
 
     def reset_session(self):
         """Call at session start to reset the retrieval cap."""
         self._session_retrievals = 0
+        self._injected_summaries = set()
 
     # ══════════════════════════════════════════════════════════════════════════
     # STORAGE
@@ -256,17 +259,34 @@ class VectorMemory:
                 logging.debug(f"[VectorMemory] Low similarity ({similarity:.2f}) — skipped.")
                 continue
 
+            if doc in self._injected_summaries:
+                continue
+
             days_ago = (time.time() - meta.get("timestamp", 0)) / 86400
+            recency_weight = max(0.0, 1.0 - (days_ago / STORY_EXPIRY_DAYS))
+            
+            concept = meta.get("concept", "general")
+            concept_match = 1.0 if concept.lower() in query.lower() else 0.5
+            
+            # Phase 5 Formula: score = (0.5 * similarity) + (0.3 * recency_weight) + (0.2 * concept_match)
+            score = (0.5 * similarity) + (0.3 * recency_weight) + (0.2 * concept_match)
 
             memories.append(RetrievedMemory(
                 summary=doc,
-                concept=meta.get("concept", "general"),
-                relevance=round(similarity, 2),
+                concept=concept,
+                relevance=round(score, 3),
                 days_ago=round(days_ago, 1),
             ))
 
+        # Rank by newly formulated score
+        memories.sort(key=lambda m: m.relevance, reverse=True)
+        # Enforce Phase 5 max 2 injected constraint
+        memories = memories[:2]
+
         if memories:
             self._session_retrievals += len(memories)
+            for m in memories:
+                self._injected_summaries.add(m.summary)
             logging.info(
                 f"[VectorMemory] Retrieved {len(memories)} memories "
                 f"(session total: {self._session_retrievals})"
@@ -279,7 +299,8 @@ class VectorMemory:
         Build a ready-to-inject LLM context string from relevant memories.
         Returns empty string if no relevant memories or cap reached.
         """
-        memories = self.retrieve_relevant(query, n=MAX_RETRIEVALS_PER_SESSION)
+        # Always request more candidates to allow the ranking algorithm to work effectively
+        memories = self.retrieve_relevant(query, n=5)
         if not memories:
             return ""
 
