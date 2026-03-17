@@ -159,3 +159,19 @@ models:
   whisper: "~/lara_runtime/models/whisper"    # faster-whisper model cache
   yolo: "models/yolov8n.pt"                   # YOLO model (relative to vision_perception/)
   insightface: "buffalo_sc"                   # InsightFace model name
+
+# ───────────────────────────────────────────────
+# COGNITIVE PIPELINE (Phase 1-6 upgrade)
+# ───────────────────────────────────────────────
+cognitive_pipeline:
+  history_max_tokens: 200
+  session_summary_max_tokens: 120
+  memory_max_injections: 2
+  memory_min_composite_score: 0.45
+  compress_default_aggressiveness: 0.3
+  compress_max_aggressiveness: 1.0
+  attention_frustrated_history_budget: 80
+  attention_rag_history_budget: 100
+  attention_rag_memory_budget: 120
+  perf_rolling_window: 100
+

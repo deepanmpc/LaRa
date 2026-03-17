@@ -67,6 +67,11 @@ def get_log_path(filename: str) -> str:
     return os.path.join(RUNTIME_ROOT, "logs", filename)
 
 
+def get_metrics_log_path() -> str:
+    """Return absolute path for the metrics log."""
+    return os.path.join(RUNTIME_ROOT, "logs", "lara_metrics.log")
+
+
 def get_memory_dir() -> str:
     """Return the memory directory path."""
     return os.path.join(RUNTIME_ROOT, "memory")
