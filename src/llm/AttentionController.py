@@ -33,7 +33,7 @@ class AttentionController:
             self.rag_mem = 120
 
     def get_profile(self, regulation_state, turn_count: int, rag_triggered: bool) -> AttentionProfile:
-        mood = getattr(regulation_state, "mood", "neutral")
+        mood = getattr(regulation_state, "current_mood", "neutral")
         frustration_persistence = getattr(regulation_state, "frustration_persistence", 0.0)
         
         # Rule 1

@@ -167,7 +167,6 @@ class AgentricAI:
         
         full_prompt = self.prompt_cache.assemble_prompt(segments)
         perf.end_timer("prompt_build")
-        perf.set_metric("segment_hashes", dict(self.prompt_cache._cache.items()))
         perf.set_metric("cache_report", self.prompt_cache.get_cache_report())
         
         # Dynamic token limit based on strategy's response length

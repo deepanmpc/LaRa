@@ -9,14 +9,14 @@ from dataclasses import dataclass
 
 @dataclass
 class DummyRegState:
-    mood: str = "neutral"
+    current_mood: str = "neutral"
     frustration_persistence: float = 0.0
 
 def test_attention_controller():
     controller = AttentionController()
     
     # Test frustrated
-    reg = DummyRegState(mood="frustrated", frustration_persistence=0.7)
+    reg = DummyRegState(current_mood="frustrated", frustration_persistence=0.7)
     prof = controller.get_profile(reg, turn_count=1, rag_triggered=False)
     assert prof.budget_history_tokens == 80, f"Expected 80, got {prof.budget_history_tokens}"
     assert prof.compress_aggressiveness == 0.8, f"Expected 0.8, got {prof.compress_aggressiveness}"

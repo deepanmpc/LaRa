@@ -69,7 +69,7 @@ class HistoryCompressor:
             if u_tokens <= 3 and l_tokens <= 8:
                 processed_blocks.append({
                     "type": "summary",
-                    "content": "[Counting: user answered correctly, praised]",
+                    "content": "[Short exchange: user responded, LaRa praised]",
                     "priority": 50
                 })
                 i += 1
