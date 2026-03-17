@@ -4,6 +4,7 @@ import logging
 import sys
 import os
 import time
+from collections import OrderedDict
 from src.core.PerformanceMonitor import PerformanceMonitor
 from src.llm.PromptCacheManager import PromptCacheManager
 from src.llm.HistoryCompressor import HistoryCompressor
@@ -138,53 +139,32 @@ class AgentricAI:
             rag_active=bool(vector_context),
             turn_count=turn_count
         )
+        # Phase 1: Context/Prompt segment tracking
+        def _build_strategy_block(s):
+            if s and s.prompt_addition and s.label != 'default':
+                return f"[Behavioral guidance — internal, do NOT mention to child: {s.prompt_addition}]"
+            return ""
+
+        def _build_memory_block(pref, vec):
+            parts = []
+            if pref: parts.append(pref)
+            if vec: parts.append(vec)
+            return "\n".join(parts) if parts else ""
+
+        segments = OrderedDict([
+            ('system_block',        self.prompt_cache.build_segment('system_block', self.system_prompt)),
+            ('strategy_block',      self.prompt_cache.build_segment('strategy_block', _build_strategy_block(strategy))),
+            ('reinforcement_block', self.prompt_cache.build_segment('reinforcement_block', f"[Reinforcement style: {reinforcement_context}]" if reinforcement_context else "")),
+            ('memory_block',        self.prompt_cache.build_segment('memory_block', _build_memory_block(preference_context, vector_context))),
+            ('session_block',       self.prompt_cache.build_segment('session_block', session_summary or '')),
+            ('history_block',       self.prompt_cache.build_segment('history_block', self._format_history(budget_tokens=budgets.get("history", 200)))),
+            ('live_input_block',    self.prompt_cache.build_segment('live_input_block', f'User says: {prompt}\nLaRa says:')),
+        ])
         
-        segments = {
-            "system_block": self.system_prompt,
-            "strategy_block": "",
-            "reinforcement_block": "",
-            "memory_block": "",
-            "session_block": "",
-            "history_block": "",
-            "live_input_block": ""
-        }
-
-        # Part 2: Recovery Strategy Context
-        if strategy and strategy.prompt_addition:
-            segments["strategy_block"] = (
-                f"[Behavioral guidance — internal, do NOT mention to child: "
-                f"{strategy.prompt_addition}]"
-            )
-
-        # Part 3: Reinforcement Style
-        if reinforcement_context:
-            segments["reinforcement_block"] = f"[Reinforcement style: {reinforcement_context}]"
-
-        # Part 4: Learning State (preferences + past story vector context)
-        memory_parts = []
-        if preference_context:
-            memory_parts.append(preference_context)
-        if vector_context:
-            memory_parts.append(vector_context)
-        if memory_parts:
-            segments["memory_block"] = "\n".join(memory_parts)
-
-        # Part 5: Session Summary (structured, non-narrative)
-        if session_summary:
-            segments["session_block"] = session_summary
-
-        # Part 6: Rolling conversation history (last N turns)
-        history_text = self._format_history(budget_tokens=budgets.get("history", 200))
-        if history_text:
-            segments["history_block"] = history_text
-
-        # Part 7: Current user message
-        segments["live_input_block"] = f"User says: {prompt}\nLaRa says:"
-        
-        full_prompt, changed_blocks = self.prompt_cache.segment_and_hash(segments)
+        full_prompt = self.prompt_cache.assemble_prompt(segments)
         perf.end_timer("prompt_build")
-        perf.set_metric("segment_hashes", getattr(self.prompt_cache, 'block_hashes', {}))
-        perf.set_metric("cache_report", changed_blocks)
+        perf.set_metric("segment_hashes", dict(self.prompt_cache._cache.items()))
+        perf.set_metric("cache_report", self.prompt_cache.get_cache_report())
         
         # Dynamic token limit based on strategy's response length
         max_tokens = 120  # Default

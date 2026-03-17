@@ -1,62 +1,71 @@
 """
 LaRa Prompt Cache Manager (Phase 1)
-Segments prompts, computes block hashes, and prepares for future KV caching.
+Segments prompts into stable vs dynamic blocks and tracking hashes.
+Designed specifically to take advantage of Ollama prefix caching.
 """
 
 import hashlib
 import logging
-from typing import Dict, Tuple
+from collections import OrderedDict
+from typing import Dict
 
 class PromptCacheManager:
     """
-    Manages prompt segmentation and hashing for the AgentricTLM.
-    Tracks changes in contextual blocks to optimize future inference.
+    Manages prompt segmentation. Facilitates token caching by
+    producing stable byte-identical prefixes for Ollama.
     """
     def __init__(self):
-        self.block_hashes: Dict[str, str] = {}
-        logging.info("[PromptCache] Initialized segment hasher.")
+        # Maps segment_name -> (hash, content)
+        self._cache = {}
+        self._last_report = {}
+        logging.info("[PromptCache] Initialized segment manager.")
 
-    def _hash_block(self, content: str) -> str:
-        """Compute SHA-1 hash of a text block."""
+    def build_segment(self, name: str, content: str) -> str:
+        """
+        Computes the SHA-1 hash of the content.
+        Marks it as HIT or MISS based on previous cached state.
+        Returns the content unchanged.
+        """
         if not content:
-            return "empty"
-        return hashlib.sha1(content.encode('utf-8')).hexdigest()
-
-    def segment_and_hash(self, segments: Dict[str, str]) -> Tuple[str, Dict[str, bool]]:
-        """
-        Receives dictionary of prompt segments.
-        Returns the full combined prompt string and a dict of which blocks changed.
-        """
-        changed_blocks = {}
-        ordered_keys = [
-            "system_block",
-            "strategy_block",
-            "reinforcement_block",
-            "memory_block",
-            "session_block",
-            "history_block",
-            "live_input_block"
-        ]
-        
-        full_prompt_parts = []
-        
-        for key in ordered_keys:
-            content = segments.get(key, "")
-            if content:
-                full_prompt_parts.append(content)
+            content_to_hash = ""
+        else:
+            content_to_hash = content
             
-            # Compute hash
-            current_hash = self._hash_block(content)
+        current_hash = hashlib.sha1(content_to_hash.encode('utf-8')).hexdigest()
+        
+        cached_entry = self._cache.get(name)
+        if cached_entry and cached_entry[0] == current_hash:
+            self._last_report[name] = "HIT"
+        else:
+            self._last_report[name] = "MISS"
+            self._cache[name] = (current_hash, content_to_hash)
             
-            # Check if changed
-            previous_hash = self.block_hashes.get(key)
-            if current_hash != previous_hash:
-                changed_blocks[key] = True
-                self.block_hashes[key] = current_hash
-                if previous_hash is not None:  # Don't log on very first turn
-                    logging.debug(f"[PromptCache] Block changed: {key}")
-            else:
-                changed_blocks[key] = False
+        return content_to_hash
 
-        full_prompt = "\n".join(full_prompt_parts)
-        return full_prompt, changed_blocks
+    def assemble_prompt(self, segments: OrderedDict) -> str:
+        """
+        Takes OrderedDict of segment contents and joins them sequentially.
+        """
+        parts = []
+        # Strict order enforced by the OrderedDict input, but we just iterate
+        for name, content in segments.items():
+            if content:  # Ignore empty blocks
+                parts.append(content)
+                
+        return "\n".join(parts)
+
+    def get_cache_report(self) -> Dict[str, str]:
+        """Returns HIT/MISS dictionary for the recent assembly."""
+        report = self._last_report.copy()
+        self._last_report.clear() # Reset for next turn
+        return report
+
+    def invalidate_dynamic_segments(self):
+        """
+        Phase 6: Barge-In KV Safety
+        Clears cached history and live_input preventing contaminated memory.
+        """
+        for name in ('history_block', 'live_input_block'):
+            if name in self._cache:
+                del self._cache[name]
+        logging.info("[PromptCache] Dynamic segments invalidated (barge-in)")
