@@ -43,19 +43,37 @@ def generate_session_summary(session, learning_manager=None, reinforcement_manag
         trend = "stable"
 
     # Delta over last 3 turns
-    trend_velocity = f"S:{session.consecutive_stability}-F:{session.consecutive_frustration}"
+    if session.consecutive_stability > 0:
+        trend_velocity = "accelerating"
+    elif session.consecutive_frustration > 0:
+        trend_velocity = "decelerating"
+    else:
+        trend_velocity = "stable"
 
     # Concept
     concept = session.current_concept or "general"
-    difficulty = session.current_difficulty
     turn = session.turn_count
 
     # Difficulty trajectory
-    diff_hist = session._difficulty_history if hasattr(session, '_difficulty_history') else [difficulty]
-    trajectory = f"trajectory: {diff_hist[-3:]}" if len(diff_hist) >= 3 else f"trajectory: {diff_hist}"
+    diff_hist = getattr(session, 'difficulty_history', [])
+    if not diff_hist:
+        difficulty_trajectory = "?"
+    else:
+        difficulty_trajectory = "->".join(map(str, diff_hist[-3:]))
 
     # Engagement Proxy
-    engagement_proxy = "active" if turn % max(1, session.consecutive_stability) < 2 else "fading"
+    lengths = getattr(session, 'last_3_input_lengths', [])
+    if not lengths:
+        avg_len = 0
+    else:
+        avg_len = sum(lengths) / len(lengths)
+        
+    if avg_len < 10:
+        engagement_proxy = "low"
+    elif avg_len <= 40:
+        engagement_proxy = "moderate"
+    else:
+        engagement_proxy = "high"
 
     # Mastery baseline from learning manager
     mastery = "unknown"
@@ -76,12 +94,13 @@ def generate_session_summary(session, learning_manager=None, reinforcement_manag
     # Build structured one-liner summary (compact, no narrative)
     lines = [
         "[Session State]",
-        f"Concept: {concept} | Difficulty: {difficulty}/5 ({trajectory}) | Turn: {turn} | Engagement: {engagement_proxy}",
-        f"Stability: {trend} (Velocity: {trend_velocity}) | Reinforcement: {r_style} | Mastery: {mastery}/5",
+        f"Concept: {concept} | Difficulty: {difficulty_trajectory} | Turn: {turn}",
+        f"Trend: {trend} ({trend_velocity}) | Frustration: {session.consecutive_frustration} | Stability: {session.consecutive_stability}",
+        f"Reinforcement: {r_style} | Mastery: {mastery}/5 | Engagement: {engagement_proxy}"
     ]
 
     summary = "\n".join(lines)
-    logging.debug(f"[SessionSummary] Generated: {trend} | D{difficulty} | T{turn}")
+    logging.debug(f"[SessionSummary] Generated: {trend} | D:{difficulty_trajectory} | T{turn}")
     return summary
 
 

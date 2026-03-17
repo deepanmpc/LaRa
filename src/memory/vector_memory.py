@@ -43,8 +43,16 @@ except Exception:
     MAX_RETRIEVALS_PER_SESSION = 3
     MIN_SIMILARITY_SCORE       = 0.60
     MAX_SUMMARY_LENGTH         = 200
-    MIN_SUMMARY_LENGTH         = 10
     STORY_EXPIRY_DAYS          = 90
+
+try:
+    _COG_CFG = CONFIG.cognitive_pipeline
+    MAX_INJECTIONS = _COG_CFG.memory_max_injections
+    MIN_COMPOSITE_SCORE = _COG_CFG.memory_min_composite_score
+except Exception:
+    MAX_INJECTIONS = 2
+    MIN_COMPOSITE_SCORE = 0.45
+
 COLLECTION_NAME            = "lara_story_summaries"
 
 # Trigger phrases that indicate the child wants a story / recall
@@ -262,53 +270,72 @@ class VectorMemory:
             if doc in self._injected_summaries:
                 continue
 
-            days_ago = (time.time() - meta.get("timestamp", 0)) / 86400
-            recency_weight = max(0.0, 1.0 - (days_ago / STORY_EXPIRY_DAYS))
-            
-            concept = meta.get("concept", "general")
-            concept_match = 1.0 if concept.lower() in query.lower() else 0.5
-            
-            # Phase 5 Formula: score = (0.5 * similarity) + (0.3 * recency_weight) + (0.2 * concept_match)
-            score = (0.5 * similarity) + (0.3 * recency_weight) + (0.2 * concept_match)
-
+            # We store the raw cosine similarity as relevance here
+            # Phase 5 ranking will composite this later
             memories.append(RetrievedMemory(
                 summary=doc,
-                concept=concept,
-                relevance=round(score, 3),
+                concept=meta.get("concept", "general"),
+                relevance=round(similarity, 3),
                 days_ago=round(days_ago, 1),
             ))
 
-        # Rank by newly formulated score
-        memories.sort(key=lambda m: m.relevance, reverse=True)
-        # Enforce Phase 5 max 2 injected constraint
-        memories = memories[:2]
-
-        if memories:
-            self._session_retrievals += len(memories)
-            for m in memories:
-                self._injected_summaries.add(m.summary)
-            logging.info(
-                f"[VectorMemory] Retrieved {len(memories)} memories "
-                f"(session total: {self._session_retrievals})"
-            )
-
         return memories
 
-    def get_context_for_llm(self, query: str) -> str:
+    def _rank_memories(self, candidates: list[RetrievedMemory], current_concept: str) -> list[RetrievedMemory]:
+        """Rank retrieved memories by composite score and cap at 2."""
+        ranked = []
+        for m in candidates:
+            if m.summary in self._injected_summaries:
+                continue
+                
+            relevance_score = m.relevance
+            recency_weight = max(0.0, 1.0 - (m.days_ago / 90.0))
+            
+            concept_match = 0.0
+            if m.concept == current_concept:
+                concept_match = 1.0
+            elif current_concept.lower() in m.concept.lower() or m.concept.lower() in current_concept.lower():
+                concept_match = 0.5
+                
+            composite_score = (0.5 * relevance_score) + (0.3 * recency_weight) + (0.2 * concept_match)
+            
+            if composite_score >= MIN_COMPOSITE_SCORE:
+                # Store composite score temporarily in m.relevance for sorting
+                m.relevance = composite_score
+                ranked.append(m)
+                
+        ranked.sort(key=lambda x: x.relevance, reverse=True)
+        return ranked[:MAX_INJECTIONS]
+
+    def get_context_for_llm(self, query: str, current_concept: str = "") -> str:
         """
         Build a ready-to-inject LLM context string from relevant memories.
         Returns empty string if no relevant memories or cap reached.
         """
         # Always request more candidates to allow the ranking algorithm to work effectively
-        memories = self.retrieve_relevant(query, n=5)
+        candidates = self.retrieve_relevant(query, n=5)
+        if not candidates:
+            return ""
+
+        memories = self._rank_memories(candidates, current_concept)
         if not memories:
             return ""
 
-        lines = ["[Past Story Context — reference naturally, do NOT list these:"]
-        for m in memories:
-            lines.append(f"  • {m.summary} (concept: {m.concept})")
-        lines.append("]")
+        # Verify against session retrieval limit
+        if self._session_retrievals + len(memories) > MAX_RETRIEVALS_PER_SESSION:
+            allowed = MAX_RETRIEVALS_PER_SESSION - self._session_retrievals
+            memories = memories[:allowed]
+            
+        if not memories:
+            return ""
 
+        lines = []
+        for m in memories:
+            self._injected_summaries.add(m.summary)
+            self._session_retrievals += 1
+            lines.append(f"[Past story: {m.summary} — {m.days_ago:.0f}d ago]")
+
+        logging.info(f"[VectorMemory] Injected {len(memories)} ranked memories (session total: {self._session_retrievals})")
         return "\n".join(lines)
 
     # ══════════════════════════════════════════════════════════════════════════

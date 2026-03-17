@@ -84,6 +84,10 @@ class SessionState:
     # Difficulty cooldown (prevents oscillation)
     difficulty_locked_turns: int = 0
     
+    # Phase 4 extensions
+    difficulty_history: list = field(default_factory=list)
+    last_3_input_lengths: list = field(default_factory=list)
+    
     def reset(self):
         """Reset session state to clean defaults while keeping object instance."""
         self.session_id = str(uuid.uuid4())[:8]
@@ -98,6 +102,8 @@ class SessionState:
         self.mood = "neutral"
         self.mood_confidence = 0.0
         self.difficulty_locked_turns = 0
+        self.difficulty_history = []
+        self.last_3_input_lengths = []
         logging.info(f"[Session] Reset complete. New ID: {self.session_id}")
 
     def is_expired(self) -> bool:
@@ -125,6 +131,10 @@ class SessionState:
         # Update mood streak counters
         self._update_streaks(mood, mood_confidence)
         
+        # Track difficulty trajectory (last 3)
+        self.difficulty_history.append(self.current_difficulty)
+        self.difficulty_history = self.difficulty_history[-3:]
+        
         logging.info(
             f"[Session] Pre-decision | "
             f"Mood: {mood} ({mood_confidence:.2f}) | "
@@ -142,6 +152,11 @@ class SessionState:
         self.turn_count += 1
         self.last_user_input = user_input[:MAX_STORED_TEXT] if user_input else ""
         self.last_ai_response = ai_response[:MAX_STORED_TEXT] if ai_response else ""
+        
+        # Track engagement via input length
+        input_len = len(user_input) if user_input else 0
+        self.last_3_input_lengths.append(input_len)
+        self.last_3_input_lengths = self.last_3_input_lengths[-3:]
         
         logging.info(
             f"[Session] Turn {self.turn_count} complete | "
