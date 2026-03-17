@@ -31,11 +31,20 @@ except ImportError:
 
 
 # ── Constants ──────────────────────────────────────────────────────────────────
-MAX_RETRIEVALS_PER_SESSION = 3
-MIN_SIMILARITY_SCORE       = 0.50   # Dynamic lowered threshold
-MAX_SUMMARY_LENGTH         = 200    # Characters — prevent transcript smuggling
-MIN_SUMMARY_LENGTH         = 10     # Reject trivially short summaries
-STORY_EXPIRY_DAYS          = 90     # Soft-expire stories after N days
+try:
+    from src.core.config_loader import CONFIG
+    _VEC_CFG = CONFIG.vector_memory
+    MAX_RETRIEVALS_PER_SESSION = _VEC_CFG.max_retrievals_per_session
+    MIN_SIMILARITY_SCORE       = _VEC_CFG.min_similarity_score
+    MAX_SUMMARY_LENGTH         = _VEC_CFG.max_summary_length
+    MIN_SUMMARY_LENGTH         = _VEC_CFG.min_summary_length
+    STORY_EXPIRY_DAYS          = _VEC_CFG.story_expiry_days
+except Exception:
+    MAX_RETRIEVALS_PER_SESSION = 3
+    MIN_SIMILARITY_SCORE       = 0.60
+    MAX_SUMMARY_LENGTH         = 200
+    MIN_SUMMARY_LENGTH         = 10
+    STORY_EXPIRY_DAYS          = 90
 COLLECTION_NAME            = "lara_story_summaries"
 
 # Trigger phrases that indicate the child wants a story / recall

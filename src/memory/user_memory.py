@@ -93,8 +93,7 @@ class UserMemoryManager:
         """Create tables if they don't exist."""
         self._conn = sqlite3.connect(
             self.db_path,
-            check_same_thread=False,
-            isolation_level=None,   # Autocommit — we manage transactions explicitly
+            check_same_thread=False
         )
         self._conn.row_factory = sqlite3.Row
         

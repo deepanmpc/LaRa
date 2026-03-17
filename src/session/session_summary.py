@@ -57,8 +57,11 @@ def generate_session_summary(session, learning_manager=None, reinforcement_manag
 
     # Reinforcement style
     r_style = "calm_validation"
-    if reinforcement_manager and hasattr(reinforcement_manager, "_current_style"):
-        r_style = reinforcement_manager._current_style
+    if reinforcement_manager:
+        try:
+            r_style = reinforcement_manager.current_style
+        except Exception:
+            r_style = "calm_validation"
 
     # Build structured one-liner summary (compact, no narrative)
     lines = [

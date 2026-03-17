@@ -109,6 +109,11 @@ class ReinforcementAdaptationManager:
         
         logging.info("[Reinforcement] Manager initialized.")
     
+    @property
+    def current_style(self) -> str:
+        """Public getter for the active reinforcement style."""
+        return self._current_style
+    
     def set_user(self, user_id: str, baseline_style: Optional[str] = None):
         """Set the active user and load their baseline preference."""
         self._user_id = user_id

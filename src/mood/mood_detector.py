@@ -184,16 +184,20 @@ class MoodDetector:
     # Minimum confidence to consider a mood signal valid
     CONFIDENCE_THRESHOLD = 0.2
     
-    # Rolling window size for temporal smoothing
-    SMOOTHING_WINDOW = 1
-
     def __init__(self):
-        self._mood_history = deque(maxlen=self.SMOOTHING_WINDOW)
+        try:
+            from src.core.config_loader import CONFIG
+            window = CONFIG.mood.smoothing_window
+        except Exception:
+            window = 3
+        
+        self.SMOOTHING_WINDOW = window
+        self._mood_history = deque(maxlen=window)
         self._current_mood = Mood.NEUTRAL
         self._current_confidence = 0.0
         self._consecutive_neutral_count = 0  # For mood decay
         self._last_speaking_rate = 0.0       # For rate smoothing
-        logging.info("[MoodDetector] Initialized with temporal smoothing (window=2)")
+        logging.info(f"[MoodDetector] Initialized with temporal smoothing (window={window})")
 
     def analyze(self, text: str, audio_frames: list, utterance_duration: float = 0.0) -> tuple:
         """
@@ -310,7 +314,8 @@ class MoodDetector:
             return Mood.NEUTRAL, 0.5
         
         # Scale confidence: even 2-3 keyword matches = moderate confidence
-        confidence = min(best_score * 15.0, 1.0)
+        # Calibration (Fix 7): Scale by 5.0 (per docstring) to prevent artificial high confidence
+        confidence = min(best_score * 5.0, 1.0)
         
         return best_mood, confidence
 

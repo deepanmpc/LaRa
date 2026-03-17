@@ -551,12 +551,7 @@ def run_conversation_loop(bridge=None):
                                     reinforcement_manager.persist_session_metrics()
                                 session = SessionState()
                             
-                            # --- Compute RegulationState (Step 1) ---
-                            # Must be computed before mood_update emission
-                            if compute_regulation_state and session:
-                                regulation = compute_regulation_state(session)
-                                
-                            # Mood detection (text + audio signals)
+                            # 1. Mood detection (text + audio signals)
                             detected_mood = "neutral"
                             mood_conf = 0.0
                             if mood_detector and text:
@@ -564,18 +559,11 @@ def run_conversation_loop(bridge=None):
                                 detected_mood, mood_conf = mood_detector.analyze(
                                     text, utterance_frames, utterance_duration
                                 )
-                                _emit("mood_update", mood=detected_mood, confidence=mood_conf,
-                                      regulation={
-                                          "frustration_persistence": regulation.frustration_persistence if regulation else 0,
-                                          "stability_persistence": regulation.stability_persistence if regulation else 0,
-                                          "trend": regulation.emotional_trend_score if regulation else 0.0,
-                                      } if regulation else {})
                                 mood_icon = {"happy": "\U0001f60a", "sad": "\U0001f622", "frustrated": "\U0001f624", "anxious": "\U0001f630", "quiet": "\U0001f92b"}.get(detected_mood, "")
                                 if mood_icon:
                                     print(f"\033[90m[Mood: {detected_mood} {mood_icon}]\033[0m")
                             
-                            # === PRE-DECISION UPDATE (Step 3) ===
-                            # Update mood + streaks BEFORE gating/strategy decisions
+                            # 2. Update session state (PRE-DECISION)
                             if session:
                                 prev_mood = session.mood
                                 session.update_pre_decision(detected_mood, mood_conf)
@@ -586,9 +574,28 @@ def run_conversation_loop(bridge=None):
                                         concept = session.current_concept or "general"
                                         memory.record_recovery(USER_ID, concept)
                                     if reinforcement_manager:
+                                        # Fix 5: Use public current_style
                                         reinforcement_manager.update_metrics(
-                                            reinforcement_manager._current_style, True
+                                            reinforcement_manager.current_style, True
                                         )
+                            
+                            # 3. Compute RegulationState
+                            # order corrected (Fix 4): must happen AFTER session update
+                            regulation = None
+                            if compute_regulation_state and session:
+                                regulation = compute_regulation_state(session)
+                                if regulation:
+                                    _emit("mood_update", mood=detected_mood, confidence=mood_conf,
+                                          regulation={
+                                              "frustration_persistence": regulation.frustration_persistence,
+                                              "stability_persistence": regulation.stability_persistence,
+                                              "trend": regulation.emotional_trend_score,
+                                          })
+                                else:
+                                    logging.warning("[Pipeline] Regulation state computation returned None.")
+                                    _emit("mood_update", mood=detected_mood, confidence=mood_conf, regulation={})
+                            else:
+                                _emit("mood_update", mood=detected_mood, confidence=mood_conf, regulation={})
                             
                             # --- Difficulty Gating ---
                             if session:
