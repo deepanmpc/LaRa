@@ -88,6 +88,9 @@ class AgentricAI:
         # Phase 2: History Compression
         self.history_compressor = HistoryCompressor()
 
+        # Phase 3: Attention Control
+        self._attention = AttentionController()
+
     def _format_history(self, budget_tokens: int = 200):
         """Format conversation history as prior dialogue turns using compressor."""
         return self.history_compressor.compress(self.conversation_history, budget_tokens=budget_tokens)
@@ -118,6 +121,7 @@ class AgentricAI:
         vector_context="",
         is_frustrated=False,
         turn_count=0,
+        regulation_state=None,
     ):
         """Generates a streaming response following strict Section 15 prompt order.
         
@@ -134,10 +138,10 @@ class AgentricAI:
         perf.start_timer("prompt_build")
         
         # Phase 3: Attention Control (Token Budgeting)
-        budgets = AttentionController.get_budgets(
-            is_frustrated=is_frustrated,
-            rag_active=bool(vector_context),
-            turn_count=turn_count
+        profile = self._attention.get_profile(
+            regulation_state, 
+            turn_count, 
+            rag_triggered=bool(vector_context)
         )
         # Phase 1: Context/Prompt segment tracking
         def _build_strategy_block(s):
@@ -157,7 +161,7 @@ class AgentricAI:
             ('reinforcement_block', self.prompt_cache.build_segment('reinforcement_block', f"[Reinforcement style: {reinforcement_context}]" if reinforcement_context else "")),
             ('memory_block',        self.prompt_cache.build_segment('memory_block', _build_memory_block(preference_context, vector_context))),
             ('session_block',       self.prompt_cache.build_segment('session_block', session_summary or '')),
-            ('history_block',       self.prompt_cache.build_segment('history_block', self._format_history(budget_tokens=budgets.get("history", 200)))),
+            ('history_block',       self.prompt_cache.build_segment('history_block', self._format_history(budget_tokens=profile.budget_history_tokens))),
             ('live_input_block',    self.prompt_cache.build_segment('live_input_block', f'User says: {prompt}\nLaRa says:')),
         ])
         
