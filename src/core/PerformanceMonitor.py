@@ -51,7 +51,6 @@ class PerformanceMonitor:
             "total_latency_ms": 0,
             "token_count_prompt": 0,
             "token_count_response": 0,
-            "segment_hashes": {},
             "cache_report": {}
         }
 
