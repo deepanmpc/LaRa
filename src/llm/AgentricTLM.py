@@ -4,7 +4,7 @@ import logging
 import sys
 import os
 import time
-from src.core.PerformanceMonitor import monitor
+from src.core.PerformanceMonitor import PerformanceMonitor
 from src.llm.PromptCacheManager import PromptCacheManager
 from src.llm.HistoryCompressor import HistoryCompressor
 from src.llm.AttentionController import AttentionController
@@ -129,7 +129,8 @@ class AgentricAI:
           6. Last N Turns         (conversation_history)
           7. User message         (prompt)
         """
-        build_start = time.time()
+        perf = PerformanceMonitor.get()
+        perf.start_timer("prompt_build")
         
         # Phase 3: Attention Control (Token Budgeting)
         budgets = AttentionController.get_budgets(
@@ -181,7 +182,9 @@ class AgentricAI:
         segments["live_input_block"] = f"User says: {prompt}\nLaRa says:"
         
         full_prompt, changed_blocks = self.prompt_cache.segment_and_hash(segments)
-        monitor.log_metric("prompt_build_time", time.time() - build_start)
+        perf.end_timer("prompt_build")
+        perf.set_metric("segment_hashes", getattr(self.prompt_cache, 'block_hashes', {}))
+        perf.set_metric("cache_report", changed_blocks)
         
         # Dynamic token limit based on strategy's response length
         max_tokens = 120  # Default
@@ -206,7 +209,7 @@ class AgentricAI:
         }
         
         try:
-            inference_start = time.time()
+            perf.start_timer("inference")
             response = requests.post(self.url, json=payload, stream=True)
             response.raise_for_status()
             
@@ -218,9 +221,9 @@ class AgentricAI:
                     full_response += text_chunk
                     yield text_chunk
                     if chunk.get('done', False):
-                        monitor.log_metric("inference_time", time.time() - inference_start)
-                        monitor.log_metric("prompt_token_count", chunk.get("prompt_eval_count", 0))
-                        monitor.log_metric("response_token_count", chunk.get("eval_count", 0))
+                        perf.end_timer("inference")
+                        perf.set_metric("token_count_prompt", chunk.get("prompt_eval_count", 0))
+                        perf.set_metric("token_count_response", chunk.get("eval_count", 0))
                         break
             
             logging.info(f"Interaction - User: {prompt} | LaRa: {full_response}")

@@ -1,104 +1,151 @@
 """
-LaRa Performance Monitor (Phase 0)
-Tracks per-turn metrics: latency, token usage, and cache efficiency.
+LaRa Performance Monitor
+Establishes latency baseline and tracks cognitive pipeline performance.
 """
 
 import time
 import logging
 import os
 import json
-import numpy as np
-from collections import defaultdict
-from typing import Optional
+from collections import deque
+from statistics import median
 
-from src.core.runtime_paths import get_log_path
-
-_PERF_LOG = "lara_performance.jsonl"
-_PERF_PATH = get_log_path(_PERF_LOG)
+from src.core.config_loader import CONFIG
+from src.core.runtime_paths import get_metrics_log_path
 
 class PerformanceMonitor:
-    """
-    Tracks and logs performance metrics for therapy sessions.
-    """
     _instance = None
-    
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(PerformanceMonitor, cls).__new__(cls)
-            cls._instance.current_turn = {}
-            cls._instance.all_turns = []
-            cls._instance._init_log()
-        return cls._instance
 
-    def _init_log(self):
-        # Create empty log file if not exists
-        if not os.path.exists(_PERF_PATH):
-            with open(_PERF_PATH, "w") as f:
-                pass
+    def __init__(self):
+        if PerformanceMonitor._instance is not None:
+            raise RuntimeError("PerformanceMonitor is a singleton. Use PerformanceMonitor.get()")
+        
+        self.rolling_window = getattr(getattr(CONFIG, 'cognitive_pipeline', None), 'perf_rolling_window', 100)
+        self.metrics_log_path = get_metrics_log_path()
+        
+        # In-memory per-turn data
+        self.current_turn = {}
+        
+        # Deques for rolling calculation
+        self.history_prompt_build = deque(maxlen=self.rolling_window)
+        self.history_inference_time = deque(maxlen=self.rolling_window)
+        self.history_tts_time = deque(maxlen=self.rolling_window)
+        self.history_total_latency = deque(maxlen=self.rolling_window)
+        self.turn_count = 0
+        
+        PerformanceMonitor._instance = self
+
+    @staticmethod
+    def get():
+        if PerformanceMonitor._instance is None:
+            PerformanceMonitor()
+        return PerformanceMonitor._instance
 
     def start_turn(self):
-        """Called at start of a new interaction cycle."""
+        self.turn_count += 1
         self.current_turn = {
-            "timestamp": time.time(),
-            "prompt_build_time": 0.0,
-            "inference_time": 0.0,
-            "tts_time": 0.0,
-            "total_latency": 0.0,
-            "prompt_token_count": 0,
-            "response_token_count": 0,
-            "cache_hit_ratio": 0.0,
-            "turn_start": time.time()
+            "turn_start": time.perf_counter(),
+            "prompt_build_time_ms": 0,
+            "inference_time_ms": 0,
+            "tts_time_ms": 0,
+            "total_latency_ms": 0,
+            "token_count_prompt": 0,
+            "token_count_response": 0,
+            "segment_hashes": {},
+            "cache_report": {}
         }
 
-    def log_metric(self, key: str, value: float):
-        """Record a metric for the current turn."""
-        if key in self.current_turn:
-            self.current_turn[key] = value
-        else:
-            logging.warning(f"[PerfMonitor] Unknown metric key: {key}")
+    def start_timer(self, stage: str):
+        self.current_turn[f"{stage}_start"] = time.perf_counter()
+
+    def end_timer(self, stage: str):
+        start_time = self.current_turn.get(f"{stage}_start")
+        if start_time:
+            self.current_turn[f"{stage}_ms"] = int((time.perf_counter() - start_time) * 1000)
+
+    def set_metric(self, key: str, value):
+        self.current_turn[key] = value
 
     def end_turn(self):
-        """Finalize and save current turn metrics."""
-        self.current_turn["total_latency"] = time.time() - self.current_turn.get("turn_start", 0)
-        self.all_turns.append(self.current_turn.copy())
+        # Calculate total latency
+        turn_start = self.current_turn.get("turn_start")
+        if turn_start:
+            self.current_turn["total_latency_ms"] = int((time.perf_counter() - turn_start) * 1000)
+            
+        # Append to rolling history
+        self.history_prompt_build.append(self.current_turn.get("prompt_build_time_ms", 0))
+        self.history_inference_time.append(self.current_turn.get("inference_time_ms", 0))
+        self.history_tts_time.append(self.current_turn.get("tts_time_ms", 0))
+        self.history_total_latency.append(self.current_turn.get("total_latency_ms", 0))
+
+        # Log formatted metrics
+        turn_id = self.turn_count
+        prompt = self.current_turn.get("prompt_build_time_ms", 0)
+        inference = self.current_turn.get("inference_time_ms", 0)
+        tts = self.current_turn.get("tts_time_ms", 0)
+        total = self.current_turn.get("total_latency_ms", 0)
         
-        # Write to JSONL for easy machine parsing
+        tokens_p = self.current_turn.get("token_count_prompt", 0)
+        tokens_r = self.current_turn.get("token_count_response", 0)
+        
+        cache = self.current_turn.get("cache_report", {})
+        hits = [k for k, v in cache.items() if v == 'HIT']
+        misses = [k for k, v in cache.items() if v == 'MISS']
+        
+        hit_str = ','.join(hits) if hits else 'none'
+        miss_str = ','.join(misses) if misses else 'none'
+
+        log_lines = [
+            f"[Perf] turn={turn_id} prompt_build={prompt}ms inference={inference}ms tts={tts}ms total={total}ms",
+            f"[Perf] tokens prompt={tokens_p} response={tokens_r}",
+            f"[Perf] cache_hits={hit_str} miss={miss_str}"
+        ]
+
+        # Use root logger to ensure formatting matches the app
+        for line in log_lines:
+            logging.info(line)
+            
+        # Write to metrics log file directly
         try:
-            with open(_PERF_PATH, "a", encoding="utf-8") as f:
-                f.write(json.dumps(self.all_turns[-1]) + "\n")
+            ts = time.strftime("%Y-%m-%d %H:%M:%S")
+            with open(self.metrics_log_path, "a", encoding="utf-8") as f:
+                for line in log_lines:
+                    f.write(f"{ts} | INFO  | {line}\n")
         except Exception as e:
-            logging.error(f"[PerfMonitor] Failed to write log: {e}")
-        
-        logging.info(f"[PerfMonitor] Turn complete. Latency: {self.current_turn['total_latency']:.3f}s")
+            logging.error(f"[PerfMonitor] Failed to write metrics: {e}")
 
-    def get_statistics(self):
-        """Calculate p50, p90, max latency."""
-        if not self.all_turns:
-            return None
-        
-        latencies = [t["total_latency"] for t in self.all_turns]
-        return {
-            "p50": float(np.percentile(latencies, 50)),
-            "p90": float(np.percentile(latencies, 90)),
-            "max": float(np.max(latencies)),
-            "count": len(latencies)
-        }
+    def _percentile(self, data: list, p: int) -> int:
+        if not data:
+            return 0
+        sorted_data = sorted(data)
+        idx = int((len(sorted_data) - 1) * p / 100.0)
+        return sorted_data[idx]
 
-    def print_baseline(self):
-        """Print the Phase 0 baseline as requested."""
-        stats = self.get_statistics()
-        if not stats:
-            print("[PerfMonitor] No baseline data recorded yet.")
+    def log_session_summary(self):
+        """Called upon session end to flush final percentiles."""
+        if not self.history_total_latency:
             return
-
-        print("\n" + "="*40)
-        print("PHASE 0 — PERFORMANCE BASELINE")
-        print("="*40)
-        print(f"p50 Latency: {stats['p50']:.3f}s")
-        print(f"p90 Latency: {stats['p90']:.3f}s")
-        print(f"Max Latency: {stats['max']:.3f}s")
-        print(f"Total Turns: {stats['count']}")
-        print("="*40 + "\n")
-
-# Convenience singleton access
-monitor = PerformanceMonitor()
+            
+        stats = []
+        for name, data in [
+            ("prompt_build", list(self.history_prompt_build)),
+            ("inference", list(self.history_inference_time)),
+            ("tts", list(self.history_tts_time)),
+            ("total", list(self.history_total_latency))
+        ]:
+            if not data:
+                continue
+            p50 = self._percentile(data, 50)
+            p90 = self._percentile(data, 90)
+            p99 = self._percentile(data, 99)
+            stats.append(f"{name}: p50={p50}ms p90={p90}ms p99={p99}ms")
+            
+        summary_line = "[Perf] End of Session Summary | " + " | ".join(stats)
+        logging.info(summary_line)
+        
+        try:
+            ts = time.strftime("%Y-%m-%d %H:%M:%S")
+            with open(self.metrics_log_path, "a", encoding="utf-8") as f:
+                f.write(f"{ts} | INFO  | {summary_line}\n")
+        except Exception as e:
+            logging.error(f"[PerfMonitor] Failed to write final metrics: {e}")
