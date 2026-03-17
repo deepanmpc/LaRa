@@ -212,11 +212,14 @@ class AgentricAI:
             
             logging.info(f"Interaction - User: {prompt} | LaRa: {full_response}")
             
-            # Store turn in            # Append to history
-            self.conversation_history.append({
-                "user": prompt,
-                "lara": full_response[:self.MAX_TURN_CHARS],
-            })
+            # Phase 6: Only store completed responses — not partial barge-in responses
+            if full_response and len(full_response) > 10:
+                self.conversation_history.append({
+                    "user": prompt,
+                    "lara": full_response[:self.MAX_TURN_CHARS],
+                })
+            else:
+                logging.info('[AgentricTLM] Partial response discarded (barge-in or empty)')
             
             # HPC SAFETY LIMIT: Cap history sliding window to 10 turns
             MAX_HISTORY_TURNS = 10

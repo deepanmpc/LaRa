@@ -734,6 +734,15 @@ def run_conversation_loop(bridge=None, skip_wake_word=False):
                                                 utterance_frames = [peek_data]
                                                 silence_frames = 0
                                                 logging.info("[Barge-In] User interrupted during LLM generation.")
+                                                
+                                                try:
+                                                    from src.llm.AgentricTLM import LLMService
+                                                    llm = LLMService.get()
+                                                    if hasattr(llm, 'prompt_cache'):
+                                                        llm.prompt_cache.invalidate_dynamic_segments()
+                                                except Exception as e:
+                                                    logging.debug(f'[Barge-In] Cache invalidation failed silently: {e}')
+                                                
                                                 break
                                         else:
                                             barge_in_count = 0
