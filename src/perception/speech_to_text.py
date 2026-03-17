@@ -269,7 +269,7 @@ def check_wake_word_in_clip(audio_frames, kws_model):
         return False
 
 
-def run_conversation_loop(bridge=None):
+def run_conversation_loop(bridge=None, skip_wake_word=False):
     """Main conversation loop — called by main.py or directly."""
     
     def _emit(event_type: str, **payload):
@@ -344,16 +344,38 @@ def run_conversation_loop(bridge=None):
     print("="*60)
     print("        \033[95mLaRa: Low-Cost Adaptive Robotic-AI Assistant\033[0m")
     print("="*60)
-    print("\033[90mCommands: 'friday' (wake) | 'shutdown' (sleep) | 'lara' (interrupt)\033[0m")
+    print("\033[90mCommands: 'shutdown' (end session) | 'lara' (interrupt LaRa mid-speech)\033[0m")
     print("-" * 60)
-    print("\033[92mStatus:\033[0m Resting (Listening for wake word...)")
+    print("\033[92mStatus:\033[0m Starting session...")
 
     utterance_frames = []
     silence_frames = 0
     silence_threshold = int(SILENCE_DURATION_MS / FRAME_DURATION_MS)
     is_speaking = False
-    system_mode = SystemMode.RESTING
-    _emit("system_state", mode="resting", turn_count=0, difficulty=session.current_difficulty if session else 2)
+
+    # When launched via UI button, skip RESTING entirely and go straight to LISTENING
+    if skip_wake_word:
+        system_mode = SystemMode.LISTENING
+        flush_audio_queue()  # discard any stale frames before we start listening
+        _emit("system_state", mode="listening", turn_count=0,
+              difficulty=session.current_difficulty if session else 2)
+        welcome_text = "Hello! I am here to play and learn with you."
+        print(f"\033[95mLaRa:\033[0m {welcome_text}")
+        logging.info("[SYSTEM_STATE] UI-triggered start — skipping wake word, entering LISTENING")
+        if lara_voice:
+            _emit("system_state", mode="speaking", turn_count=0,
+                  difficulty=session.current_difficulty if session else 2)
+            _emit("lara_response", speaker="lara", text=welcome_text,
+                  mood="neutral", mood_confidence=0.0, strategy="neutral")
+            speak_and_monitor(welcome_text)
+            _emit("system_state", mode="listening", turn_count=0,
+                  difficulty=session.current_difficulty if session else 2)
+        print("\033[92mStatus:\033[0m Listening...")
+    else:
+        system_mode = SystemMode.RESTING
+        _emit("system_state", mode="resting", turn_count=0,
+              difficulty=session.current_difficulty if session else 2)
+        print("\033[92mStatus:\033[0m Resting (say 'friday' to wake)")
     
     # KWS state tracking during SPEAKING mode
     kws_speech_frames = []
@@ -517,25 +539,29 @@ def run_conversation_loop(bridge=None):
                                     lara_voice.speak(goodbye)
                                 return
 
-                            # Handle Wake State (RESTING → LISTENING)
+                            # Handle RESTING mode (only reached when launched without skip_wake_word)
                             if system_mode == SystemMode.RESTING:
                                 if "friday" in text.lower():
                                     system_mode = SystemMode.LISTENING
-                                    _emit("system_state", mode="listening", turn_count=0, difficulty=session.current_difficulty if session else 2)
-                                    msg = "\n\033[92m[System Transition]\033[0m LaRa is now AWAKE."
-                                    print(msg)
-                                    logging.info("[SYSTEM_STATE] Transitioned to LISTENING")
+                                    _emit("system_state", mode="listening", turn_count=0,
+                                          difficulty=session.current_difficulty if session else 2)
+                                    logging.info("[SYSTEM_STATE] Wake word detected — entering LISTENING")
                                     welcome_text = "Hello! I am here to play and learn with you."
                                     print(f"\033[95mLaRa:\033[0m {welcome_text}")
                                     if lara_voice:
                                         system_mode = SystemMode.SPEAKING
-                                        _emit("system_state", mode="speaking", turn_count=0, difficulty=session.current_difficulty if session else 2)
-                                        _emit("lara_response", speaker="lara", text=welcome_text, mood="neutral", mood_confidence=0.0, strategy="neutral")
+                                        _emit("system_state", mode="speaking", turn_count=0,
+                                              difficulty=session.current_difficulty if session else 2)
+                                        _emit("lara_response", speaker="lara", text=welcome_text,
+                                              mood="neutral", mood_confidence=0.0, strategy="neutral")
                                         speak_and_monitor(welcome_text)
                                         system_mode = SystemMode.LISTENING
-                                        _emit("system_state", mode="listening", turn_count=0, difficulty=session.current_difficulty if session else 2)
+                                        _emit("system_state", mode="listening", turn_count=0,
+                                              difficulty=session.current_difficulty if session else 2)
                                 else:
-                                    sys.stdout.write(f"\r\033[90m(Heard: \"{text}\" - say 'friday' to activate)\033[0m")
+                                    sys.stdout.write(
+                                        f"\r\033[90m(Heard: \"{text}\" — say 'friday' to activate)\033[0m"
+                                    )
                                     sys.stdout.flush()
                                 continue
 

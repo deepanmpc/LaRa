@@ -57,7 +57,7 @@ def _start_pipeline():
     try:
         from src.perception.speech_to_text import run_conversation_loop
         from src.bridge.ws_server import LaRaBridge
-        run_conversation_loop(bridge=LaRaBridge.get())
+        run_conversation_loop(bridge=LaRaBridge.get(), skip_wake_word=True)
     except KeyboardInterrupt:
         pass
     except Exception as e:
