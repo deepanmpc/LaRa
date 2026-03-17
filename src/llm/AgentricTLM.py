@@ -6,6 +6,8 @@ import os
 import time
 from src.core.PerformanceMonitor import monitor
 from src.llm.PromptCacheManager import PromptCacheManager
+from src.llm.HistoryCompressor import HistoryCompressor
+from src.llm.AttentionController import AttentionController
 
 # Ensure the audiopipeline can be imported
 base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -81,18 +83,13 @@ class AgentricAI:
         
         # Phase 1: Context/Prompt segment tracking
         self.prompt_cache = PromptCacheManager()
-
-    def _format_history(self):
-        """Format conversation history as prior dialogue turns."""
-        if not self.conversation_history:
-            return ""
         
-        lines = ["\n--- Recent conversation ---"]
-        for turn in self.conversation_history:
-            lines.append(f"User: {turn['user']}")
-            lines.append(f"LaRa: {turn['lara']}")
-        lines.append("--- End of history ---\n")
-        return "\n".join(lines)
+        # Phase 2: History Compression
+        self.history_compressor = HistoryCompressor()
+
+    def _format_history(self, budget_tokens: int = 200):
+        """Format conversation history as prior dialogue turns using compressor."""
+        return self.history_compressor.compress(self.conversation_history, budget_tokens=budget_tokens)
     
     def clear_history(self):
         """Clear conversation history (e.g., on session expiry)."""
@@ -118,6 +115,8 @@ class AgentricAI:
         preference_context="",
         session_summary="",
         vector_context="",
+        is_frustrated=False,
+        turn_count=0,
     ):
         """Generates a streaming response following strict Section 15 prompt order.
         
@@ -131,6 +130,13 @@ class AgentricAI:
           7. User message         (prompt)
         """
         build_start = time.time()
+        
+        # Phase 3: Attention Control (Token Budgeting)
+        budgets = AttentionController.get_budgets(
+            is_frustrated=is_frustrated,
+            rag_active=bool(vector_context),
+            turn_count=turn_count
+        )
         
         segments = {
             "system_block": self.system_prompt,
@@ -167,7 +173,7 @@ class AgentricAI:
             segments["session_block"] = session_summary
 
         # Part 6: Rolling conversation history (last N turns)
-        history_text = self._format_history()
+        history_text = self._format_history(budget_tokens=budgets.get("history", 200))
         if history_text:
             segments["history_block"] = history_text
 

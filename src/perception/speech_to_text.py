@@ -696,6 +696,8 @@ def run_conversation_loop(bridge=None, skip_wake_word=False):
                                 preference_context=preference_context,
                                 session_summary=summary_context,
                                 vector_context=vector_context,
+                                is_frustrated=(detected_mood in ("frustrated", "sad", "angry")),
+                                turn_count=(session.turn_count if session else 0)
                             ):
                                 full_ai_response += chunk
                                 _emit("lara_chunk", chunk=chunk, index=len(full_ai_response))
