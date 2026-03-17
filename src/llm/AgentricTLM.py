@@ -3,6 +3,8 @@ import json
 import logging
 import sys
 import os
+import time
+from src.core.PerformanceMonitor import monitor
 
 # Ensure the audiopipeline can be imported
 base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -124,6 +126,8 @@ class AgentricAI:
           6. Last N Turns         (conversation_history)
           7. User message         (prompt)
         """
+        build_start = time.time()
+        # Part 1: System Rules
         parts = [self.system_prompt]
 
         # Part 2: Recovery Strategy Context
@@ -156,6 +160,7 @@ class AgentricAI:
         parts.append(f"User says: {prompt}\nLaRa says:")
 
         full_prompt = "\n".join(parts)
+        monitor.log_metric("prompt_build_time", time.time() - build_start)
         
         # Dynamic token limit based on strategy's response length
         max_tokens = 120  # Default
@@ -180,6 +185,7 @@ class AgentricAI:
         }
         
         try:
+            inference_start = time.time()
             response = requests.post(self.url, json=payload, stream=True)
             response.raise_for_status()
             
@@ -191,6 +197,9 @@ class AgentricAI:
                     full_response += text_chunk
                     yield text_chunk
                     if chunk.get('done', False):
+                        monitor.log_metric("inference_time", time.time() - inference_start)
+                        monitor.log_metric("prompt_token_count", chunk.get("prompt_eval_count", 0))
+                        monitor.log_metric("response_token_count", chunk.get("eval_count", 0))
                         break
             
             logging.info(f"Interaction - User: {prompt} | LaRa: {full_response}")

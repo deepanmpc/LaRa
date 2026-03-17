@@ -13,6 +13,7 @@ import requests
 from enum import Enum
 from faster_whisper import WhisperModel
 from src.utils.gpu_manager import get_device_and_compute_type, check_vram
+from src.core.PerformanceMonitor import monitor
 
 # Logging is already configured by main.py's setup_logging() — do NOT call basicConfig here
 
@@ -517,6 +518,7 @@ def run_conversation_loop(bridge=None, skip_wake_word=False):
                             is_speaking = False
                             
                             # Transcribe (beam_size=1 for latency improvement)
+                            monitor.start_turn()
                             full_audio = np.concatenate(utterance_frames).flatten().astype(np.float32)
                             
                             # Normalize only weak signals
@@ -753,7 +755,12 @@ def run_conversation_loop(bridge=None, skip_wake_word=False):
                                         mood=detected_mood,
                                         mood_confidence=mood_conf,
                                         strategy=strategy.label if strategy else "neutral")
+                                    
+                                    tts_start = time.time()
                                     completed = speak_and_monitor(full_ai_response.strip())
+                                    monitor.log_metric("tts_time", time.time() - tts_start)
+                                    monitor.end_turn()
+                                    
                                     system_mode = SystemMode.LISTENING
                                     _emit("system_state", mode="listening",
                                         turn_count=session.turn_count if session else 0,
