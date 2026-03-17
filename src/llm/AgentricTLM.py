@@ -5,6 +5,7 @@ import sys
 import os
 import time
 from src.core.PerformanceMonitor import monitor
+from src.llm.PromptCacheManager import PromptCacheManager
 
 # Ensure the audiopipeline can be imported
 base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -77,6 +78,9 @@ class AgentricAI:
 
         # Conversation history buffer (sliding window for context)
         self.conversation_history = []
+        
+        # Phase 1: Context/Prompt segment tracking
+        self.prompt_cache = PromptCacheManager()
 
     def _format_history(self):
         """Format conversation history as prior dialogue turns."""
@@ -127,39 +131,50 @@ class AgentricAI:
           7. User message         (prompt)
         """
         build_start = time.time()
-        # Part 1: System Rules
-        parts = [self.system_prompt]
+        
+        segments = {
+            "system_block": self.system_prompt,
+            "strategy_block": "",
+            "reinforcement_block": "",
+            "memory_block": "",
+            "session_block": "",
+            "history_block": "",
+            "live_input_block": ""
+        }
 
         # Part 2: Recovery Strategy Context
         if strategy and strategy.prompt_addition:
-            parts.append(
+            segments["strategy_block"] = (
                 f"[Behavioral guidance — internal, do NOT mention to child: "
                 f"{strategy.prompt_addition}]"
             )
 
         # Part 3: Reinforcement Style
         if reinforcement_context:
-            parts.append(f"[Reinforcement style: {reinforcement_context}]")
+            segments["reinforcement_block"] = f"[Reinforcement style: {reinforcement_context}]"
 
         # Part 4: Learning State (preferences + past story vector context)
+        memory_parts = []
         if preference_context:
-            parts.append(preference_context)
+            memory_parts.append(preference_context)
         if vector_context:
-            parts.append(vector_context)
+            memory_parts.append(vector_context)
+        if memory_parts:
+            segments["memory_block"] = "\n".join(memory_parts)
 
         # Part 5: Session Summary (structured, non-narrative)
         if session_summary:
-            parts.append(session_summary)
+            segments["session_block"] = session_summary
 
         # Part 6: Rolling conversation history (last N turns)
         history_text = self._format_history()
         if history_text:
-            parts.append(history_text)
+            segments["history_block"] = history_text
 
         # Part 7: Current user message
-        parts.append(f"User says: {prompt}\nLaRa says:")
-
-        full_prompt = "\n".join(parts)
+        segments["live_input_block"] = f"User says: {prompt}\nLaRa says:"
+        
+        full_prompt, changed_blocks = self.prompt_cache.segment_and_hash(segments)
         monitor.log_metric("prompt_build_time", time.time() - build_start)
         
         # Dynamic token limit based on strategy's response length
