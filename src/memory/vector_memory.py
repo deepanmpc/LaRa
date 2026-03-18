@@ -31,11 +31,28 @@ except ImportError:
 
 
 # ── Constants ──────────────────────────────────────────────────────────────────
-MAX_RETRIEVALS_PER_SESSION = 3
-MIN_SIMILARITY_SCORE       = 0.60   # Only inject if relevance ≥ 60%
-MAX_SUMMARY_LENGTH         = 200    # Characters — prevent transcript smuggling
-MIN_SUMMARY_LENGTH         = 10     # Reject trivially short summaries
-STORY_EXPIRY_DAYS          = 90     # Soft-expire stories after N days
+try:
+    from src.core.config_loader import CONFIG
+    _VEC_CFG = CONFIG.vector_memory
+    MAX_RETRIEVALS_PER_SESSION = _VEC_CFG.max_retrievals_per_session
+    MIN_SIMILARITY_SCORE       = _VEC_CFG.min_similarity_score
+    MAX_SUMMARY_LENGTH         = _VEC_CFG.max_summary_length
+    MIN_SUMMARY_LENGTH         = _VEC_CFG.min_summary_length
+    STORY_EXPIRY_DAYS          = _VEC_CFG.story_expiry_days
+except Exception:
+    MAX_RETRIEVALS_PER_SESSION = 3
+    MIN_SIMILARITY_SCORE       = 0.60
+    MAX_SUMMARY_LENGTH         = 200
+    STORY_EXPIRY_DAYS          = 90
+
+try:
+    _COG_CFG = CONFIG.cognitive_pipeline
+    MAX_INJECTIONS = _COG_CFG.memory_max_injections
+    MIN_COMPOSITE_SCORE = _COG_CFG.memory_min_composite_score
+except Exception:
+    MAX_INJECTIONS = 2
+    MIN_COMPOSITE_SCORE = 0.45
+
 COLLECTION_NAME            = "lara_story_summaries"
 
 # Trigger phrases that indicate the child wants a story / recall
@@ -75,6 +92,7 @@ class VectorMemory:
         self._enabled = CHROMADB_AVAILABLE
         self._user_id: Optional[str] = None
         self._session_retrievals = 0        # Counter reset each session
+        self._injected_summaries = set()    # Anti-repetition tracker
         self._collection = None
         self._client = None
 
@@ -134,11 +152,13 @@ class VectorMemory:
         """Set active user and reset session retrieval counter."""
         self._user_id = user_id
         self._session_retrievals = 0
+        self._injected_summaries = set()
         logging.info(f"[VectorMemory] User set: {user_id}")
 
     def reset_session(self):
         """Call at session start to reset the retrieval cap."""
         self._session_retrievals = 0
+        self._injected_summaries = set()
 
     # ══════════════════════════════════════════════════════════════════════════
     # STORAGE
@@ -247,38 +267,75 @@ class VectorMemory:
                 logging.debug(f"[VectorMemory] Low similarity ({similarity:.2f}) — skipped.")
                 continue
 
-            days_ago = (time.time() - meta.get("timestamp", 0)) / 86400
+            if doc in self._injected_summaries:
+                continue
 
+            # We store the raw cosine similarity as relevance here
+            # Phase 5 ranking will composite this later
             memories.append(RetrievedMemory(
                 summary=doc,
                 concept=meta.get("concept", "general"),
-                relevance=round(similarity, 2),
+                relevance=round(similarity, 3),
                 days_ago=round(days_ago, 1),
             ))
 
-        if memories:
-            self._session_retrievals += len(memories)
-            logging.info(
-                f"[VectorMemory] Retrieved {len(memories)} memories "
-                f"(session total: {self._session_retrievals})"
-            )
-
         return memories
 
-    def get_context_for_llm(self, query: str) -> str:
+    def _rank_memories(self, candidates: list[RetrievedMemory], current_concept: str) -> list[RetrievedMemory]:
+        """Rank retrieved memories by composite score and cap at 2."""
+        ranked = []
+        for m in candidates:
+            if m.summary in self._injected_summaries:
+                continue
+                
+            relevance_score = m.relevance
+            recency_weight = max(0.0, 1.0 - (m.days_ago / 90.0))
+            
+            concept_match = 0.0
+            if m.concept == current_concept:
+                concept_match = 1.0
+            elif current_concept.lower() in m.concept.lower() or m.concept.lower() in current_concept.lower():
+                concept_match = 0.5
+                
+            composite_score = (0.5 * relevance_score) + (0.3 * recency_weight) + (0.2 * concept_match)
+            
+            if composite_score >= MIN_COMPOSITE_SCORE:
+                # Store composite score temporarily in m.relevance for sorting
+                m.relevance = composite_score
+                ranked.append(m)
+                
+        ranked.sort(key=lambda x: x.relevance, reverse=True)
+        return ranked[:MAX_INJECTIONS]
+
+    def get_context_for_llm(self, query: str, current_concept: str = "") -> str:
         """
         Build a ready-to-inject LLM context string from relevant memories.
         Returns empty string if no relevant memories or cap reached.
         """
-        memories = self.retrieve_relevant(query, n=MAX_RETRIEVALS_PER_SESSION)
+        # Always request more candidates to allow the ranking algorithm to work effectively
+        candidates = self.retrieve_relevant(query, n=5)
+        if not candidates:
+            return ""
+
+        memories = self._rank_memories(candidates, current_concept)
         if not memories:
             return ""
 
-        lines = ["[Past Story Context — reference naturally, do NOT list these:"]
-        for m in memories:
-            lines.append(f"  • {m.summary} (concept: {m.concept})")
-        lines.append("]")
+        # Verify against session retrieval limit
+        if self._session_retrievals + len(memories) > MAX_RETRIEVALS_PER_SESSION:
+            allowed = MAX_RETRIEVALS_PER_SESSION - self._session_retrievals
+            memories = memories[:allowed]
+            
+        if not memories:
+            return ""
 
+        lines = []
+        for m in memories:
+            self._injected_summaries.add(m.summary)
+            self._session_retrievals += 1
+            lines.append(f"[Past story: {m.summary} — {m.days_ago:.0f}d ago]")
+
+        logging.info(f"[VectorMemory] Injected {len(memories)} ranked memories (session total: {self._session_retrievals})")
         return "\n".join(lines)
 
     # ══════════════════════════════════════════════════════════════════════════

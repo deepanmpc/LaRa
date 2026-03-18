@@ -9,9 +9,11 @@ import sounddevice as sd
 import webrtcvad
 import time
 import logging
+import requests
 from enum import Enum
 from faster_whisper import WhisperModel
 from src.utils.gpu_manager import get_device_and_compute_type, check_vram
+from src.core.PerformanceMonitor import PerformanceMonitor
 
 # Logging is already configured by main.py's setup_logging() — do NOT call basicConfig here
 
@@ -166,18 +168,20 @@ class SystemMode(Enum):
 
 
 # --- Configuration ---
-SAMPLE_RATE = 16000
-FRAME_DURATION_MS = 30
-FRAME_SIZE = int(SAMPLE_RATE * FRAME_DURATION_MS / 1000)
-VAD_MODE = 3
-SILENCE_DURATION_MS = 1800  # Gentle pacing: 1.8s for slow/paused speech
-CHANNELS = 1
-
-# Noise clearance threshold (Energy-based gate)
-NOISE_GATE_THRESHOLD = 0.001 
+# Configuration wiring for audio processing (Fixes 2 & Latency 2)
+try:
+    from src.core.config_loader import CONFIG
+    NOISE_GATE_THRESHOLD = CONFIG.audio.noise_gate_threshold
+    SILENCE_DURATION_MS = CONFIG.audio.silence_duration_ms
+except Exception:
+    NOISE_GATE_THRESHOLD = 0.005
+    SILENCE_DURATION_MS = 1200  # Default fallback
 
 # Barge-in / KWS hardening: require 300ms of continuous speech before triggering
 BARGE_IN_FRAME_THRESHOLD = 10
+
+# Memory leak prevention: Max 20 seconds of audio frames per utterance (Fix 7)
+MAX_AUDIO_BUFFER_FRAMES = int(20000 / FRAME_DURATION_MS)
 
 # KWS cooldown: suppress all wake-word detection for this many seconds after an interrupt
 # Prevents echo loop: interrupt → "Okay. I am listening." → KWS hears "LaRa" from speaker → infinite loop
@@ -194,6 +198,20 @@ def callback(indata, frames, time_info, status):
 
 def clear_console():
     os.system('cls' if os.name == 'nt' else 'clear')
+
+
+def get_vision_state():
+    """
+    Queries the Vision Perception microservice for the current engagement state.
+    """
+    try:
+        # Use a short timeout to prevent therapy stalls if vision service is down
+        r = requests.get("http://localhost:8001/latest", timeout=0.1)
+        if r.status_code == 200:
+            return r.json()
+    except Exception:
+        pass
+    return None
 
 
 def validate_response(text: str) -> str:
@@ -252,7 +270,7 @@ def check_wake_word_in_clip(audio_frames, kws_model):
         return False
 
 
-def run_conversation_loop(bridge=None):
+def run_conversation_loop(bridge=None, skip_wake_word=False):
     """Main conversation loop — called by main.py or directly."""
     
     def _emit(event_type: str, **payload):
@@ -327,16 +345,38 @@ def run_conversation_loop(bridge=None):
     print("="*60)
     print("        \033[95mLaRa: Low-Cost Adaptive Robotic-AI Assistant\033[0m")
     print("="*60)
-    print("\033[90mCommands: 'friday' (wake) | 'shutdown' (sleep) | 'lara' (interrupt)\033[0m")
+    print("\033[90mCommands: 'shutdown' (end session) | 'lara' (interrupt LaRa mid-speech)\033[0m")
     print("-" * 60)
-    print("\033[92mStatus:\033[0m Resting (Listening for wake word...)")
+    print("\033[92mStatus:\033[0m Starting session...")
 
     utterance_frames = []
     silence_frames = 0
     silence_threshold = int(SILENCE_DURATION_MS / FRAME_DURATION_MS)
     is_speaking = False
-    system_mode = SystemMode.RESTING
-    _emit("system_state", mode="resting", turn_count=0, difficulty=session.current_difficulty if session else 2)
+
+    # When launched via UI button, skip RESTING entirely and go straight to LISTENING
+    if skip_wake_word:
+        system_mode = SystemMode.LISTENING
+        flush_audio_queue()  # discard any stale frames before we start listening
+        _emit("system_state", mode="listening", turn_count=0,
+              difficulty=session.current_difficulty if session else 2)
+        welcome_text = "Hello! I am here to play and learn with you."
+        print(f"\033[95mLaRa:\033[0m {welcome_text}")
+        logging.info("[SYSTEM_STATE] UI-triggered start — skipping wake word, entering LISTENING")
+        if lara_voice:
+            _emit("system_state", mode="speaking", turn_count=0,
+                  difficulty=session.current_difficulty if session else 2)
+            _emit("lara_response", speaker="lara", text=welcome_text,
+                  mood="neutral", mood_confidence=0.0, strategy="neutral")
+            speak_and_monitor(welcome_text)
+            _emit("system_state", mode="listening", turn_count=0,
+                  difficulty=session.current_difficulty if session else 2)
+        print("\033[92mStatus:\033[0m Listening...")
+    else:
+        system_mode = SystemMode.RESTING
+        _emit("system_state", mode="resting", turn_count=0,
+              difficulty=session.current_difficulty if session else 2)
+        print("\033[92mStatus:\033[0m Resting (say 'friday' to wake)")
     
     # KWS state tracking during SPEAKING mode
     kws_speech_frames = []
@@ -431,7 +471,7 @@ def run_conversation_loop(bridge=None):
                 kws_speech_frames = []
         
         # Wait for the speech thread to fully finish
-        speech_thread.join(timeout=2.0)
+        speech_thread.join(timeout=10.0)
         
         # Flush queue to prevent echo
         flush_audio_queue()
@@ -445,6 +485,10 @@ def run_conversation_loop(bridge=None):
                 indata = audio_queue.get()
                 if len(indata) != FRAME_SIZE: continue
                 
+                # Prevent memory leaks for extremely long background noise
+                if len(utterance_frames) > MAX_AUDIO_BUFFER_FRAMES:
+                    utterance_frames.pop(0)
+                
                 # --- Noise Clearance / Audio Pre-processing ---
                 # sounddevice returns 2D chunks (frames, channels), we need 1D for VAD and Whisper
                 flat_data = indata.flatten()
@@ -453,7 +497,9 @@ def run_conversation_loop(bridge=None):
                 
                 try:
                     is_speech = vad.is_speech(pcm_data.tobytes(), SAMPLE_RATE) and rms > NOISE_GATE_THRESHOLD
-                except:
+                except Exception as e:
+                    if logging.getLogger().isEnabledFor(logging.DEBUG):
+                        logging.debug(f"[VAD] Frame error: {e}")
                     continue
 
                 if is_speech:
@@ -471,7 +517,10 @@ def run_conversation_loop(bridge=None):
                         if silence_frames >= silence_threshold:
                             is_speaking = False
                             
-                            # Transcribe
+                            # Transcribe (beam_size=1 for latency improvement)
+                            perf = PerformanceMonitor.get()
+                            perf.start_turn()
+                            
                             full_audio = np.concatenate(utterance_frames).flatten().astype(np.float32)
                             
                             # Normalize only weak signals
@@ -479,7 +528,7 @@ def run_conversation_loop(bridge=None):
                             if 0 < peak < 0.5:
                                 full_audio = full_audio / peak
                                 
-                            segments, _info = whisper_model.transcribe(full_audio, beam_size=5, language="en")
+                            segments, _info = whisper_model.transcribe(full_audio, beam_size=1, language="en")
                             text = "".join([s.text for s in segments]).strip()
                             
                             if not text: continue
@@ -494,25 +543,29 @@ def run_conversation_loop(bridge=None):
                                     lara_voice.speak(goodbye)
                                 return
 
-                            # Handle Wake State (RESTING → LISTENING)
+                            # Handle RESTING mode (only reached when launched without skip_wake_word)
                             if system_mode == SystemMode.RESTING:
                                 if "friday" in text.lower():
                                     system_mode = SystemMode.LISTENING
-                                    _emit("system_state", mode="listening", turn_count=0, difficulty=session.current_difficulty if session else 2)
-                                    msg = "\n\033[92m[System Transition]\033[0m LaRa is now AWAKE."
-                                    print(msg)
-                                    logging.info("[SYSTEM_STATE] Transitioned to LISTENING")
+                                    _emit("system_state", mode="listening", turn_count=0,
+                                          difficulty=session.current_difficulty if session else 2)
+                                    logging.info("[SYSTEM_STATE] Wake word detected — entering LISTENING")
                                     welcome_text = "Hello! I am here to play and learn with you."
                                     print(f"\033[95mLaRa:\033[0m {welcome_text}")
                                     if lara_voice:
                                         system_mode = SystemMode.SPEAKING
-                                        _emit("system_state", mode="speaking", turn_count=0, difficulty=session.current_difficulty if session else 2)
-                                        _emit("lara_response", speaker="lara", text=welcome_text, mood="neutral", mood_confidence=0.0, strategy="neutral")
+                                        _emit("system_state", mode="speaking", turn_count=0,
+                                              difficulty=session.current_difficulty if session else 2)
+                                        _emit("lara_response", speaker="lara", text=welcome_text,
+                                              mood="neutral", mood_confidence=0.0, strategy="neutral")
                                         speak_and_monitor(welcome_text)
                                         system_mode = SystemMode.LISTENING
-                                        _emit("system_state", mode="listening", turn_count=0, difficulty=session.current_difficulty if session else 2)
+                                        _emit("system_state", mode="listening", turn_count=0,
+                                              difficulty=session.current_difficulty if session else 2)
                                 else:
-                                    sys.stdout.write(f"\r\033[90m(Heard: \"{text}\" - say 'friday' to activate)\033[0m")
+                                    sys.stdout.write(
+                                        f"\r\033[90m(Heard: \"{text}\" — say 'friday' to activate)\033[0m"
+                                    )
                                     sys.stdout.flush()
                                 continue
 
@@ -528,31 +581,19 @@ def run_conversation_loop(bridge=None):
                                     reinforcement_manager.persist_session_metrics()
                                 session = SessionState()
                             
-                            # --- Compute RegulationState (Step 1) ---
-                            # Must be computed before mood_update emission
-                            if compute_regulation_state and session:
-                                regulation = compute_regulation_state(session)
-                                
-                            # Mood detection (text + audio signals)
+                            # 1. Mood detection (text + audio signals)
                             detected_mood = "neutral"
                             mood_conf = 0.0
-                            if mood_detector:
+                            if mood_detector and text:
                                 utterance_duration = len(utterance_frames) * FRAME_DURATION_MS / 1000.0
                                 detected_mood, mood_conf = mood_detector.analyze(
                                     text, utterance_frames, utterance_duration
                                 )
-                                _emit("mood_update", mood=detected_mood, confidence=mood_conf,
-                                      regulation={
-                                          "frustration_persistence": regulation.frustration_persistence if regulation else 0,
-                                          "stability_persistence": regulation.stability_persistence if regulation else 0,
-                                          "trend": regulation.emotional_trend_score if regulation else 0.0,
-                                      } if regulation else {})
                                 mood_icon = {"happy": "\U0001f60a", "sad": "\U0001f622", "frustrated": "\U0001f624", "anxious": "\U0001f630", "quiet": "\U0001f92b"}.get(detected_mood, "")
                                 if mood_icon:
                                     print(f"\033[90m[Mood: {detected_mood} {mood_icon}]\033[0m")
                             
-                            # === PRE-DECISION UPDATE (Step 3) ===
-                            # Update mood + streaks BEFORE gating/strategy decisions
+                            # 2. Update session state (PRE-DECISION)
                             if session:
                                 prev_mood = session.mood
                                 session.update_pre_decision(detected_mood, mood_conf)
@@ -563,9 +604,28 @@ def run_conversation_loop(bridge=None):
                                         concept = session.current_concept or "general"
                                         memory.record_recovery(USER_ID, concept)
                                     if reinforcement_manager:
+                                        # Fix 5: Use public current_style
                                         reinforcement_manager.update_metrics(
-                                            reinforcement_manager._current_style, True
+                                            reinforcement_manager.current_style, True
                                         )
+                            
+                            # 3. Compute RegulationState
+                            # order corrected (Fix 4): must happen AFTER session update
+                            regulation = None
+                            if compute_regulation_state and session:
+                                regulation = compute_regulation_state(session)
+                                if regulation:
+                                    _emit("mood_update", mood=detected_mood, confidence=mood_conf,
+                                          regulation={
+                                              "frustration_persistence": regulation.frustration_persistence,
+                                              "stability_persistence": regulation.stability_persistence,
+                                              "trend": regulation.emotional_trend_score,
+                                          })
+                                else:
+                                    logging.warning("[Pipeline] Regulation state computation returned None.")
+                                    _emit("mood_update", mood=detected_mood, confidence=mood_conf, regulation={})
+                            else:
+                                _emit("mood_update", mood=detected_mood, confidence=mood_conf, regulation={})
                             
                             # --- Difficulty Gating ---
                             if session:
@@ -583,7 +643,17 @@ def run_conversation_loop(bridge=None):
                             # --- Get RecoveryStrategy ---
                             strategy = None
                             if strategy_manager:
-                                strategy = strategy_manager.get_strategy(detected_mood, mood_conf)
+                                # Prioritize Vision signals for engagement-based overrides
+                                vision_state = get_vision_state()
+                                if vision_state and vision_state.get("engagementScore", 1.0) < 0.3:
+                                    engagement = vision_state.get("engagementScore")
+                                    print(f"\033[91m[Vision] Low engagement detected ({engagement:.2f}) \u2192 forcing recovery.\033[0m")
+                                    logging.info(f"[Vision] Low engagement ({engagement:.2f}) override triggered.")
+                                    # Force 'frustrated' strategy as it simplifies instructions and adds grounding
+                                    strategy = strategy_manager.force_strategy("frustrated")
+                                else:
+                                    strategy = strategy_manager.get_strategy(detected_mood, mood_conf)
+                                
                                 if strategy.label != "neutral":
                                     print(f"\033[90m[Strategy: {strategy.label}]\033[0m")
                             
@@ -628,6 +698,9 @@ def run_conversation_loop(bridge=None):
                                 preference_context=preference_context,
                                 session_summary=summary_context,
                                 vector_context=vector_context,
+                                is_frustrated=(detected_mood in ("frustrated", "sad", "angry")),
+                                turn_count=(session.turn_count if session else 0),
+                                regulation_state=regulation
                             ):
                                 full_ai_response += chunk
                                 _emit("lara_chunk", chunk=chunk, index=len(full_ai_response))
@@ -661,6 +734,15 @@ def run_conversation_loop(bridge=None):
                                                 utterance_frames = [peek_data]
                                                 silence_frames = 0
                                                 logging.info("[Barge-In] User interrupted during LLM generation.")
+                                                
+                                                try:
+                                                    from src.llm.AgentricTLM import LLMService
+                                                    llm = LLMService.get()
+                                                    if hasattr(llm, 'prompt_cache'):
+                                                        llm.prompt_cache.invalidate_dynamic_segments()
+                                                except Exception as e:
+                                                    logging.debug(f'[Barge-In] Cache invalidation failed silently: {e}')
+                                                
                                                 break
                                         else:
                                             barge_in_count = 0
@@ -687,7 +769,12 @@ def run_conversation_loop(bridge=None):
                                         mood=detected_mood,
                                         mood_confidence=mood_conf,
                                         strategy=strategy.label if strategy else "neutral")
+                                    
+                                    perf.start_timer("tts")
                                     completed = speak_and_monitor(full_ai_response.strip())
+                                    perf.end_timer("tts")
+                                    perf.end_turn()
+                                    
                                     system_mode = SystemMode.LISTENING
                                     _emit("system_state", mode="listening",
                                         turn_count=session.turn_count if session else 0,

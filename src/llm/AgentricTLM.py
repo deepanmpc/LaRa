@@ -3,6 +3,12 @@ import json
 import logging
 import sys
 import os
+import time
+from collections import OrderedDict
+from src.core.PerformanceMonitor import PerformanceMonitor
+from src.llm.PromptCacheManager import PromptCacheManager
+from src.llm.HistoryCompressor import HistoryCompressor
+from src.llm.AttentionController import AttentionController
 
 # Ensure the audiopipeline can be imported
 base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -31,7 +37,7 @@ class AgentricAI:
             self._temperature = getattr(_LLM_CFG, 'temperature', 0.15)
             self._top_p = getattr(_LLM_CFG, 'top_p', 0.85)
             self._top_k = getattr(_LLM_CFG, 'top_k', 40)
-            self._num_ctx = getattr(_LLM_CFG, 'num_ctx', 2048)
+            self._num_ctx = getattr(_LLM_CFG, 'num_ctx', 1024)
             self.MAX_HISTORY_TURNS = getattr(_LLM_CFG, 'history_turns', 5)
             self.MAX_TURN_CHARS = getattr(_LLM_CFG, 'history_turn_max_chars', 150)
         else:
@@ -41,9 +47,10 @@ class AgentricAI:
             self._temperature = 0.15
             self._top_p = 0.85
             self._top_k = 40
-            self._num_ctx = 2048
+            self._num_ctx = 1024
             self.MAX_HISTORY_TURNS = 5
             self.MAX_TURN_CHARS = 150
+
 
         # LaRa Specific System Prompt (Strict Down Syndrome Constraints)
         self.system_prompt = (
@@ -74,18 +81,19 @@ class AgentricAI:
 
         # Conversation history buffer (sliding window for context)
         self.conversation_history = []
-
-    def _format_history(self):
-        """Format conversation history as prior dialogue turns."""
-        if not self.conversation_history:
-            return ""
         
-        lines = ["\n--- Recent conversation ---"]
-        for turn in self.conversation_history:
-            lines.append(f"User: {turn['user']}")
-            lines.append(f"LaRa: {turn['lara']}")
-        lines.append("--- End of history ---\n")
-        return "\n".join(lines)
+        # Phase 1: Context/Prompt segment tracking
+        self.prompt_cache = PromptCacheManager()
+        
+        # Phase 2: History Compression
+        self.history_compressor = HistoryCompressor()
+
+        # Phase 3: Attention Control
+        self._attention = AttentionController()
+
+    def _format_history(self, budget_tokens: int = 200):
+        """Format conversation history as prior dialogue turns using compressor."""
+        return self.history_compressor.compress(self.conversation_history, budget_tokens=budget_tokens)
     
     def clear_history(self):
         """Clear conversation history (e.g., on session expiry)."""
@@ -111,6 +119,9 @@ class AgentricAI:
         preference_context="",
         session_summary="",
         vector_context="",
+        is_frustrated=False,
+        turn_count=0,
+        regulation_state=None,
     ):
         """Generates a streaming response following strict Section 15 prompt order.
         
@@ -123,38 +134,41 @@ class AgentricAI:
           6. Last N Turns         (conversation_history)
           7. User message         (prompt)
         """
-        parts = [self.system_prompt]
+        perf = PerformanceMonitor.get()
+        perf.start_timer("prompt_build")
+        
+        # Phase 3: Attention Control (Token Budgeting)
+        profile = self._attention.get_profile(
+            regulation_state, 
+            turn_count, 
+            rag_triggered=bool(vector_context)
+        )
+        # Phase 1: Context/Prompt segment tracking
+        def _build_strategy_block(s):
+            if s and s.prompt_addition and s.label != 'default':
+                return f"[Behavioral guidance — internal, do NOT mention to child: {s.prompt_addition}]"
+            return ""
 
-        # Part 2: Recovery Strategy Context
-        if strategy and strategy.prompt_addition:
-            parts.append(
-                f"[Behavioral guidance — internal, do NOT mention to child: "
-                f"{strategy.prompt_addition}]"
-            )
+        def _build_memory_block(pref, vec):
+            parts = []
+            if pref: parts.append(pref)
+            if vec: parts.append(vec)
+            return "\n".join(parts) if parts else ""
 
-        # Part 3: Reinforcement Style
-        if reinforcement_context:
-            parts.append(f"[Reinforcement style: {reinforcement_context}]")
-
-        # Part 4: Learning State (preferences + past story vector context)
-        if preference_context:
-            parts.append(preference_context)
-        if vector_context:
-            parts.append(vector_context)
-
-        # Part 5: Session Summary (structured, non-narrative)
-        if session_summary:
-            parts.append(session_summary)
-
-        # Part 6: Rolling conversation history (last N turns)
-        history_text = self._format_history()
-        if history_text:
-            parts.append(history_text)
-
-        # Part 7: Current user message
-        parts.append(f"User says: {prompt}\nLaRa says:")
-
-        full_prompt = "\n".join(parts)
+        segments = OrderedDict([
+            ('system_block',        self.prompt_cache.build_segment('system_block', self.system_prompt)),
+            ('strategy_block',      self.prompt_cache.build_segment('strategy_block', _build_strategy_block(strategy))),
+            ('reinforcement_block', self.prompt_cache.build_segment('reinforcement_block', f"[Reinforcement style: {reinforcement_context}]" if reinforcement_context else "")),
+            ('memory_block',        self.prompt_cache.build_segment('memory_block', _build_memory_block(preference_context, vector_context))),
+            ('session_block',       self.prompt_cache.build_segment('session_block', session_summary or '')),
+            ('history_block',       self.prompt_cache.build_segment('history_block', self._format_history(budget_tokens=profile.budget_history_tokens))),
+            ('live_input_block',    self.prompt_cache.build_segment('live_input_block', f'User says: {prompt}\nLaRa says:')),
+        ])
+        
+        full_prompt = self.prompt_cache.assemble_prompt(segments)
+        perf.end_timer("prompt_build")
+        perf.set_metric("segment_hashes", dict(self.prompt_cache._cache.items()))
+        perf.set_metric("cache_report", self.prompt_cache.get_cache_report())
         
         # Dynamic token limit based on strategy's response length
         max_tokens = 120  # Default
@@ -179,6 +193,7 @@ class AgentricAI:
         }
         
         try:
+            perf.start_timer("inference")
             response = requests.post(self.url, json=payload, stream=True)
             response.raise_for_status()
             
@@ -190,6 +205,9 @@ class AgentricAI:
                     full_response += text_chunk
                     yield text_chunk
                     if chunk.get('done', False):
+                        perf.end_timer("inference")
+                        perf.set_metric("token_count_prompt", chunk.get("prompt_eval_count", 0))
+                        perf.set_metric("token_count_response", chunk.get("eval_count", 0))
                         break
             
             logging.info(f"Interaction - User: {prompt} | LaRa: {full_response}")

@@ -246,9 +246,17 @@ class ChildPreferenceManager:
         """
         if not self._cached_preferences:
             return ""
+            
+        now = time.time()
+        active_prefs = []
+        for p in self._cached_preferences:
+            days_old = (now - p.timestamp) / 86400
+            current_weight = 0.97 ** days_old
+            if current_weight > 0.3:
+                active_prefs.append(p)
         
-        likes = [p.topic for p in self._cached_preferences if p.sentiment == "like"]
-        dislikes = [p.topic for p in self._cached_preferences if p.sentiment == "dislike"]
+        likes = [p.topic for p in active_prefs if p.sentiment == "like"]
+        dislikes = [p.topic for p in active_prefs if p.sentiment == "dislike"]
         
         parts = []
         if likes:

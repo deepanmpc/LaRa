@@ -61,6 +61,7 @@ const VoiceSessionPage = () => {
     const difficultyRef       = useRef(2);
     const moodRef             = useRef('neutral');
     const sessionDurationRef  = useRef(0);
+    const moodConfRef         = useRef(0.0);
 
     const formatDuration = (secs) => {
         const m = Math.floor(secs / 60).toString().padStart(2, '0');
@@ -104,14 +105,34 @@ const VoiceSessionPage = () => {
         };
     }, []);
 
-    const endSession = useCallback(() => {
+    const endSession = useCallback(async () => {
         clearInterval(durationTimerRef.current);
         setSessionState('ended');
         setVoiceState('idle');
         const s = buildSummary();
         setSummary(s);
         setShowSummary(true);
-    }, [buildSummary]);
+
+        try {
+            const token = localStorage.getItem('token');
+            await fetch('/api/family/session/end', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': token ? `Bearer ${token}` : ''
+                },
+                body: JSON.stringify({
+                    sessionUuid: sessionUuid,
+                    childIdHashed: childId,
+                    durationSeconds: s.duration,
+                    avgMoodConfidence: moodConfRef.current,
+                    totalInterventions: s.laraResponses
+                })
+            });
+        } catch (err) {
+            console.error('[VoiceSession] Persistence Error:', err);
+        }
+    }, [buildSummary, sessionUuid, childId]);
 
     const handleMessage = useCallback((event) => {
         let msg;
@@ -134,7 +155,11 @@ const VoiceSessionPage = () => {
 
             case 'session_ack':
                 if (msg.status === 'starting')        setSessionState('active');
-                else if (msg.status === 'stopping')   endSession();
+                else if (msg.status === 'stopping') {
+                    reconnectCountRef.current = 0;
+                    setReconnectCount(0);
+                    endSession();
+                }
                 else if (msg.status === 'already_running') setSessionState('active');
                 else if (msg.status === 'not_running')     setSessionState('waiting');
                 break;
@@ -150,7 +175,9 @@ const VoiceSessionPage = () => {
                 const newMood = msg.mood ?? 'neutral';
                 setMood(newMood);
                 moodRef.current = newMood;
-                setMoodConf(msg.mood_confidence ?? 0.0);
+                const newConf = msg.mood_confidence ?? 0.0;
+                setMoodConf(newConf);
+                moodConfRef.current = newConf;
                 setStrategy(msg.strategy ?? 'neutral');
                 if (msg.mood) moodHistoryRef.current.push(msg.mood);
                 setTranscript(prev => [...prev, { speaker: 'lara', text: msg.text, timestamp: Date.now() / 1000 }]);
@@ -160,6 +187,7 @@ const VoiceSessionPage = () => {
                 setMood(msg.mood);
                 moodRef.current = msg.mood;
                 setMoodConf(msg.confidence);
+                moodConfRef.current = msg.confidence;
                 if (msg.mood) moodHistoryRef.current.push(msg.mood);
                 break;
 

@@ -26,24 +26,29 @@ import os
 from dataclasses import dataclass, field, asdict
 
 
-# Maximum characters to store for last input/response (privacy + memory)
-MAX_STORED_TEXT = 200
-
-# Session TTL: 24 hours in seconds
-SESSION_TTL_SECONDS = 24 * 60 * 60
-
-# Difficulty boundaries
-MIN_DIFFICULTY = 1
-MAX_DIFFICULTY = 5
-DEFAULT_DIFFICULTY = 2
-
-# Difficulty lock duration after any change
-DIFFICULTY_LOCK_TURNS = 2
-
-# Thresholds for difficulty changes (from adaptive_learning_design.md)
-FRUSTRATION_TURNS_FOR_DECREASE = 2   # 2 consecutive frustrated turns → decrease
-STABILITY_TURNS_FOR_INCREASE = 3     # 3 consecutive stable turns → increase
-MOOD_CONFIDENCE_FOR_DIFFICULTY = 0.6 # Minimum confidence to allow difficulty change
+# Configuration access
+try:
+    from src.core.config_loader import CONFIG
+    _SES_CFG = CONFIG.session
+    MAX_STORED_TEXT = _SES_CFG.max_stored_text_chars
+    SESSION_TTL_SECONDS = _SES_CFG.ttl_hours * 3600
+    MIN_DIFFICULTY = _SES_CFG.min_difficulty
+    MAX_DIFFICULTY = _SES_CFG.max_difficulty
+    DEFAULT_DIFFICULTY = 2 # Usually fixed
+    DIFFICULTY_LOCK_TURNS = _SES_CFG.difficulty_lock_turns
+    FRUSTRATION_TURNS_FOR_DECREASE = _SES_CFG.frustration_streak_threshold
+    STABILITY_TURNS_FOR_INCREASE = _SES_CFG.stability_streak_threshold
+    MOOD_CONFIDENCE_FOR_DIFFICULTY = _SES_CFG.mood_confidence_threshold
+except Exception:
+    MAX_STORED_TEXT = 200
+    SESSION_TTL_SECONDS = 24 * 3600
+    MIN_DIFFICULTY = 1
+    MAX_DIFFICULTY = 5
+    DEFAULT_DIFFICULTY = 2
+    DIFFICULTY_LOCK_TURNS = 2
+    FRUSTRATION_TURNS_FOR_DECREASE = 2
+    STABILITY_TURNS_FOR_INCREASE = 3
+    MOOD_CONFIDENCE_FOR_DIFFICULTY = 0.6
 
 
 @dataclass
@@ -79,9 +84,35 @@ class SessionState:
     # Difficulty cooldown (prevents oscillation)
     difficulty_locked_turns: int = 0
     
+    # Phase 4 extensions
+    difficulty_history: list = field(default_factory=list)
+    last_3_input_lengths: list = field(default_factory=list)
+    
+    def reset(self):
+        """Reset session state to clean defaults while keeping object instance."""
+        self.session_id = str(uuid.uuid4())[:8]
+        self.created_at = time.time()
+        self.turn_count = 0
+        self.current_concept = ""
+        self.current_difficulty = DEFAULT_DIFFICULTY
+        self.consecutive_frustration = 0
+        self.consecutive_stability = 0
+        self.last_user_input = ""
+        self.last_ai_response = ""
+        self.mood = "neutral"
+        self.mood_confidence = 0.0
+        self.difficulty_locked_turns = 0
+        self.difficulty_history = []
+        self.last_3_input_lengths = []
+        logging.info(f"[Session] Reset complete. New ID: {self.session_id}")
+
     def is_expired(self) -> bool:
-        """Check if session has exceeded 24h TTL."""
-        return (time.time() - self.created_at) > SESSION_TTL_SECONDS
+        """Check if session has exceeded TTL."""
+        if (time.time() - self.created_at) > SESSION_TTL_SECONDS:
+            # Enforce expiration limit by resetting
+            self.reset()
+            return True
+        return False
     
     def update_pre_decision(self, mood: str, mood_confidence: float):
         """
@@ -99,6 +130,10 @@ class SessionState:
         
         # Update mood streak counters
         self._update_streaks(mood, mood_confidence)
+        
+        # Track difficulty trajectory (last 3)
+        self.difficulty_history.append(self.current_difficulty)
+        self.difficulty_history = self.difficulty_history[-3:]
         
         logging.info(
             f"[Session] Pre-decision | "
@@ -118,6 +153,11 @@ class SessionState:
         self.last_user_input = user_input[:MAX_STORED_TEXT] if user_input else ""
         self.last_ai_response = ai_response[:MAX_STORED_TEXT] if ai_response else ""
         
+        # Track engagement via input length
+        input_len = len(user_input) if user_input else 0
+        self.last_3_input_lengths.append(input_len)
+        self.last_3_input_lengths = self.last_3_input_lengths[-3:]
+        
         logging.info(
             f"[Session] Turn {self.turn_count} complete | "
             f"Difficulty: {self.current_difficulty} | "
@@ -129,15 +169,20 @@ class SessionState:
         """
         Serializes the non-narrative metadata turn state to LARA_DATA_DIR/sessions
         allowing programmatic resumption or offline tracking.
+        Runs in a background thread to prevent loop latency.
         """
-        try:
-            from src.core.runtime_paths import get_sessions_dir
-            sessions_dir = get_sessions_dir()
-            state_file = os.path.join(sessions_dir, f"session_{self.session_id}_state.json")
-            with open(state_file, "w", encoding="utf-8") as f:
-                json.dump(asdict(self), f, indent=2)
-        except Exception as e:
-            logging.error(f"[Session] Failed to persist state to disk: {e}")
+        import threading
+        def _save():
+            try:
+                from src.core.runtime_paths import get_sessions_dir
+                sessions_dir = get_sessions_dir()
+                state_file = os.path.join(sessions_dir, f"session_{self.session_id}_state.json")
+                with open(state_file, "w", encoding="utf-8") as f:
+                    json.dump(asdict(self), f, indent=2)
+            except Exception as e:
+                logging.error(f"[Session] Failed to persist state to disk: {e}")
+        
+        threading.Thread(target=_save, daemon=True).start()
             
     def _update_streaks(self, mood: str, confidence: float):
         """

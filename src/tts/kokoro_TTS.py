@@ -41,9 +41,19 @@ class LaRaSpeech:
             tts_dir = get_tts_dir()
             self.pipeline = KPipeline(lang_code='a', repo_id=repo_id)
             logging.info(f"Successfully loaded Kokoro TTS (voice: {voice})")
+            
+            # Warm up TTS on startup (Fixes Latency 6)
+            logging.info("[TTS Init] Running warmup synthesis...")
+            try:
+                list(self.pipeline(" ", voice=self.voice_id, speed=self.speed))
+                logging.info("[TTS Init] Warmup complete.")
+            except Exception as e:
+                logging.warning(f"[TTS Init] Warmup failed (benign): {e}")
+
         except Exception as e:
             logging.error(f"Failed to load Kokoro TTS: {e}")
             print(f"\033[91m[TTS Error]\033[0m Could not load Kokoro: {e} - System will continue silently.")
+
 
     def interrupt_speech(self):
         """

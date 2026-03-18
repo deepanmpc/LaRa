@@ -51,7 +51,7 @@ log = get_logger(__name__)
 _W_FACE            = 0.45  # Presence weight (face detected)
 _W_GAZE            = 0.45  # Gaze weight (looking at screen)
 _W_GESTURE_GATED   = 0.10  # Gesture weight when gaze is confirmed
-_W_GESTURE_UNGATED = 0.15  # Gesture weight when gaze is absent (redistributed from gaze)
+_W_GESTURE_UNGATED = 0.10  # Gesture weight when gaze is absent (redistributed from gaze)
 
 # Sanity: ensure full engagement reaches 1.0
 assert abs(_W_FACE + _W_GAZE + _W_GESTURE_GATED - 1.0) < 1e-9, (
