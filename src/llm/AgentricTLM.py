@@ -167,6 +167,7 @@ class AgentricAI:
         
         full_prompt = self.prompt_cache.assemble_prompt(segments)
         perf.end_timer("prompt_build")
+        perf.set_metric("segment_hashes", dict(self.prompt_cache._cache.items()))
         perf.set_metric("cache_report", self.prompt_cache.get_cache_report())
         
         # Dynamic token limit based on strategy's response length
@@ -211,14 +212,11 @@ class AgentricAI:
             
             logging.info(f"Interaction - User: {prompt} | LaRa: {full_response}")
             
-            # Phase 6: Only store completed responses — not partial barge-in responses
-            if full_response and len(full_response) > 10:
-                self.conversation_history.append({
-                    "user": prompt,
-                    "lara": full_response[:self.MAX_TURN_CHARS],
-                })
-            else:
-                logging.info('[AgentricTLM] Partial response discarded (barge-in or empty)')
+            # Store turn in            # Append to history
+            self.conversation_history.append({
+                "user": prompt,
+                "lara": full_response[:self.MAX_TURN_CHARS],
+            })
             
             # HPC SAFETY LIMIT: Cap history sliding window to 10 turns
             MAX_HISTORY_TURNS = 10
