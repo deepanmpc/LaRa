@@ -168,14 +168,24 @@ class SystemMode(Enum):
 
 
 # --- Configuration ---
-# Configuration wiring for audio processing (Fixes 2 & Latency 2)
 try:
     from src.core.config_loader import CONFIG
     NOISE_GATE_THRESHOLD = CONFIG.audio.noise_gate_threshold
     SILENCE_DURATION_MS = CONFIG.audio.silence_duration_ms
+    SAMPLE_RATE        = CONFIG.audio.sample_rate
+    FRAME_DURATION_MS  = CONFIG.audio.frame_duration_ms
+    VAD_MODE           = CONFIG.audio.vad_mode
+    CHANNELS           = CONFIG.audio.channels
 except Exception:
     NOISE_GATE_THRESHOLD = 0.005
-    SILENCE_DURATION_MS = 1200  # Default fallback
+    SILENCE_DURATION_MS  = 1200
+    SAMPLE_RATE        = 16000
+    FRAME_DURATION_MS  = 30
+    VAD_MODE           = 3
+    CHANNELS           = 1
+
+FRAME_SIZE = int(SAMPLE_RATE * FRAME_DURATION_MS / 1000)
+VAD_MODE = VAD_MODE # Ensure it's available for vad initialization
 
 # Barge-in / KWS hardening: require 300ms of continuous speech before triggering
 BARGE_IN_FRAME_THRESHOLD = 10
