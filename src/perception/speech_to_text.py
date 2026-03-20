@@ -364,35 +364,11 @@ def run_conversation_loop(bridge=None, skip_wake_word=False):
     silence_threshold = int(SILENCE_DURATION_MS / FRAME_DURATION_MS)
     is_speaking = False
 
-    # When launched via UI button, skip RESTING entirely and go straight to LISTENING
-    if skip_wake_word:
-        system_mode = SystemMode.LISTENING
-        flush_audio_queue()  # discard any stale frames before we start listening
-        _emit("system_state", mode="listening", turn_count=0,
-              difficulty=session.current_difficulty if session else 2)
-        welcome_text = "Hello! I am here to play and learn with you."
-        print(f"\033[95mLaRa:\033[0m {welcome_text}")
-        logging.info("[SYSTEM_STATE] UI-triggered start — skipping wake word, entering LISTENING")
-        if lara_voice:
-            _emit("system_state", mode="speaking", turn_count=0,
-                  difficulty=session.current_difficulty if session else 2)
-            _emit("lara_response", speaker="lara", text=welcome_text,
-                  mood="neutral", mood_confidence=0.0, strategy="neutral")
-            speak_and_monitor(welcome_text)
-            _emit("system_state", mode="listening", turn_count=0,
-                  difficulty=session.current_difficulty if session else 2)
-        print("\033[92mStatus:\033[0m Listening...")
-    else:
-        system_mode = SystemMode.RESTING
-        _emit("system_state", mode="resting", turn_count=0,
-              difficulty=session.current_difficulty if session else 2)
-        print("\033[92mStatus:\033[0m Resting (say 'friday' to wake)")
-    
     # KWS state tracking during SPEAKING mode
     kws_speech_frames = []
     kws_consecutive_count = 0
     kws_last_trigger_time = 0.0  # Timestamp of last KWS interrupt (for cooldown)
-    
+
     def flush_audio_queue():
         """Drain the microphone queue to prevent stale frames."""
         while not audio_queue.empty():
@@ -487,6 +463,31 @@ def run_conversation_loop(bridge=None, skip_wake_word=False):
         flush_audio_queue()
         
         return speech_result[0]
+
+    # When launched via UI button, skip RESTING entirely and go straight to LISTENING
+    if skip_wake_word:
+        system_mode = SystemMode.LISTENING
+        flush_audio_queue()  # discard any stale frames before we start listening
+        _emit("system_state", mode="listening", turn_count=0,
+              difficulty=session.current_difficulty if session else 2)
+        welcome_text = "Hello! I am here to play and learn with you."
+        print(f"\033[95mLaRa:\033[0m {welcome_text}")
+        logging.info("[SYSTEM_STATE] UI-triggered start — skipping wake word, entering LISTENING")
+        if lara_voice:
+            _emit("system_state", mode="speaking", turn_count=0,
+                  difficulty=session.current_difficulty if session else 2)
+            _emit("lara_response", speaker="lara", text=welcome_text,
+                  mood="neutral", mood_confidence=0.0, strategy="neutral")
+            speak_and_monitor(welcome_text)
+            _emit("system_state", mode="listening", turn_count=0,
+                  difficulty=session.current_difficulty if session else 2)
+        print("\033[92mStatus:\033[0m Listening...")
+    else:
+        system_mode = SystemMode.RESTING
+        _emit("system_state", mode="resting", turn_count=0,
+              difficulty=session.current_difficulty if session else 2)
+        print("\033[92mStatus:\033[0m Resting (say 'friday' to wake)")
+    
 
     try:
         with sd.InputStream(samplerate=SAMPLE_RATE, channels=CHANNELS, 
