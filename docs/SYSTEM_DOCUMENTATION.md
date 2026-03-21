@@ -96,9 +96,9 @@
 
 ---
 
-### 2. `mood_detector.py` — Mood Detection Engine
+# 2. `mood_detector.py` — Mood Detection Engine
 
-**Purpose:** Analyzes both text content and audio prosody to determine the child's emotional state. Uses a conservative, multi-signal approach.
+**Purpose:** Analyzes both text content and audio prosody to determine the user's emotional state. Uses a conservative, multi-signal approach suitable for neurodiverse children and individuals with neurological conditions.
 
 **Mood Categories:**
 | Mood | Meaning |

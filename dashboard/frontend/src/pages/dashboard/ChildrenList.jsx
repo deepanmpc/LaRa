@@ -49,8 +49,8 @@ export default function ChildrenList() {
                         <div className="auth-logo-icon">L</div>
                         <div className="auth-logo-text">La<span>Ra</span> Care</div>
                     </div>
-                    <h1 style={{ fontSize: 28, color: 'var(--color-text-primary)', margin: '0 0 8px 0' }}>Who's playing today?</h1>
-                    <p style={{ color: 'var(--color-text-muted)', margin: 0, fontSize: 16 }}>Select a child to view their dashboard and start an activity.</p>
+                    <h1 style={{ fontSize: 28, color: 'var(--color-text-primary)', margin: '0 0 8px 0' }}>Welcome back to LaRa Care</h1>
+                    <p style={{ color: 'var(--color-text-muted)', margin: 0, fontSize: 16 }}>Select a profile to view the dashboard and start a session.</p>
                 </div>
 
                 {loading ? (
