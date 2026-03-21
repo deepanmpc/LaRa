@@ -1,6 +1,6 @@
 """
-LaRa Child Preference Memory
-Detects and stores what the child likes, dislikes, and cares about.
+LaRa User Preference Memory
+Detects and stores what the individual likes, dislikes, and cares about.
 Uses these preferences to personalize LLM responses.
 
 Examples:
@@ -112,7 +112,7 @@ def extract_preferences(text: str) -> list[Preference]:
 
 class ChildPreferenceManager:
     """
-    Manages the child's personal preferences in UserMemory.
+    Manages the user's personal preferences in UserMemory.
     
     Detects, stores, deduplicates, and provides preferences
     for LLM context injection.
@@ -240,7 +240,7 @@ class ChildPreferenceManager:
         Returns empty string if no preferences are stored.
         
         Format:
-          [Child's preferences — use these naturally, do NOT list them:
+          [User's preferences — use these naturally, do NOT list them:
            Likes: dinosaurs, blue, playing outside
            Dislikes: spiders, loud sounds]
         """
@@ -268,7 +268,7 @@ class ChildPreferenceManager:
             return ""
         
         context = (
-            "[Child's preferences — weave these into your responses naturally. "
+            "[User's preferences — weave these into your responses naturally. "
             "Do NOT list them or say 'I know you like X'. "
             "Instead, use them to choose examples, topics, and references.\n"
             f"{'; '.join(parts)}]"

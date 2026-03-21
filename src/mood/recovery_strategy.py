@@ -70,7 +70,7 @@ STRATEGIES = {
         reassurance_level=0,
         task_difficulty_modifier=0,  # Keep task difficulty unchanged
         prompt_addition=(
-            "The child seems engaged and positive. "
+            "The user seems engaged and positive. "
             "Mirror their energy gently. Encourage them. "
             "Keep the current task and pace."
         ),
@@ -84,7 +84,7 @@ STRATEGIES = {
         reassurance_level=2,         # Moderate reassurance
         task_difficulty_modifier=-1, # Easier — break into smaller steps
         prompt_addition=(
-            "The child seems to be finding things difficult. "
+            "The user seems to be finding things difficult. "
             "Break instructions into smaller, simpler steps. "
             "Add reassurance: 'You are doing well. Let us take it one step at a time.' "
             "Do NOT add new tasks. Do NOT increase complexity."
@@ -99,7 +99,7 @@ STRATEGIES = {
         reassurance_level=3,         # High reassurance
         task_difficulty_modifier=0,  # Pause escalation, don't reduce
         prompt_addition=(
-            "The child may be feeling uncertain or overwhelmed. "
+            "The individual may be feeling uncertain or overwhelmed. "
             "Use short, predictable sentences. Add a grounding phrase: "
             "'You are safe. I am right here with you.' "
             "Do NOT introduce anything new. Keep things simple and familiar."
@@ -114,7 +114,7 @@ STRATEGIES = {
         reassurance_level=3,         # High reassurance
         task_difficulty_modifier=-1, # Lighten the load
         prompt_addition=(
-            "The child seems to need comfort. "
+            "The individual seems to need comfort. "
             "Validate their feeling: 'It is okay to feel that way.' "
             "Offer an optional pause: 'We can take a break whenever you want.' "
             "Do NOT push new tasks. Focus on emotional presence."
@@ -129,7 +129,7 @@ STRATEGIES = {
         reassurance_level=1,         # Light — not pushy
         task_difficulty_modifier=0,  # Keep current difficulty
         prompt_addition=(
-            "The child is quiet. Do NOT push them to engage. "
+            "The user is quiet. Do NOT push them to engage. "
             "Offer gentle re-engagement: 'I am here whenever you want to talk.' "
             "Keep any task simple. Do NOT escalate."
         ),

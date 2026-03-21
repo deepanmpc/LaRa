@@ -2,13 +2,13 @@
 
 > **LaRa** — Low-Cost Adaptive Robotic-AI Assistant
 > A regulated, deterministic, privacy-first conversational AI therapy system
-> for children with Down syndrome and neurodiverse children.
+> for neurodiverse children and individuals with progressive or acquired neurological conditions.
 
 ---
 
 ## The Problem
 
-Children with Down syndrome and other neurodiverse conditions often benefit enormously from consistent, predictable, one-on-one educational and therapeutic interaction. However:
+Neurodiverse children and individuals with neurological conditions often benefit enormously from consistent, predictable, one-on-one educational and therapeutic interaction. However:
 
 - Qualified therapy time is limited and expensive
 - Traditional educational software is too rigid, doesn't adapt to real-time emotional state

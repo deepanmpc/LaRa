@@ -2,10 +2,10 @@ LaRa Global Machine Instruction
 
 For All AI Agents and Code Generation Tools
 
-This project is LaRa – Low-Cost Adaptive Robotic-AI Therapy System for Down Syndrome Children.
+This project is LaRa – Low-Cost Adaptive Robotic-AI Therapy System for Neurodiverse Children and Individuals with Neurological Conditions.
 
 All generated code must assume:
-	•	The end users are neurodiverse children (specifically Down syndrome).
+	•	The end users are neurodiverse children (including Down syndrome, Autism, ADHD, Cerebral Palsy) and adults with neurological conditions (including Parkinson's, Pick's disease, TBI, Aphasia).
 	•	The system operates in educational / therapeutic environments.
 	•	Emotional safety, clarity, and predictability are higher priority than speed or novelty.
 
