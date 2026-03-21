@@ -1,25 +1,29 @@
 # LaRa
 
-## Low-Cost Adaptive Robotic-AI Therapy System for Down Syndrome Children
+## Low-Cost Adaptive Robotic-AI Therapy System for Neurodiverse Individuals
 
 ------------------------------------------------------------------------
 
 
 ## Overview
 
-LaRa (Low-Cost Adaptive Robotic-AI Therapy System) is an emotion-aware
-robotic assistant designed to support children with Down syndrome in
-classroom and therapeutic environments.
+LaRa (Low-Cost Adaptive Robotic-AI Therapy System) is an emotion-aware AI 
+therapy companion built for two intersecting populations:
 
-The system integrates computer vision, emotion recognition,
-deterministic decision logic, and controlled language generation to
-provide adaptive and context-aware interaction. It is structured to
-ensure safety, predictability, and ethical deployment in real-world
-educational settings.
+**Primary:** Neurodiverse children and young adults — including those with 
+autism spectrum disorder, Down syndrome, ADHD, cerebral palsy, and related 
+neurodevelopmental conditions — where structured, predictable, emotion-aware 
+interaction supports learning, communication, and development.
 
-LaRa does not replace therapists. It extends their reach by offering
-consistent engagement support, emotional awareness, and structured
-interaction monitoring.
+**Secondary:** Individuals with progressive or acquired neurological conditions 
+— including frontotemporal dementia (Pick's disease), Parkinson's disease, 
+traumatic brain injury, and aphasia — where consistent, gentle, adaptive 
+engagement supports cognitive maintenance, emotional regulation, and quality 
+of life. These conditions are often incurable, but structured therapeutic 
+interaction demonstrably improves daily functioning and wellbeing.
+
+LaRa does not replace clinical therapy. It extends therapeutic reach by 
+providing consistent, safe, structured engagement between formal sessions.
 
 ------------------------------------------------------------------------
 
@@ -125,9 +129,10 @@ for safe and explainable interaction.
 
 ## Expected Impact
 
--   Improved classroom engagement for children with Down syndrome.
--   Emotion-aware adaptive interaction.
--   Objective session monitoring for therapists and caregivers.
+-   Improved engagement and learning outcomes for neurodiverse children.
+-   Enhanced cognitive maintenance and quality of life for individuals with neurological conditions.
+-   Emotion-aware adaptive interaction tailored to diverse cognitive needs.
+-   Objective session monitoring for therapists, caregivers, and family members.
 -   Safe, explainable, and scalable system behavior.
 
 ------------------------------------------------------------------------
@@ -162,9 +167,9 @@ Looking ahead, we are expanding LaRa's capabilities to maximize its therapeutic 
 ## Startup Outcomes & Impact
 
 LaRa is positioned to redefine therapeutic support by:
-- **Democratizing Access**: Establishing a highly scalable, low-cost therapeutic tool that makes quality engagement available in budget-constrained classrooms and homes.
-- **Pioneering Ethical AI**: Leading the development of ethical, deterministic-AI hybrid systems for pediatric care that prioritize safety over unconstrained AI autonomy.
-- **Empowering Caregivers**: Significantly reducing therapist workload by acting as an asynchronous engagement assistant, extending therapeutic support beyond the conventional clinic.
+- **Democratizing Access**: Establishing a highly scalable, low-cost therapeutic tool that makes quality engagement available in budget-constrained classrooms, care facilities, and homes.
+- **Pioneering Ethical AI**: Leading the development of ethical, deterministic-AI hybrid systems for neurodiverse care that prioritize safety over unconstrained AI autonomy.
+- **Empowering Caregivers**: Significantly reducing therapist and caregiver workload by acting as an asynchronous engagement assistant, extending therapeutic support beyond the conventional clinic.
 
 ------------------------------------------------------------------------
 

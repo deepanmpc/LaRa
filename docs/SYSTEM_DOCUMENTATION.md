@@ -1,6 +1,6 @@
 # LaRa — Complete System Documentation
 
-> **LaRa** (Low-Cost Adaptive Robotic-AI Therapy System) is a real-time conversational AI assistant designed specifically for children with Down syndrome and neurodiverse children. Every architectural decision prioritizes **emotional safety**, **predictability**, and **privacy** over intelligence or novelty.
+> **LaRa** (Low-Cost Adaptive Robotic-AI Therapy System) is a real-time conversational AI companion built for two intersecting populations: neurodiverse children (including those with autism spectrum disorder, Down syndrome, ADHD, and cerebral palsy) and individuals with progressive or acquired neurological conditions (including Pick's disease, Parkinson's, traumatic brain injury, and aphasia). Every architectural decision prioritizes **emotional safety**, **predictability**, and **privacy** over intelligence or novelty.
 
 ---
 
