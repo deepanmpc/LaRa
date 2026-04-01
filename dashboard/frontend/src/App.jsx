@@ -3,6 +3,7 @@ import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import FamilyDashboard from './pages/FamilyDashboard';
+import LiveMonitorPage from './pages/family/LiveMonitorPage';
 import ClinicianPending from './pages/ClinicianPending';
 import ProtectedRoute from './components/ProtectedRoute';
 import ChildrenList from './pages/dashboard/ChildrenList';
@@ -35,6 +36,14 @@ export default function App() {
                     element={
                         <ProtectedRoute requiredRole="ROLE_FAMILY">
                             <FamilyDashboard />
+                        </ProtectedRoute>
+                    }
+                />
+                <Route
+                    path="/live-monitor/:childId/:sessionUuid"
+                    element={
+                        <ProtectedRoute requiredRole="ROLE_FAMILY">
+                            <LiveMonitorPage />
                         </ProtectedRoute>
                     }
                 />
