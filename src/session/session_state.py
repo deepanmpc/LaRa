@@ -23,7 +23,8 @@ import uuid
 import logging
 import json
 import os
-from dataclasses import dataclass, field, asdict
+import threading
+from dataclasses import dataclass, field, fields
 
 
 # Configuration access
@@ -87,6 +88,13 @@ class SessionState:
     # Phase 4 extensions
     difficulty_history: list = field(default_factory=list)
     last_3_input_lengths: list = field(default_factory=list)
+
+    # Live vision state
+    vision_presence: bool = False
+    vision_attention: str = "UNKNOWN"
+    vision_engagement: float = 0.0
+    vision_gesture: str = "NONE"
+    vision_lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
     
     def reset(self):
         """Reset session state to clean defaults while keeping object instance."""
@@ -104,6 +112,11 @@ class SessionState:
         self.difficulty_locked_turns = 0
         self.difficulty_history = []
         self.last_3_input_lengths = []
+        with self.vision_lock:
+            self.vision_presence = False
+            self.vision_attention = "UNKNOWN"
+            self.vision_engagement = 0.0
+            self.vision_gesture = "NONE"
         logging.info(f"[Session] Reset complete. New ID: {self.session_id}")
 
     def is_expired(self) -> bool:
@@ -178,11 +191,29 @@ class SessionState:
                 sessions_dir = get_sessions_dir()
                 state_file = os.path.join(sessions_dir, f"session_{self.session_id}_state.json")
                 with open(state_file, "w", encoding="utf-8") as f:
-                    json.dump(asdict(self), f, indent=2)
+                    json.dump(self._serialize(), f, indent=2)
             except Exception as e:
                 logging.error(f"[Session] Failed to persist state to disk: {e}")
         
         threading.Thread(target=_save, daemon=True).start()
+
+    def _serialize(self) -> dict:
+        data = {}
+        with self.vision_lock:
+            for item in fields(self):
+                if item.name == "vision_lock":
+                    continue
+                data[item.name] = getattr(self, item.name)
+        return data
+
+    def get_vision_snapshot(self) -> dict:
+        with self.vision_lock:
+            return {
+                "presence": self.vision_presence,
+                "attention": self.vision_attention,
+                "engagement": self.vision_engagement,
+                "gesture": self.vision_gesture,
+            }
             
     def _update_streaks(self, mood: str, confidence: float):
         """

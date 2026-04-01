@@ -9,7 +9,6 @@ import sounddevice as sd
 import webrtcvad
 import time
 import logging
-import requests
 from enum import Enum
 from faster_whisper import WhisperModel
 from src.utils.gpu_manager import get_device_and_compute_type, check_vram
@@ -210,20 +209,6 @@ def clear_console():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 
-def get_vision_state():
-    """
-    Queries the Vision Perception microservice for the current engagement state.
-    """
-    try:
-        # Use a short timeout to prevent therapy stalls if vision service is down
-        r = requests.get("http://localhost:8001/latest", timeout=0.1)
-        if r.status_code == 200:
-            return r.json()
-    except Exception:
-        pass
-    return None
-
-
 def validate_response(text: str) -> str:
     """
     Validates and simplifies LLM output for neurodiverse cognitive safety.
@@ -280,7 +265,7 @@ def check_wake_word_in_clip(audio_frames, kws_model):
         return False
 
 
-def run_conversation_loop(bridge=None, skip_wake_word=False):
+def run_conversation_loop(bridge=None, skip_wake_word=False, session=None):
     """Main conversation loop — called by main.py or directly."""
     
     def _emit(event_type: str, **payload):
@@ -307,7 +292,7 @@ def run_conversation_loop(bridge=None, skip_wake_word=False):
     strategy_manager = RecoveryStrategyManager() if RecoveryStrategyManager else None
     
     # Initialize Session State (Phase 1) and User Memory (Phase 2)
-    session = SessionState() if SessionState else None
+    session = session or (SessionState() if SessionState else None)
     memory = UserMemoryManager() if UserMemoryManager else None
     
     # Default user (single-user mode for now)
@@ -587,10 +572,9 @@ def run_conversation_loop(bridge=None, skip_wake_word=False):
                             
                             # Check session TTL
                             if session and session.is_expired():
-                                logging.info("[Session] Expired — creating new session.")
+                                logging.info("[Session] Expired — reset existing session state.")
                                 if reinforcement_manager:
                                     reinforcement_manager.persist_session_metrics()
-                                session = SessionState()
                             
                             # 1. Mood detection (text + audio signals)
                             detected_mood = "neutral"
@@ -653,11 +637,20 @@ def run_conversation_loop(bridge=None, skip_wake_word=False):
                             # --- Compute RegulationState moved up ---
                             # --- Get RecoveryStrategy ---
                             strategy = None
+                            vision_snap = (
+                                session.get_vision_snapshot()
+                                if session and hasattr(session, "get_vision_snapshot")
+                                else {
+                                    "presence": False,
+                                    "attention": "UNKNOWN",
+                                    "engagement": 0.0,
+                                    "gesture": "NONE",
+                                }
+                            )
                             if strategy_manager:
                                 # Prioritize Vision signals for engagement-based overrides
-                                vision_state = get_vision_state()
-                                if vision_state and vision_state.get("engagementScore", 1.0) < 0.3:
-                                    engagement = vision_state.get("engagementScore")
+                                if vision_snap["engagement"] < 0.3 and vision_snap["presence"]:
+                                    engagement = vision_snap["engagement"]
                                     print(f"\033[91m[Vision] Low engagement detected ({engagement:.2f}) \u2192 forcing recovery.\033[0m")
                                     logging.info(f"[Vision] Low engagement ({engagement:.2f}) override triggered.")
                                     # Force 'frustrated' strategy as it simplifies instructions and adds grounding
@@ -708,6 +701,11 @@ def run_conversation_loop(bridge=None, skip_wake_word=False):
                                 reinforcement_context=reinforcement_prompt,
                                 preference_context=preference_context,
                                 session_summary=summary_context,
+                                vision_context=(
+                                    f"[Vision: attention={vision_snap['attention']}, "
+                                    f"engagement={vision_snap['engagement']:.2f}, "
+                                    f"gesture={vision_snap['gesture']}]"
+                                ),
                                 vector_context=vector_context,
                                 is_frustrated=(detected_mood in ("frustrated", "sad", "angry")),
                                 turn_count=(session.turn_count if session else 0),

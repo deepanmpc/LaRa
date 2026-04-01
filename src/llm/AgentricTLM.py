@@ -121,6 +121,7 @@ class AgentricAI:
         reinforcement_context="",
         preference_context="",
         session_summary="",
+        vision_context="",
         vector_context="",
         is_frustrated=False,
         turn_count=0,
@@ -133,7 +134,7 @@ class AgentricAI:
           2. Recovery Strategy    (strategy.prompt_addition)
           3. Reinforcement Style  (reinforcement_context)
           4. Learning State       (preference_context + vector_context)
-          5. Session Summary      (session_summary)
+          5. Session Summary      (session_summary + vision_context)
           6. Last N Turns         (conversation_history)
           7. User message         (prompt)
         """
@@ -158,12 +159,20 @@ class AgentricAI:
             if vec: parts.append(vec)
             return "\n".join(parts) if parts else ""
 
+        def _build_session_block(summary, vision):
+            parts = []
+            if summary:
+                parts.append(summary)
+            if vision:
+                parts.append(vision)
+            return "\n".join(parts) if parts else ""
+
         segments = OrderedDict([
             ('system_block',        self.prompt_cache.build_segment('system_block', self.system_prompt)),
             ('strategy_block',      self.prompt_cache.build_segment('strategy_block', _build_strategy_block(strategy))),
             ('reinforcement_block', self.prompt_cache.build_segment('reinforcement_block', f"[Reinforcement style: {reinforcement_context}]" if reinforcement_context else "")),
             ('memory_block',        self.prompt_cache.build_segment('memory_block', _build_memory_block(preference_context, vector_context))),
-            ('session_block',       self.prompt_cache.build_segment('session_block', session_summary or '')),
+            ('session_block',       self.prompt_cache.build_segment('session_block', _build_session_block(session_summary, vision_context))),
             ('history_block',       self.prompt_cache.build_segment('history_block', self._format_history(budget_tokens=profile.budget_history_tokens))),
             ('live_input_block',    self.prompt_cache.build_segment('live_input_block', f'User says: {prompt}\nLaRa says:')),
         ])

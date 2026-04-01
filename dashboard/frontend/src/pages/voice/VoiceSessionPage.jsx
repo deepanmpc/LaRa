@@ -27,6 +27,22 @@ const MOOD_COLORS = {
 };
 const moodColor = (m) => MOOD_COLORS[m] ?? MOOD_COLORS.neutral;
 
+const VISION_ATTENTION_COLORS = {
+    FOCUSED:     { bg: '#f0fdf4', text: '#166534', dot: '#22c55e' },
+    DISTRACTED:  { bg: '#fffbeb', text: '#b45309', dot: '#f59e0b' },
+    ABSENT:      { bg: '#fef2f2', text: '#b91c1c', dot: '#ef4444' },
+    UNKNOWN:     { bg: '#f8fafc', text: '#64748b', dot: '#94a3b8' },
+};
+const visionAttentionColor = (state) => VISION_ATTENTION_COLORS[state] ?? VISION_ATTENTION_COLORS.UNKNOWN;
+
+const VISION_ALERT_COLORS = {
+    distraction:    { bg: '#fffbeb', border: '#fcd34d', text: '#b45309' },
+    absence:        { bg: '#fef2f2', border: '#fca5a5', text: '#b91c1c' },
+    low_engagement: { bg: '#fff7ed', border: '#fdba74', text: '#c2410c' },
+    vision_alert:   { bg: '#fff7ed', border: '#fdba74', text: '#c2410c' },
+};
+const visionAlertColor = (type) => VISION_ALERT_COLORS[type] ?? VISION_ALERT_COLORS.vision_alert;
+
 const VoiceSessionPage = () => {
     const { childId, sessionUuid } = useParams();
     const navigate = useNavigate();
@@ -45,6 +61,9 @@ const VoiceSessionPage = () => {
     const [showSummary, setShowSummary]   = useState(false);
     const [wsStatus, setWsStatus]         = useState('connecting');
     const [reconnectCount, setReconnectCount] = useState(0);
+    const [visionState, setVisionState]   = useState(null);
+    const [visionAlert, setVisionAlert]   = useState(null);
+    const [lastGesture, setLastGesture]   = useState(null);
 
     const wsRef               = useRef(null);
     const reconnectTimeoutRef = useRef(null);
@@ -62,6 +81,8 @@ const VoiceSessionPage = () => {
     const moodRef             = useRef('neutral');
     const sessionDurationRef  = useRef(0);
     const moodConfRef         = useRef(0.0);
+    const visionAlertTimerRef = useRef(null);
+    const gestureTimerRef     = useRef(null);
 
     const formatDuration = (secs) => {
         const m = Math.floor(secs / 60).toString().padStart(2, '0');
@@ -109,6 +130,10 @@ const VoiceSessionPage = () => {
         clearInterval(durationTimerRef.current);
         setSessionState('ended');
         setVoiceState('idle');
+        clearTimeout(visionAlertTimerRef.current);
+        clearTimeout(gestureTimerRef.current);
+        setVisionAlert(null);
+        setLastGesture(null);
         const s = buildSummary();
         setSummary(s);
         setShowSummary(true);
@@ -169,7 +194,7 @@ const VoiceSessionPage = () => {
                 setTranscript(prev => [...prev, { speaker: msg.speaker, text: msg.text, timestamp: msg.timestamp }]);
                 break;
 
-            case 'lara_response':
+            case 'lara_response': {
                 laraCountRef.current += 1;
                 setSpeechText(msg.text);
                 const newMood = msg.mood ?? 'neutral';
@@ -182,6 +207,7 @@ const VoiceSessionPage = () => {
                 if (msg.mood) moodHistoryRef.current.push(msg.mood);
                 setTranscript(prev => [...prev, { speaker: 'lara', text: msg.text, timestamp: Date.now() / 1000 }]);
                 break;
+            }
 
             case 'mood_update':
                 setMood(msg.mood);
@@ -197,6 +223,31 @@ const VoiceSessionPage = () => {
                 if (msg.new_difficulty > difficultyPeakRef.current) difficultyPeakRef.current = msg.new_difficulty;
                 break;
 
+            case 'vision_update': {
+                setVisionState({
+                    presence: msg.presence,
+                    attention: msg.attentionState,
+                    engagement: msg.engagementScore,
+                    gesture: msg.gesture,
+                    distractionFrames: msg.distractionFrames,
+                });
+                break;
+            }
+
+            case 'vision_alert': {
+                setVisionAlert({ type: msg.alertType ?? msg.type, message: msg.message });
+                clearTimeout(visionAlertTimerRef.current);
+                visionAlertTimerRef.current = setTimeout(() => setVisionAlert(null), 4000);
+                break;
+            }
+
+            case 'vision_gesture': {
+                setLastGesture({ gesture: msg.gesture, ts: msg.timestamp });
+                clearTimeout(gestureTimerRef.current);
+                gestureTimerRef.current = setTimeout(() => setLastGesture(null), 2000);
+                break;
+            }
+
             case 'session_ended':
                 endSession();
                 break;
@@ -211,7 +262,7 @@ const VoiceSessionPage = () => {
 
     const mountedRef = useRef(true);
 
-    const connect = useCallback(() => {
+    const connect = useCallback(function connectSocket() {
         if (!mountedRef.current) return;
         if (reconnectCountRef.current >= MAX_RECONNECT_ATTEMPTS) { setWsStatus('error'); return; }
         // Close any existing connection first
@@ -236,7 +287,7 @@ const VoiceSessionPage = () => {
             reconnectCountRef.current += 1;
             setReconnectCount(reconnectCountRef.current);
             if (reconnectCountRef.current < MAX_RECONNECT_ATTEMPTS)
-                reconnectTimeoutRef.current = setTimeout(connect, RECONNECT_DELAY_MS);
+                reconnectTimeoutRef.current = setTimeout(connectSocket, RECONNECT_DELAY_MS);
             else setWsStatus('error');
         };
         ws.onerror = () => ws.close();
@@ -255,6 +306,8 @@ const VoiceSessionPage = () => {
                 wsRef.current.close();
                 wsRef.current = null;
             }
+            clearTimeout(visionAlertTimerRef.current);
+            clearTimeout(gestureTimerRef.current);
         };
     }, [connect]);
 
@@ -286,6 +339,11 @@ const VoiceSessionPage = () => {
         setMood('neutral');
         setMoodConf(0.0);
         setStrategy('neutral');
+        setVisionState(null);
+        setVisionAlert(null);
+        setLastGesture(null);
+        clearTimeout(visionAlertTimerRef.current);
+        clearTimeout(gestureTimerRef.current);
         setSessionState('starting');
         sendCommand('session_start');
     };
@@ -305,6 +363,16 @@ const VoiceSessionPage = () => {
     };
 
     const mc = moodColor(mood);
+    const liveVision = visionState ?? {
+        presence: false,
+        attention: 'UNKNOWN',
+        engagement: 0,
+        gesture: 'NONE',
+        distractionFrames: 0,
+    };
+    const attentionColors = visionAttentionColor(liveVision.attention);
+    const alertColors = visionAlert ? visionAlertColor(visionAlert.type) : null;
+    const gestureLabel = lastGesture?.gesture ? lastGesture.gesture.replace(/_/g, ' ') : '';
 
     return (
         <div style={{
@@ -404,6 +472,99 @@ const VoiceSessionPage = () => {
                                 <span style={{ fontSize: 13, fontWeight: 700, color: item.blue ? '#2563eb' : '#1e293b', textTransform: item.cap ? 'capitalize' : 'none' }}>{item.value}</span>
                             </div>
                         ))}
+                    </div>
+                )}
+
+                {sessionState === 'active' && (
+                    <div style={{ width: '100%', maxWidth: 560, display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
+                        {visionAlert && (
+                            <div style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                                background: alertColors.bg, border: `1px solid ${alertColors.border}`,
+                                borderRadius: 12, padding: '10px 12px', color: alertColors.text,
+                                boxShadow: '0 4px 18px rgba(15,23,42,0.06)',
+                            }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+                                    <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                                        {visionAlert.type === 'absence' ? 'Vision Alert' : 'Attention Alert'}
+                                    </span>
+                                    <span style={{ fontSize: 12, fontWeight: 600 }}>{visionAlert.message}</span>
+                                </div>
+                                <button
+                                    onClick={() => setVisionAlert(null)}
+                                    style={{
+                                        border: 'none', background: 'transparent', color: alertColors.text,
+                                        cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 0,
+                                    }}
+                                    aria-label="Dismiss vision alert"
+                                >
+                                    ×
+                                </button>
+                            </div>
+                        )}
+
+                        <div style={{
+                            display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+                            background: 'rgba(255,255,255,0.92)', border: '1px solid #dbeafe',
+                            borderRadius: 14, padding: '10px 12px',
+                            boxShadow: '0 8px 28px rgba(148,163,184,0.14)',
+                        }}>
+                            <div style={{
+                                display: 'flex', alignItems: 'center', gap: 8,
+                                background: attentionColors.bg, borderRadius: 999, padding: '6px 10px',
+                            }}>
+                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: attentionColors.dot }} />
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                    <span style={{ fontSize: 9, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Attention</span>
+                                    <span style={{ fontSize: 12, color: attentionColors.text, fontWeight: 700 }}>
+                                        {liveVision.attention}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 140, flex: 1 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ fontSize: 9, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                                        Engagement
+                                    </span>
+                                    <span style={{ fontSize: 11, color: '#334155', fontWeight: 700 }}>
+                                        {Math.round((liveVision.engagement ?? 0) * 100)}%
+                                    </span>
+                                </div>
+                                <div style={{ height: 7, background: '#e2e8f0', borderRadius: 999, overflow: 'hidden' }}>
+                                    <div style={{
+                                        width: `${Math.max(0, Math.min(100, (liveVision.engagement ?? 0) * 100))}%`,
+                                        height: '100%',
+                                        background: 'linear-gradient(90deg, #f59e0b 0%, #22c55e 100%)',
+                                        borderRadius: 999,
+                                        transition: 'width 0.4s ease',
+                                    }} />
+                                </div>
+                            </div>
+
+                            <div style={{
+                                display: 'flex', flexDirection: 'column', gap: 1,
+                                minWidth: 78,
+                            }}>
+                                <span style={{ fontSize: 9, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                                    Presence
+                                </span>
+                                <span style={{ fontSize: 12, fontWeight: 700, color: liveVision.presence ? '#166534' : '#64748b' }}>
+                                    {liveVision.presence ? 'In frame' : 'No face'}
+                                </span>
+                            </div>
+
+                            {lastGesture && (
+                                <div style={{
+                                    background: '#dbeafe', color: '#1d4ed8', border: '1px solid #93c5fd',
+                                    borderRadius: 999, padding: '7px 12px',
+                                    fontSize: 11, fontWeight: 800, letterSpacing: '0.04em',
+                                    textTransform: 'uppercase', animation: 'fadeGesture 2s linear forwards',
+                                }}>
+                                    {gestureLabel}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
 
@@ -611,6 +772,7 @@ const VoiceSessionPage = () => {
             <style>{`
                 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
                 @keyframes spin  { to { transform: rotate(360deg); } }
+                @keyframes fadeGesture { 0% { opacity: 0; transform: translateY(4px); } 15% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-2px); } }
             `}</style>
         </div>
     );
