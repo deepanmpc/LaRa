@@ -1,11 +1,23 @@
 """
-LaRa Vision Perception — Attention State Tracker
-Converts raw lookingAtScreen bool into a stable, smoothed attention state.
+LaRa Vision Perception — Attention State Tracker (v2.0)
+
+v2.0 fixes over v1.0:
+
+  Fix 1 – Grace period before ABSENT:
+    In v1.0, a single frame with presence=False immediately set ABSENT.
+    This is too aggressive: fast head movements (shakes, position changes)
+    can cause MediaPipe to lose the face for a few frames. These brief
+    face-loss events should be classified as DISTRACTED, not ABSENT.
+
+    Fix: Added _absent_frames counter with ABSENT_CONFIRM_FRAMES threshold
+    (default: 10 frames ≈ 0.67s at 15fps). The face must be truly gone for
+    the full grace period before ABSENT is reported. During the grace window,
+    DISTRACTED is reported instead.
 
 States:
   FOCUSED     — child is looking at screen, sustained
-  DISTRACTED  — child is present but not looking at screen
-  ABSENT      — face not detected
+  DISTRACTED  — child is present but not looking at screen, OR face briefly lost
+  ABSENT      — face not detected for sustained period (confirmed absence)
 
 Uses minimum duration thresholds to avoid flickering between states.
 """
@@ -19,15 +31,18 @@ log = get_logger(__name__)
 # At 15fps: 5 frames = ~0.33s, 15 frames = ~1s
 FOCUS_CONFIRM_FRAMES    = vision_config.ATTENTION_FOCUS_CONFIRM_FRAMES
 DISTRACT_CONFIRM_FRAMES = vision_config.ATTENTION_DISTRACT_CONFIRM_FRAMES
+ABSENT_CONFIRM_FRAMES   = getattr(vision_config, 'ATTENTION_ABSENT_CONFIRM_FRAMES', 10)
 
 
 class AttentionTracker:
     """
-    Smoothed attention state machine for child engagement monitoring.
+    Smoothed attention state machine for child engagement monitoring (v2.0).
 
     Designed for neurodiverse children — uses hysteresis so brief head
-    movements do not trigger distraction alerts. A child must consistently
-    look away for ~0.5s before DISTRACTED is reported.
+    movements do not trigger distraction or absence alerts.
+
+    Key improvement (v2.0): Brief face-loss during head shakes now reports
+    DISTRACTED (grace period) instead of immediate ABSENT.
     """
 
     def __init__(self):
@@ -35,10 +50,12 @@ class AttentionTracker:
         self._candidate: str = "UNKNOWN"
         self._candidate_frames: int = 0
         self._distraction_frames: int = 0
+        self._absent_frames: int = 0  # v2.0: Grace counter for face loss
         log.info(
-            f"AttentionTracker v1.0 initialised "
+            f"AttentionTracker v2.0 initialised "
             f"(focus_confirm={FOCUS_CONFIRM_FRAMES}, "
-            f"distract_confirm={DISTRACT_CONFIRM_FRAMES})"
+            f"distract_confirm={DISTRACT_CONFIRM_FRAMES}, "
+            f"absent_confirm={ABSENT_CONFIRM_FRAMES})"
         )
 
     def update(self, presence: bool, looking_at_screen: bool) -> tuple:
@@ -52,13 +69,39 @@ class AttentionTracker:
         Returns:
             (attentionState: str, distractionFrames: int)
         """
-        # ── Absence path ──────────────────────────────────────────
+        # ── Absence path (with grace period) ─────────────────────
         if not presence:
-            self._state = "ABSENT"
-            self._candidate = "UNKNOWN"
-            self._candidate_frames = 0
-            self._distraction_frames = 0
-            return self._state, 0
+            self._absent_frames += 1
+
+            if self._absent_frames >= ABSENT_CONFIRM_FRAMES:
+                # Confirmed absence — face has been gone long enough
+                if self._state != "ABSENT":
+                    log.info({
+                        "msg": "AttentionTracker state transition",
+                        "from": self._state,
+                        "to": "ABSENT",
+                        "confirmed_after_frames": self._absent_frames,
+                    })
+                self._state = "ABSENT"
+                self._candidate = "UNKNOWN"
+                self._candidate_frames = 0
+                self._distraction_frames = 0
+                return self._state, 0
+            else:
+                # Grace period — face briefly lost (head shake, position change)
+                # Report as DISTRACTED, not ABSENT
+                if self._state not in ("DISTRACTED", "ABSENT"):
+                    log.info({
+                        "msg": "AttentionTracker grace period — treating as DISTRACTED",
+                        "absent_frames": self._absent_frames,
+                        "threshold": ABSENT_CONFIRM_FRAMES,
+                    })
+                self._state = "DISTRACTED"
+                self._distraction_frames += 1
+                return self._state, self._distraction_frames
+
+        # ── Face restored — reset absence counter ─────────────────
+        self._absent_frames = 0
 
         # ── Candidate state ───────────────────────────────────────
         candidate = "FOCUSED" if looking_at_screen else "DISTRACTED"
@@ -106,4 +149,5 @@ class AttentionTracker:
         self._candidate = "UNKNOWN"
         self._candidate_frames = 0
         self._distraction_frames = 0
-        log.info("AttentionTracker reset")
+        self._absent_frames = 0
+        log.info("AttentionTracker v2.0 reset")

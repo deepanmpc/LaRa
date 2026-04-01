@@ -17,19 +17,19 @@ const STRATEGY_MAP = {
 };
 
 const MOOD_COLORS = {
-  happy: '#22c55e',
+  happy: 'var(--color-accent)',
   frustrated: '#f97316',
   anxious: '#c084fc',
   sad: '#60a5fa',
-  neutral: '#94a3b8',
-  quiet: '#94a3b8',
+  neutral: 'var(--color-text-secondary)',
+  quiet: 'var(--color-text-secondary)',
 };
 
 const ATTENTION_COLORS = {
-  FOCUSED: '#22c55e',
+  FOCUSED: 'var(--color-accent)',
   DISTRACTED: '#f59e0b',
-  ABSENT: '#ef4444',
-  UNKNOWN: '#64748b',
+  ABSENT: 'var(--color-danger)',
+  UNKNOWN: 'var(--color-text-muted)',
 };
 
 const LiveMonitorPage = () => {
@@ -217,36 +217,38 @@ const LiveMonitorPage = () => {
     return () => clearInterval(interval);
   }, [sessionEnded]);
 
-  const Gauge = ({ label, value, color = '#3b82f6' }) => (
+  const Gauge = ({ label, value, color = 'var(--color-primary)' }) => (
     <div style={{ marginBottom: 12 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 11, fontWeight: 600, color: '#94a3b8' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)' }}>
         <span>{label}</span>
-        <span>{(value * 100).toFixed(0)}%</span>
+        <span style={{ transition: 'opacity 0.4s ease' }}>{(value * 100).toFixed(0)}%</span>
       </div>
-      <div style={{ height: 6, background: '#334155', borderRadius: 3, overflow: 'hidden' }}>
+      <div style={{ height: 6, background: 'var(--color-border)', borderRadius: 3, overflow: 'hidden' }}>
         <div style={{
           width: `${Math.max(0, Math.min(100, value * 100))}%`,
           height: '100%',
           background: color,
-          transition: 'width 0.3s ease'
+          transition: 'width 0.8s cubic-bezier(0.4, 0, 0.2, 1)'
         }} />
       </div>
     </div>
   );
 
   const MetricChip = ({ label, value }) => (
-    <div style={{ background: '#0f172a', padding: '8px', borderRadius: 6, border: '1px solid #334155' }}>
-      <div style={{ fontSize: 9, color: '#64748b', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>{label}</div>
-      <div style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9' }}>{(value * 100).toFixed(0)}%</div>
+    <div style={{ background: 'var(--color-bg)', padding: '8px', borderRadius: 6, border: '1px solid var(--color-border)', transition: 'all 0.4s ease' }}>
+      <div style={{ fontSize: 9, color: 'var(--color-text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary)', transition: 'color 0.4s ease' }}>{(value * 100).toFixed(0)}%</div>
     </div>
   );
 
   const StatusChip = ({ label, active }) => (
     <div style={{
       fontSize: 10, fontWeight: 700, padding: '4px 8px', borderRadius: 4,
-      background: active ? '#ef4444' : '#334155',
-      color: active ? 'white' : '#94a3b8',
-      textTransform: 'uppercase'
+      background: active ? 'var(--color-danger)' : 'var(--color-bg)',
+      color: active ? '#ffffff' : 'var(--color-text-muted)',
+      border: active ? '1px solid var(--color-danger)' : '1px solid var(--color-border)',
+      textTransform: 'uppercase',
+      transition: 'all 0.4s ease'
     }}>
       {label}
     </div>
@@ -254,7 +256,7 @@ const LiveMonitorPage = () => {
 
   if (!childProfile) {
     return (
-      <div style={{ background: '#0f172a', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
+      <div style={{ background: 'var(--color-bg)', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-secondary)' }}>
         Loading child profile...
       </div>
     );
@@ -262,37 +264,37 @@ const LiveMonitorPage = () => {
 
   return (
     <div style={{
-      background: '#0f172a', color: '#f1f5f9', minHeight: '100vh',
+      background: 'var(--color-bg)', color: 'var(--color-text-primary)', minHeight: '100vh',
       fontFamily: "'Inter', sans-serif", display: 'flex', flexDirection: 'column'
     }}>
       {/* Header */}
       <header style={{
-        height: '64px', background: '#1e293b', borderBottom: '1px solid #334155',
+        height: '64px', background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '0 24px', position: 'sticky', top: 0, zIndex: 100
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ fontSize: 20, fontWeight: 900, color: '#3b82f6', letterSpacing: '-0.02em' }}>LaRa</div>
-          <div style={{ height: 24, width: 1, background: '#334155' }} />
-          <div style={{ fontSize: 16, fontWeight: 700, color: '#f1f5f9' }}>Live Session Monitor</div>
+          <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--color-primary)', letterSpacing: '-0.02em' }}>LaRa</div>
+          <div style={{ height: 24, width: 1, background: 'var(--color-border)' }} />
+          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)' }}>Live Session Monitor</div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 10, color: '#64748b', fontWeight: 800, textTransform: 'uppercase', marginBottom: 2 }}>Patient</div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9' }}>{childProfile.name}</div>
+            <div style={{ fontSize: 10, color: 'var(--color-text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: 2 }}>Patient</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-primary)' }}>{childProfile.name}</div>
           </div>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 10, color: '#64748b', fontWeight: 800, textTransform: 'uppercase', marginBottom: 2 }}>Session ID</div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: '#94a3b8', fontFamily: 'monospace' }}>{sessionUuid.slice(0, 8)}</div>
+            <div style={{ fontSize: 10, color: 'var(--color-text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: 2 }}>Session ID</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-secondary)', fontFamily: 'monospace' }}>{sessionUuid.slice(0, 8)}</div>
           </div>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 10, color: '#64748b', fontWeight: 800, textTransform: 'uppercase', marginBottom: 2 }}>Status</div>
+            <div style={{ fontSize: 10, color: 'var(--color-text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: 2 }}>Status</div>
             {sessionEnded ? (
-               <span style={{ background: '#334155', color: '#94a3b8', padding: '2px 10px', borderRadius: 4, fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>Ended</span>
+               <span style={{ background: 'var(--color-border)', color: 'var(--color-text-secondary)', padding: '2px 10px', borderRadius: 4, fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>Ended</span>
             ) : (
-               <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#22c55e' }}>
-                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', animation: 'pulse 1.5s infinite' }} />
+               <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--color-accent)' }}>
+                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-accent)', animation: 'pulse 1.5s infinite' }} />
                  <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>Session Live</span>
                </div>
             )}
@@ -301,16 +303,16 @@ const LiveMonitorPage = () => {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
           <div style={{ display: 'flex', gap: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: wsStatus === 'connected' ? '#064e3b' : '#450a0a', padding: '4px 10px', borderRadius: 6, border: `1px solid ${wsStatus === 'connected' ? '#065f46' : '#7f1d1d'}` }}>
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: wsStatus === 'connected' ? '#22c55e' : '#ef4444' }} />
-              <span style={{ fontSize: 11, fontWeight: 700, color: wsStatus === 'connected' ? '#22c55e' : '#fca5a5' }}>WS</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: wsStatus === 'connected' ? 'var(--color-accent-light)' : '#fee2e2', padding: '4px 10px', borderRadius: 6, border: `1px solid ${wsStatus === 'connected' ? 'var(--color-accent)' : 'var(--color-danger)'}` }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: wsStatus === 'connected' ? 'var(--color-accent)' : 'var(--color-danger)' }} />
+              <span style={{ fontSize: 11, fontWeight: 700, color: wsStatus === 'connected' ? 'var(--color-accent)' : 'var(--color-danger)' }}>WS</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: visionStatus === 'online' ? '#064e3b' : '#450a0a', padding: '4px 10px', borderRadius: 6, border: `1px solid ${visionStatus === 'online' ? '#065f46' : '#7f1d1d'}` }}>
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: visionStatus === 'online' ? '#22c55e' : '#ef4444' }} />
-              <span style={{ fontSize: 11, fontWeight: 700, color: visionStatus === 'online' ? '#22c55e' : '#fca5a5' }}>Vision</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: visionStatus === 'online' ? 'var(--color-accent-light)' : '#fee2e2', padding: '4px 10px', borderRadius: 6, border: `1px solid ${visionStatus === 'online' ? 'var(--color-accent)' : 'var(--color-danger)'}` }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: visionStatus === 'online' ? 'var(--color-accent)' : 'var(--color-danger)' }} />
+              <span style={{ fontSize: 11, fontWeight: 700, color: visionStatus === 'online' ? 'var(--color-accent)' : 'var(--color-danger)' }}>Vision</span>
             </div>
           </div>
-          <div style={{ width: 64, textAlign: 'right', fontSize: 18, fontWeight: 900, color: '#f1f5f9', fontFamily: 'monospace' }}>
+          <div style={{ width: 64, textAlign: 'right', fontSize: 18, fontWeight: 900, color: 'var(--color-text-primary)', fontFamily: 'monospace' }}>
             {formatDuration(elapsed)}
           </div>
         </div>
@@ -324,47 +326,48 @@ const LiveMonitorPage = () => {
         {/* Column 1: Vision */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           {/* Visual Attention Card */}
-          <section className="monitor-card" style={{ background: '#1e293b', borderRadius: 12, padding: '20px', border: '1px solid #334155' }}>
-            <h3 style={{ fontSize: 12, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 16 }}>Visual Attention</h3>
+          <section className="monitor-card" style={{ background: 'var(--color-surface)', borderRadius: 12, padding: '20px', border: '1px solid var(--color-border)' }}>
+            <h3 style={{ fontSize: 12, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 16 }}>Visual Attention</h3>
             <div style={{
               textAlign: 'center', fontSize: 32, fontWeight: 900, marginBottom: 20,
-              color: ATTENTION_COLORS[vision?.attentionState ?? 'UNKNOWN']
+              color: ATTENTION_COLORS[vision?.attentionState ?? 'UNKNOWN'],
+              transition: 'color 0.6s ease'
             }}>
               {vision?.attentionState ?? 'UNKNOWN'}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 24px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                <span style={{ color: '#94a3b8' }}>Presence:</span>
+                <span style={{ color: 'var(--color-text-secondary)' }}>Presence:</span>
                 <span style={{ fontWeight: 700 }}>{vision?.presence ? '\u2713' : '\u2717'}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                <span style={{ color: '#94a3b8' }}>Verified:</span>
+                <span style={{ color: 'var(--color-text-secondary)' }}>Verified:</span>
                 <span style={{ fontWeight: 700 }}>{vision?.faceVerified ? '\u2713' : '\u2717'}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                <span style={{ color: '#94a3b8' }}>Looking at screen:</span>
+                <span style={{ color: 'var(--color-text-secondary)' }}>Looking at screen:</span>
                 <span style={{ fontWeight: 700 }}>{vision?.lookingAtScreen ? '\u2713' : '\u2717'}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                <span style={{ color: '#94a3b8' }}>Frames away:</span>
+                <span style={{ color: 'var(--color-text-secondary)' }}>Frames away:</span>
                 <span style={{ fontWeight: 700 }}>{vision?.distractionFrames ?? 0}</span>
               </div>
             </div>
           </section>
 
           {/* Engagement Card */}
-          <section className="monitor-card" style={{ background: '#1e293b', borderRadius: 12, padding: '20px', border: '1px solid #334155' }}>
-            <h3 style={{ fontSize: 12, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 16 }}>Engagement</h3>
-            <Gauge label="Engagement (Raw)" value={vision?.engagementScore ?? 0} color="#f59e0b" />
-            <Gauge label="Engagement (Display)" value={vision?.engagementScoreUI ?? 0} color="#22c55e" />
-            <div style={{ marginTop: 12, fontSize: 11, color: '#64748b', textAlign: 'right' }}>
+          <section className="monitor-card" style={{ background: 'var(--color-surface)', borderRadius: 12, padding: '20px', border: '1px solid var(--color-border)' }}>
+            <h3 style={{ fontSize: 12, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 16 }}>Engagement</h3>
+            <Gauge label="Engagement (Raw)" value={vision?.engagementScore ?? 0} color="var(--color-warning)" />
+            <Gauge label="Engagement (Display)" value={vision?.engagementScoreUI ?? 0} color="var(--color-accent)" />
+            <div style={{ marginTop: 12, fontSize: 11, color: 'var(--color-text-muted)', textAlign: 'right' }}>
               Vision confidence: {((vision?.systemConfidence ?? 0) * 100).toFixed(0)}%
             </div>
           </section>
 
           {/* Detection Confidence Card */}
-          <section className="monitor-card" style={{ background: '#1e293b', borderRadius: 12, padding: '20px', border: '1px solid #334155' }}>
-            <h3 style={{ fontSize: 12, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 16 }}>Detection Confidence</h3>
+          <section className="monitor-card" style={{ background: 'var(--color-surface)', borderRadius: 12, padding: '20px', border: '1px solid var(--color-border)' }}>
+            <h3 style={{ fontSize: 12, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 16 }}>Detection Confidence</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <MetricChip label="Face" value={vision?.confidence?.face ?? 0} />
               <MetricChip label="Gesture" value={vision?.confidence?.gesture ?? 0} />
@@ -374,26 +377,26 @@ const LiveMonitorPage = () => {
           </section>
 
           {/* Gesture & Objects Card */}
-          <section className="monitor-card" style={{ background: '#1e293b', borderRadius: 12, padding: '20px', border: '1px solid #334155' }}>
-            <h3 style={{ fontSize: 12, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 16 }}>Current Gesture & Objects</h3>
+          <section className="monitor-card" style={{ background: 'var(--color-surface)', borderRadius: 12, padding: '20px', border: '1px solid var(--color-border)' }}>
+            <h3 style={{ fontSize: 12, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 16 }}>Current Gesture & Objects</h3>
             <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700, marginBottom: 8 }}>LAST GESTURE</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: '#3b82f6' }}>{vision?.gesture ?? 'NONE'}</div>
+              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 700, marginBottom: 8 }}>LAST GESTURE</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--color-primary)' }}>{vision?.gesture ?? 'NONE'}</div>
             </div>
             <div>
-              <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700, marginBottom: 8 }}>DETECTED OBJECTS</div>
+              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 700, marginBottom: 8 }}>DETECTED OBJECTS</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {vision?.detectedObjects?.length > 0 ? vision.detectedObjects.map((obj, i) => (
-                  <span key={i} style={{ background: '#0f172a', padding: '4px 8px', borderRadius: 4, fontSize: 11, border: '1px solid #334155' }}>{obj}</span>
-                )) : <span style={{ color: '#475569', fontSize: 12 }}>No objects detected</span>}
+                  <span key={i} style={{ background: 'var(--color-bg)', padding: '4px 8px', borderRadius: 4, fontSize: 11, border: '1px solid var(--color-border)' }}>{obj}</span>
+                )) : <span style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>No objects detected</span>}
               </div>
             </div>
           </section>
 
           {/* Frame Status Card */}
-          <section className="monitor-card" style={{ background: '#1e293b', borderRadius: 12, padding: '12px 20px', border: '1px solid #334155' }}>
+          <section className="monitor-card" style={{ background: 'var(--color-surface)', borderRadius: 12, padding: '12px 20px', border: '1px solid var(--color-border)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-               <h3 style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Frame Status</h3>
+               <h3 style={{ fontSize: 10, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Frame Status</h3>
                <div style={{ display: 'flex', gap: 8 }}>
                  <StatusChip label="Quality Skip" active={vision?.skipped?.quality} />
                  <StatusChip label="Throttle Skip" active={vision?.skipped?.throttle} />
@@ -406,16 +409,16 @@ const LiveMonitorPage = () => {
         {/* Column 2: Voice & Emotional State */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           {/* Session State Card */}
-          <section className="monitor-card" style={{ background: '#1e293b', borderRadius: 12, padding: '20px', border: '1px solid #334155' }}>
-            <h3 style={{ fontSize: 12, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 16 }}>Session State</h3>
+          <section className="monitor-card" style={{ background: 'var(--color-surface)', borderRadius: 12, padding: '20px', border: '1px solid var(--color-border)' }}>
+            <h3 style={{ fontSize: 12, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 16 }}>Session State</h3>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
               <div style={{
                 padding: '6px 16px', borderRadius: 20, fontSize: 13, fontWeight: 800,
-                background: '#3b82f6', color: 'white', textTransform: 'uppercase'
+                background: 'var(--color-primary)', color: '#ffffff', textTransform: 'uppercase'
               }}>
                 {sessionState.mode}
               </div>
-              <div style={{ fontSize: 14, color: '#94a3b8' }}>Turn <span style={{ color: '#f1f5f9', fontWeight: 700 }}>{sessionState.turn_count}</span></div>
+              <div style={{ fontSize: 14, color: 'var(--color-text-secondary)' }}>Turn <span style={{ color: 'var(--color-text-primary)', fontWeight: 700 }}>{sessionState.turn_count}</span></div>
             </div>
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
@@ -426,7 +429,7 @@ const LiveMonitorPage = () => {
                 {[1, 2, 3, 4, 5].map(lvl => (
                   <div key={lvl} style={{
                     flex: 1, height: 8, borderRadius: 4,
-                    background: lvl <= sessionState.difficulty ? '#3b82f6' : '#334155'
+                    background: lvl <= sessionState.difficulty ? 'var(--color-primary)' : 'var(--color-border)'
                   }} />
                 ))}
               </div>
@@ -434,86 +437,86 @@ const LiveMonitorPage = () => {
           </section>
 
           {/* Emotional State Card */}
-          <section className="monitor-card" style={{ background: '#1e293b', borderRadius: 12, padding: '20px', border: '1px solid #334155' }}>
-            <h3 style={{ fontSize: 12, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 16 }}>Emotional State</h3>
-            <div style={{ textAlign: 'center', fontSize: 32, fontWeight: 900, marginBottom: 8, color: MOOD_COLORS[mood.mood] ?? '#94a3b8', textTransform: 'uppercase' }}>
+          <section className="monitor-card" style={{ background: 'var(--color-surface)', borderRadius: 12, padding: '20px', border: '1px solid var(--color-border)' }}>
+            <h3 style={{ fontSize: 12, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 16 }}>Emotional State</h3>
+            <div style={{ textAlign: 'center', fontSize: 32, fontWeight: 900, marginBottom: 8, color: MOOD_COLORS[mood.mood] ?? 'var(--color-text-secondary)', textTransform: 'uppercase', transition: 'color 0.6s ease' }}>
               {mood.mood}
             </div>
             <div style={{ marginBottom: 20 }}>
-              <div style={{ height: 4, background: '#334155', borderRadius: 2, overflow: 'hidden' }}>
+              <div style={{ height: 4, background: 'var(--color-border)', borderRadius: 2, overflow: 'hidden' }}>
                 <div style={{
                   width: `${(mood.confidence * 100).toFixed(0)}%`,
-                  height: '100%', background: MOOD_COLORS[mood.mood] ?? '#94a3b8',
-                  transition: 'width 0.3s ease'
+                  height: '100%', background: MOOD_COLORS[mood.mood] ?? 'var(--color-text-secondary)',
+                  transition: 'width 0.8s cubic-bezier(0.4, 0, 0.2, 1), background 0.6s ease'
                 }} />
               </div>
-              <div style={{ textAlign: 'right', fontSize: 10, color: '#64748b', marginTop: 4 }}>
+              <div style={{ textAlign: 'right', fontSize: 10, color: 'var(--color-text-muted)', marginTop: 4 }}>
                 Confidence: {(mood.confidence * 100).toFixed(0)}%
               </div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <Gauge label="Frustration Persistence" value={mood.regulation?.frustration_persistence ?? 0} color="#ef4444" />
-              <Gauge label="Stability Persistence" value={mood.regulation?.stability_persistence ?? 0} color="#22c55e" />
+              <Gauge label="Frustration Persistence" value={mood.regulation?.frustration_persistence ?? 0} color="var(--color-danger)" />
+              <Gauge label="Stability Persistence" value={mood.regulation?.stability_persistence ?? 0} color="var(--color-accent)" />
               <div style={{ marginBottom: 4 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 11, fontWeight: 600, color: '#94a3b8' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)' }}>
                   <span>Emotional Trend</span>
                   <span>{mood.regulation?.trend >= 0 ? 'Improving' : 'Declining'}</span>
                 </div>
                 <div style={{ height: 20, position: 'relative', display: 'flex', alignItems: 'center' }}>
-                  <div style={{ width: '100%', height: 2, background: '#334155' }} />
+                  <div style={{ width: '100%', height: 2, background: 'var(--color-border)' }} />
                   <div style={{
                     position: 'absolute', width: 12, height: 12, borderRadius: '50%',
-                    background: '#3b82f6', border: '2px solid #0f172a',
+                    background: 'var(--color-primary)', border: '2px solid var(--color-bg)',
                     left: `${((mood.regulation?.trend ?? 0) + 1) * 50}%`,
                     transform: 'translateX(-50%)',
                     transition: 'left 0.3s ease'
                   }} />
-                  <div style={{ position: 'absolute', left: 0, bottom: -12, fontSize: 8, color: '#475569' }}>DECLINING</div>
-                  <div style={{ position: 'absolute', right: 0, bottom: -12, fontSize: 8, color: '#475569' }}>IMPROVING</div>
+                  <div style={{ position: 'absolute', left: 0, bottom: -12, fontSize: 8, color: 'var(--color-text-muted)' }}>DECLINING</div>
+                  <div style={{ position: 'absolute', right: 0, bottom: -12, fontSize: 8, color: 'var(--color-text-muted)' }}>IMPROVING</div>
                 </div>
               </div>
             </div>
           </section>
 
           {/* Recovery Strategy Card */}
-          <section className="monitor-card" style={{ background: '#1e293b', borderRadius: 12, padding: '20px', border: '1px solid #334155' }}>
-            <h3 style={{ fontSize: 12, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 16 }}>Recovery Strategy</h3>
+          <section className="monitor-card" style={{ background: 'var(--color-surface)', borderRadius: 12, padding: '20px', border: '1px solid var(--color-border)' }}>
+            <h3 style={{ fontSize: 12, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 16 }}>Recovery Strategy</h3>
             <div style={{
               display: 'inline-block', padding: '4px 12px', borderRadius: 6,
-              background: '#312e81', color: '#818cf8', fontSize: 14, fontWeight: 800,
+              background: 'var(--color-primary-light)', color: 'var(--color-primary)', fontSize: 14, fontWeight: 800,
               textTransform: 'uppercase', marginBottom: 12
             }}>
               {strategy}
             </div>
             <div style={{
-              background: '#0f172a', padding: '12px', borderRadius: 8,
-              fontSize: 13, color: '#94a3b8', border: '1px solid #334155'
+              background: 'var(--color-bg)', padding: '12px', borderRadius: 8,
+              fontSize: 13, color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)'
             }}>
               {STRATEGY_MAP[strategy] ?? "Active monitoring"}
             </div>
           </section>
 
           {/* Mood History Card */}
-          <section className="monitor-card" style={{ background: '#1e293b', borderRadius: 12, padding: '20px', border: '1px solid #334155' }}>
-            <h3 style={{ fontSize: 12, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 16 }}>Mood History (Last 10 turns)</h3>
+          <section className="monitor-card" style={{ background: 'var(--color-surface)', borderRadius: 12, padding: '20px', border: '1px solid var(--color-border)' }}>
+            <h3 style={{ fontSize: 12, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 16 }}>Mood History (Last 10 turns)</h3>
             <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
               {moodHistory.map((m, i) => (
                 <div key={i} style={{
                   width: 12, height: 12, borderRadius: '50%',
-                  background: MOOD_COLORS[m] ?? '#334155',
+                  background: MOOD_COLORS[m] ?? 'var(--color-border)',
                   boxShadow: '0 0 10px rgba(0,0,0,0.5)'
                 }} />
               ))}
               {Array(Math.max(0, 10 - moodHistory.length)).fill(0).map((_, i) => (
-                <div key={`empty-${i}`} style={{ width: 12, height: 12, borderRadius: '50%', background: '#334155' }} />
+                <div key={`empty-${i}`} style={{ width: 12, height: 12, borderRadius: '50%', background: 'var(--color-border)' }} />
               ))}
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px' }}>
               {Object.entries(MOOD_COLORS).map(([name, color]) => (
                 <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   <div style={{ width: 6, height: 6, borderRadius: '50%', background: color }} />
-                  <span style={{ fontSize: 9, color: '#64748b', textTransform: 'capitalize' }}>{name}</span>
+                  <span style={{ fontSize: 9, color: 'var(--color-text-muted)', textTransform: 'capitalize' }}>{name}</span>
                 </div>
               ))}
             </div>
@@ -524,27 +527,27 @@ const LiveMonitorPage = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           {/* Live Transcript Card */}
           <section className="monitor-card" style={{
-            background: '#1e293b', borderRadius: 12, border: '1px solid #334155',
+            background: 'var(--color-surface)', borderRadius: 12, border: '1px solid var(--color-border)',
             display: 'flex', flexDirection: 'column', height: '45vh'
           }}>
-            <h3 style={{ fontSize: 12, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '20px 20px 10px' }}>Live Transcript</h3>
+            <h3 style={{ fontSize: 12, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '20px 20px 10px' }}>Live Transcript</h3>
             <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
               {transcript.length === 0 ? (
-                <div style={{ textAlign: 'center', color: '#475569', marginTop: 40, fontSize: 13 }}>Waiting for conversation...</div>
+                <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', marginTop: 40, fontSize: 13 }}>Waiting for conversation...</div>
               ) : transcript.map((entry, i) => (
                 <div key={i} style={{ alignSelf: entry.speaker === 'lara' ? 'flex-start' : 'flex-end', maxWidth: '85%' }}>
-                   <div style={{ fontSize: 9, fontWeight: 700, color: entry.speaker === 'lara' ? '#3b82f6' : '#22c55e', textTransform: 'uppercase', marginBottom: 2 }}>
+                   <div style={{ fontSize: 9, fontWeight: 700, color: entry.speaker === 'lara' ? 'var(--color-primary)' : 'var(--color-accent)', textTransform: 'uppercase', marginBottom: 2 }}>
                      {entry.speaker === 'lara' ? 'LaRa' : 'Child'}
                    </div>
                    <div style={{
-                     background: entry.speaker === 'lara' ? '#1e293b' : '#064e3b',
-                     border: `1px solid ${entry.speaker === 'lara' ? '#334155' : '#065f46'}`,
-                     color: entry.speaker === 'lara' ? '#f1f5f9' : '#dcfce7',
+                     background: entry.speaker === 'lara' ? 'var(--color-surface)' : 'var(--color-accent-light)',
+                     border: `1px solid ${entry.speaker === 'lara' ? 'var(--color-border)' : 'var(--color-accent)'}`,
+                     color: entry.speaker === 'lara' ? 'var(--color-text-primary)' : 'var(--color-text-primary)',
                      padding: '8px 12px', borderRadius: 8, fontSize: 13, lineHeight: 1.4
                    }}>
                      {entry.text}
                    </div>
-                   <div style={{ fontSize: 8, color: '#475569', textAlign: 'right', marginTop: 2 }}>
+                   <div style={{ fontSize: 8, color: 'var(--color-text-muted)', textAlign: 'right', marginTop: 2 }}>
                      {new Date(entry.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                    </div>
                 </div>
@@ -555,19 +558,19 @@ const LiveMonitorPage = () => {
 
           {/* Session Events Card */}
           <section className="monitor-card" style={{
-            background: '#1e293b', borderRadius: 12, border: '1px solid #334155',
+            background: 'var(--color-surface)', borderRadius: 12, border: '1px solid var(--color-border)',
             display: 'flex', flexDirection: 'column', height: '30vh'
           }}>
-            <h3 style={{ fontSize: 12, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '20px 20px 10px' }}>Session Events</h3>
+            <h3 style={{ fontSize: 12, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '20px 20px 10px' }}>Session Events</h3>
             <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 20px' }}>
               {events.length === 0 ? (
-                <div style={{ textAlign: 'center', color: '#475569', marginTop: 20, fontSize: 12 }}>No events logged yet</div>
+                <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', marginTop: 20, fontSize: 12 }}>No events logged yet</div>
               ) : events.map((ev, i) => (
-                <div key={i} style={{ padding: '8px 0', borderBottom: '1px solid #334155', fontSize: 12, display: 'flex', gap: 12 }}>
-                  <span style={{ color: '#475569', fontFamily: 'monospace', fontSize: 10, flexShrink: 0 }}>
+                <div key={i} style={{ padding: '8px 0', borderBottom: '1px solid var(--color-border)', fontSize: 12, display: 'flex', gap: 12 }}>
+                  <span style={{ color: 'var(--color-text-muted)', fontFamily: 'monospace', fontSize: 10, flexShrink: 0 }}>
                     {new Date(ev.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                   </span>
-                  <span style={{ color: '#cbd5e1' }}>{ev.text}</span>
+                  <span style={{ color: 'var(--color-text-primary)' }}>{ev.text}</span>
                 </div>
               ))}
             </div>
@@ -581,20 +584,24 @@ const LiveMonitorPage = () => {
           50% { opacity: 0.4; }
         }
         .monitor-card {
-          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+          box-shadow: var(--shadow-md, 0 4px 16px rgba(37,99,235,0.08), 0 2px 8px rgba(0,0,0,0.05));
+          transition: box-shadow 0.3s ease;
+        }
+        .monitor-card:hover {
+          box-shadow: var(--shadow-lg, 0 10px 40px rgba(37,99,235,0.12), 0 4px 16px rgba(0,0,0,0.06));
         }
         ::-webkit-scrollbar {
           width: 6px;
         }
         ::-webkit-scrollbar-track {
-          background: #0f172a;
+          background: var(--color-bg);
         }
         ::-webkit-scrollbar-thumb {
-          background: #334155;
+          background: var(--color-border);
           border-radius: 3px;
         }
         ::-webkit-scrollbar-thumb:hover {
-          background: #475569;
+          background: var(--color-text-muted);
         }
       `}</style>
     </div>

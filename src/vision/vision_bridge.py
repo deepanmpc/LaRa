@@ -20,6 +20,9 @@ class VisionBridge:
         self._stop_event = threading.Event()
         self._state_lock = threading.Lock()
         self._thread_lock = threading.Lock()
+        # EMA smoothing for engagement — prevents spiky point samples from misleading the LLM
+        self._ema_engagement = None  # None = not yet initialised
+        self._ema_alpha = 0.4       # Responsive but smoothed (α=0.4)
 
     def start_vision_service(self):
         for attempt in range(1, 4):
@@ -122,10 +125,18 @@ class VisionBridge:
     def _process_frame(self, data, bridge, session):
         presence = bool(data.get("presence", False))
         attention = data.get("attentionState", "UNKNOWN")
-        engagement = float(data.get("engagementScoreUI", 0.0) or 0.0)
+        raw_engagement = float(data.get("engagementScoreUI", 0.0) or 0.0)
         gesture = data.get("gesture", "NONE") or "NONE"
         distraction_frames = int(data.get("distractionFrames", 0) or 0)
         timestamp = data.get("timestamp", time.time())
+
+        # EMA smoothing for engagement — produces a stable signal for the LLM
+        if self._ema_engagement is None:
+            self._ema_engagement = raw_engagement  # Bootstrap from first sample
+        self._ema_engagement = round(
+            self._ema_alpha * raw_engagement + (1 - self._ema_alpha) * self._ema_engagement, 4
+        )
+        smooth_engagement = self._ema_engagement
 
         self._emit(
             bridge,
@@ -133,7 +144,7 @@ class VisionBridge:
             {
                 "presence": presence,
                 "attentionState": attention,
-                "engagementScore": engagement,
+                "engagementScore": smooth_engagement,
                 "gesture": gesture,
                 "distractionFrames": distraction_frames,
                 "timestamp": timestamp,
@@ -161,13 +172,13 @@ class VisionBridge:
                 },
             )
 
-        if presence and engagement < 0.3 and self._should_alert("low_engagement"):
+        if presence and smooth_engagement < 0.3 and self._should_alert("low_engagement"):
             self._emit(
                 bridge,
                 "vision_alert",
                 {
                     "alertType": "low_engagement",
-                    "score": engagement,
+                    "score": smooth_engagement,
                     "message": "Engagement critically low",
                 },
             )
@@ -186,8 +197,9 @@ class VisionBridge:
             with session.vision_lock:
                 session.vision_presence = presence
                 session.vision_attention = attention
-                session.vision_engagement = engagement
+                session.vision_engagement = smooth_engagement
                 session.vision_gesture = gesture
+                session.vision_timestamp = timestamp
 
     def _should_alert(self, alert_type):
         now = time.time()

@@ -702,10 +702,13 @@ def run_conversation_loop(bridge=None, skip_wake_word=False, session=None):
                                 preference_context=preference_context,
                                 session_summary=summary_context,
                                 vision_context=(
-                                    f"[Vision: attention={vision_snap['attention']}, "
-                                    f"engagement={vision_snap['engagement']:.2f}, "
-                                    f"gesture={vision_snap['gesture']}]"
-                                ),
+                                    lambda vs: (
+                                        f"[Vision{' (stale)' if (time.time() - vs.get('timestamp', 0)) > 3.0 else ''}: "
+                                        f"attention={vs['attention']}, "
+                                        f"engagement={vs['engagement']:.2f}, "
+                                        f"gesture={vs['gesture']}]"
+                                    )
+                                )(vision_snap),
                                 vector_context=vector_context,
                                 is_frustrated=(detected_mood in ("frustrated", "sad", "angry")),
                                 turn_count=(session.turn_count if session else 0),

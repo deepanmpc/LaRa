@@ -90,6 +90,13 @@ def _start_pipeline():
         except Exception:
             pass
 
+        # Flush final session state to disk before clearing
+        if session_obj is not None and hasattr(session_obj, 'flush_to_disk'):
+            try:
+                session_obj.flush_to_disk()
+            except Exception as e:
+                logging.warning(f"[Main] Session flush failed: {e}")
+
         with _session_lock:
             _session_active = False
             _current_session = None
