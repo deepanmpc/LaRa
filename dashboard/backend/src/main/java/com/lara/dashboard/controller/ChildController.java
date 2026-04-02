@@ -58,6 +58,14 @@ public class ChildController {
         return ResponseEntity.ok(responses);
     }
 
+    @GetMapping("/{id}")
+    public ResponseEntity<ChildResponse> getChild(@PathVariable Long id, Authentication authentication) {
+        Child child = childRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Child not found"));
+
+        return ResponseEntity.ok(mapToResponse(child));
+    }
+
     private ChildResponse mapToResponse(Child child) {
         return ChildResponse.builder()
                 .id(child.getId())
