@@ -10,11 +10,22 @@ export default function ClinicalReportDownloads({ reports }) {
                         <span className="clinical-report-card__icon">
                             <FileText size={18} strokeWidth={2.2} />
                         </span>
-                        <div>
+                        <div className="clinical-report-card__header-text">
                             <h3 className="clinical-report-card__title">{report.title}</h3>
-                            <p className="clinical-report-card__summary">{report.summary}</p>
+                            <div className="clinical-report-card__meta-tag">Official Record</div>
                         </div>
+                        <button
+                            type="button"
+                            className="clinical-report-card__download-btn"
+                            onClick={() => downloadClinicalReportPdf(report.title, report.lines)}
+                            aria-label={`Download ${report.title}`}
+                            title={`Download ${report.title}`}
+                        >
+                            <Download size={18} strokeWidth={2.5} />
+                        </button>
                     </div>
+
+                    <p className="clinical-report-card__summary">{report.summary}</p>
 
                     <div className="clinical-report-card__metrics">
                         {report.metrics.map((metric) => (
@@ -23,15 +34,6 @@ export default function ClinicalReportDownloads({ reports }) {
                             </span>
                         ))}
                     </div>
-
-                    <button
-                        type="button"
-                        className="clinical-report-card__button"
-                        onClick={() => downloadClinicalReportPdf(report.title, report.lines)}
-                    >
-                        <Download size={16} strokeWidth={2.2} />
-                        {`Download ${report.title.replace(' Report', '')}`}
-                    </button>
                 </article>
             ))}
         </div>

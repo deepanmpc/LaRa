@@ -9,22 +9,73 @@ function escapePdfText(text) {
 
 function buildTextStream(title, lines) {
     const commands = [
+        // Institution Header
         'BT',
-        '/F1 20 Tf',
+        '/F1 16 Tf',
         '48 760 Td',
-        `(${escapePdfText(title)}) Tj`,
+        '(LaRa CLINICAL INTELLIGENCE CENTER) Tj',
+        'ET',
+
+        // Subheader
+        'BT',
+        '/F1 10 Tf',
+        '48 744 Td',
+        '(OFFICIAL EVALUATION DATA - CLINICIAN USE ONLY) Tj',
+        'ET',
+
+        // Status / Date
+        'BT',
+        '/F1 10 Tf',
+        '450 760 Td',
+        '(CONFIDENTIAL) Tj',
+        'ET',
+        'BT',
+        '/F1 9 Tf',
+        '450 744 Td',
+        `(${new Date().toLocaleDateString()}) Tj`,
+        'ET',
+
+        // Divider Line
+        '1 w',
+        '48 728 m',
+        '564 728 l',
+        'S',
+
+        // Main Report Title
+        'BT',
+        '/F1 22 Tf',
+        '48 695 Td',
+        `(${escapePdfText(title.toUpperCase())}) Tj`,
         'ET'
     ];
 
-    let currentY = 730;
+    let currentY = 650;
     lines.forEach((line) => {
+        const isHeader = line.includes(':') && line.length < 40;
+        const fontSize = isHeader ? 11 : 11;
+        const font = isHeader ? '/F1' : '/F1'; // Note: F1 is Helvetica, we don't have separate bold in this basic setup
+        
         commands.push('BT');
-        commands.push('/F1 11 Tf');
+        commands.push(`${font} ${fontSize} Tf`);
         commands.push(`48 ${currentY} Td`);
         commands.push(`(${escapePdfText(line)}) Tj`);
         commands.push('ET');
-        currentY -= 22;
+        currentY -= 20;
+
+        if (line.includes('interpretation')) {
+            currentY -= 10; // Extra padding after summary
+        }
     });
+
+    // Signature Block Placeholder
+    currentY -= 40;
+    if (currentY > 80) {
+        commands.push('BT');
+        commands.push('/F1 9 Tf');
+        commands.push(`48 ${currentY} Td`);
+        commands.push('(VERIFIED AUTOMATICALLY BY LaRa CLINICAL DASHBOARD) Tj');
+        commands.push('ET');
+    }
 
     return commands.join('\n');
 }

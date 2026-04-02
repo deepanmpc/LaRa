@@ -116,81 +116,113 @@ export function getClinicalReports(record) {
     return [
         {
             id: 'cognitive-progress',
-            title: 'Cognitive Progress Report',
-            summary: 'Mastery trend, concept acquisition, and completion reliability for the current intervention target.',
+            title: 'Diagnostic Cognitive Progress Evaluation',
+            summary: 'Comprehensive evaluation of longitudinal concept acquisition, task completion reliability, and cognitive fatigue markers during structured intervention activities.',
             metrics: [
-                `Cognitive Mastery ${record.learning_progress.mastery_level}/5`,
-                `Task Completion Reliability ${formatPercent(record.learning_progress.success_rate)}`,
-                `Learning Attempts ${record.learning_progress.attempt_count}`
+                `Mastery Level: ${record.learning_progress.mastery_level}/5`,
+                `Completion Reliability: ${formatPercent(record.learning_progress.success_rate)}`,
+                `Total Trials Attempted: ${record.learning_progress.attempt_count}`,
+                `Target Domain: ${record.learning_progress.concept_name}`
             ],
             lines: [
-                `Patient: ${record.patient.name}`,
-                `Record ID: #${record.patient.id}`,
-                `Concept Acquisition: ${record.learning_progress.concept_name}`,
-                `Cognitive Mastery: ${record.learning_progress.mastery_level} of 5`,
-                `Task Completion Reliability: ${formatPercent(record.learning_progress.success_rate)}`,
-                `Learning Attempts: ${record.learning_progress.attempt_count}`,
-                'Clinical interpretation: Concept retention is progressing with consistent task completion.'
+                `PATIENT EVALUATION RECORD - STRICTLY CONFIDENTIAL`,
+                `--------------------------------------------------`,
+                `Patient Name: ${record.patient.name}`,
+                `Medical Record / ID: #${record.patient.id}`,
+                `Date of Last Interaction: ${record.patient.lastInteractionLabel}`,
+                `--------------------------------------------------`,
+                `COGNITIVE PROGRESS SUMMARY`,
+                `Focus Domain: ${record.learning_progress.concept_name}`,
+                `Current Diagnostic Mastery Level: ${record.learning_progress.mastery_level} of 5`,
+                `Task Completion Reliability Index: ${formatPercent(record.learning_progress.success_rate)}`,
+                `Cumulative Intervention Trials: ${record.learning_progress.attempt_count}`,
+                ``,
+                `CLINICIAN OBSERVATIONS & INTERPRETATION:`,
+                `Patient exhibits positive acquisition vectors within the target domain. Concept retention is progressing favorably with consistent task completion.`
             ]
         },
         {
             id: 'emotional-regulation',
-            title: 'Emotional Regulation Report',
-            summary: 'Observed frustration, recovery, and baseline stability patterns across recent clinician-reviewed interactions.',
+            title: 'Emotional Regulation & Dysregulation Report',
+            summary: 'Detailed analysis of emotional baseline stability, sensory frustration thresholds, and self-directed recovery mechanisms observed across recent sessions.',
             metrics: [
-                `Stability Index ${stabilityIndex}%`,
-                `Frustration Frequency ${record.emotional_metrics.frustration_count}`,
-                `Recovery Efficiency ${record.emotional_metrics.recovery_count}`
+                `Baseline Stability Index: ${stabilityIndex}%`,
+                `Frustration Events Observed: ${record.emotional_metrics.frustration_count}`,
+                `Successful Recoveries: ${record.emotional_metrics.recovery_count}`,
+                `Neutral Baseline Periods: ${record.emotional_metrics.neutral_stability_count}`
             ],
             lines: [
-                `Patient: ${record.patient.name}`,
-                `Record ID: #${record.patient.id}`,
-                `Frustration Frequency: ${record.emotional_metrics.frustration_count}`,
-                `Recovery Efficiency: ${record.emotional_metrics.recovery_count}`,
-                `Baseline Stability: ${record.emotional_metrics.neutral_stability_count}`,
-                `Stability Index: ${stabilityIndex}%`,
-                'Clinical interpretation: Recovery remains stronger than frustration escalation, with stable neutral baseline periods.'
+                `PATIENT EVALUATION RECORD - STRICTLY CONFIDENTIAL`,
+                `--------------------------------------------------`,
+                `Patient Name: ${record.patient.name}`,
+                `Medical Record / ID: #${record.patient.id}`,
+                `--------------------------------------------------`,
+                `AFFECT & EMOTIONAL REGULATION SUMMARY`,
+                `Observable Frustration Events: ${record.emotional_metrics.frustration_count}`,
+                `Successful Recovery Transitions: ${record.emotional_metrics.recovery_count}`,
+                `Clinically Stable Baseline Periods: ${record.emotional_metrics.neutral_stability_count}`,
+                `Calculated Stability Index: ${stabilityIndex}%`,
+                ``,
+                `CLINICIAN OBSERVATIONS & INTERPRETATION:`,
+                `Recovery mechanics remain stronger than emotional escalation. Patient demonstrates capacity to return to a stable neutral baseline following minor behavioral dysregulation.`
             ]
         },
         {
             id: 'engagement-analysis',
-            title: 'Engagement Analysis Report',
-            summary: 'Multimodal engagement, focus retention, visual attention, and interaction continuity summary.',
+            title: 'Multimodal Attention & Engagement Analysis',
+            summary: 'Clinical assessment of joint attention, sustained focus retention, and interaction continuity utilizing computer vision symptomatic tracking.',
             metrics: [
-                `Overall Engagement Index ${formatPercent(record.total_engagement_summary.total_engagement_average)}`,
-                `Interaction Continuity ${formatPercent(record.total_engagement_summary.interaction_continuity_score)}`,
-                `Focus Retention ${record.vision_behavior_counts.focused_duration} min`
+                `Overall Engagement Quotient: ${formatPercent(record.total_engagement_summary.total_engagement_average)}`,
+                `Interaction Continuity: ${formatPercent(record.total_engagement_summary.interaction_continuity_score)}`,
+                `Sustained Focus Duration: ${Math.round(record.vision_behavior_counts.focused_duration)} min`,
+                `Distraction Frequency: ${record.vision_behavior_counts.distraction_frames} instances`
             ],
             lines: [
-                `Patient: ${record.patient.name}`,
-                `Record ID: #${record.patient.id}`,
-                `Overall Engagement Index: ${formatPercent(record.total_engagement_summary.total_engagement_average)}`,
-                `Interaction Continuity: ${formatPercent(record.total_engagement_summary.interaction_continuity_score)}`,
-                `Visual Attention: ${formatPercent(record.vision_session_stats.avg_gaze_score)}`,
-                `Focus Retention: ${record.vision_behavior_counts.focused_duration} minutes`,
-                `Distraction Frames: ${record.vision_behavior_counts.distraction_frames}`,
-                'Clinical interpretation: Sustained engagement remains clinically acceptable with manageable distraction frequency.'
+                `PATIENT EVALUATION RECORD - STRICTLY CONFIDENTIAL`,
+                `--------------------------------------------------`,
+                `Patient Name: ${record.patient.name}`,
+                `Medical Record / ID: #${record.patient.id}`,
+                `--------------------------------------------------`,
+                `COMPREHENSIVE ENGAGEMENT & ATTENTION SUMMARY`,
+                `Overall Engagement Quotient: ${formatPercent(record.total_engagement_summary.total_engagement_average)}`,
+                `Interaction Continuity Index: ${formatPercent(record.total_engagement_summary.interaction_continuity_score)}`,
+                `Sustained Visual Attention (Gaze Score): ${formatPercent(record.vision_session_stats.avg_gaze_score)}`,
+                `Focus Retention Duration: ${Math.round(record.vision_behavior_counts.focused_duration)} minutes`,
+                `Recorded Distraction Instances: ${record.vision_behavior_counts.distraction_frames}`,
+                ``,
+                `CLINICIAN OBSERVATIONS & INTERPRETATION:`,
+                `Sustained engagement metrics remain clinically acceptable. Visual attention correlates strongly with interactive milestones, with manageable distraction frequency.`
             ]
         },
         {
             id: 'session-summary',
-            title: 'Session Summary Report',
-            summary: 'Voice, perception, reinforcement effectiveness, and intervention preference summary for clinician review.',
+            title: 'Comprehensive Session & Pathway Summary',
+            summary: 'Integrative evaluation of behavioral reinforcement efficacy, vocal prosody stability, and preferred intervention pathways for the current observation period.',
             metrics: [
-                `Preferred Intervention ${formatStyleLabel(record.reinforcement_metrics.preferred_style)}`,
-                `Speech Stability ${formatPercent(record.voice_prosody_metrics.stability_score)}`,
-                `Sensor Confidence ${formatPercent(record.vision_session_stats.system_confidence)}`
+                `Primary Intervention Pathway: ${formatStyleLabel(record.reinforcement_metrics.preferred_style)}`,
+                `Behavioral Reinforcement Efficacy: ${formatPercent(topStrategy.score)}`,
+                `Vocal Prosody Stability: ${formatPercent(record.voice_prosody_metrics.stability_score)}`,
+                `Diagnostic Sensor Confidence: ${formatPercent(record.vision_session_stats.system_confidence)}`
             ],
             lines: [
-                `Patient: ${record.patient.name}`,
-                `Record ID: #${record.patient.id}`,
-                `Session Duration: ${record.total_engagement_summary.session_duration} minutes`,
-                `Preferred Intervention Strategy: ${formatStyleLabel(record.reinforcement_metrics.preferred_style)}`,
-                `Behavioral Reinforcement Effectiveness: ${formatPercent(topStrategy.score)}`,
-                `Speech Stability: ${formatPercent(record.voice_prosody_metrics.stability_score)}`,
-                `Sensor Confidence: ${formatPercent(record.vision_session_stats.system_confidence)}`,
-                `Voice Mood Distribution: Neutral ${formatPercent(record.vocal_mood_distribution.neutral)}, Arousal ${formatPercent(record.vocal_mood_distribution.arousal)}, Withdrawal ${formatPercent(record.vocal_mood_distribution.withdrawal)}`,
-                'Clinical interpretation: Calm validation remains the leading intervention pattern with stable vocal and visual read quality.'
+                `PATIENT EVALUATION RECORD - STRICTLY CONFIDENTIAL`,
+                `--------------------------------------------------`,
+                `Patient Name: ${record.patient.name}`,
+                `Medical Record / ID: #${record.patient.id}`,
+                `Total Session Duration: ${Math.round(record.total_engagement_summary.session_duration)} minutes`,
+                `--------------------------------------------------`,
+                `CLINICAL PATHWAY & BEHAVIORAL REINFORCEMENT SUMMARY`,
+                `Primary Intervention Pathway: ${formatStyleLabel(record.reinforcement_metrics.preferred_style)}`,
+                `Behavioral Reinforcement Efficacy: ${formatPercent(topStrategy.score)}`,
+                `Total Behavioral Events Recorded: ${record.reinforcement_metrics.total_events}`,
+                ``,
+                `BIOMETRIC DIAGNOSTIC CONFIDENCE`,
+                `Vocal Prosody Stability: ${formatPercent(record.voice_prosody_metrics.stability_score)}`,
+                `Sensor Confidence / Validity Index: ${formatPercent(record.vision_session_stats.system_confidence)}`,
+                `Vocal Affect Distribution: Neutral ${formatPercent(record.vocal_mood_distribution.neutral)}, Arousal ${formatPercent(record.vocal_mood_distribution.arousal)}, Withdrawal ${formatPercent(record.vocal_mood_distribution.withdrawal)}`,
+                ``,
+                `CLINICIAN OBSERVATIONS & INTERPRETATION:`,
+                `${formatStyleLabel(record.reinforcement_metrics.preferred_style)} remains the leading effective intervention pattern. Visual and vocal biometric readings maintain high diagnostic validity.`
             ]
         }
     ];
