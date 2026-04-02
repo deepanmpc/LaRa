@@ -1,22 +1,33 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import api from '../../services/api';
 import ClinicianSidebar from '../../components/dashboard/ClinicianSidebar';
-
-const generateMockStudents = () => {
-    return [
-        { id: '1', name: 'Alex Johnson', age: 7, lastSession: 'Today', engagementScore: 82, riskLevel: 'Low' },
-        { id: '2', name: 'Emma Smith', age: 6, lastSession: 'Yesterday', engagementScore: 65, riskLevel: 'High' },
-        { id: '3', name: 'Liam Brown', age: 8, lastSession: '2 days ago', engagementScore: 91, riskLevel: 'Low' },
-        { id: '4', name: 'Sophia Davis', age: 5, lastSession: 'Today', engagementScore: 74, riskLevel: 'Medium' },
-        { id: '5', name: 'Noah Wilson', age: 7, lastSession: '3 days ago', engagementScore: 58, riskLevel: 'High' },
-        { id: '6', name: 'Mia Martinez', age: 6, lastSession: 'Yesterday', engagementScore: 88, riskLevel: 'Low' },
-        { id: '7', name: 'James Taylor', age: 9, lastSession: 'Last week', engagementScore: 61, riskLevel: 'High' },
-        { id: '8', name: 'Isabella Anderson', age: 7, lastSession: 'Today', engagementScore: 79, riskLevel: 'Medium' },
-    ];
-};
 
 export default function ClinicianStudents() {
     const navigate = useNavigate();
-    const students = generateMockStudents();
+    const [students, setStudents] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchStudents = async () => {
+            try {
+                const response = await api.get('/clinician/students');
+                // Backend returns id, name, age, gradeLevel
+                // We mock engagement and risk here for visual completeness as requested
+                const mappedStudents = response.data.map(student => ({
+                    ...student,
+                    engagementScore: Math.floor(Math.random() * 40) + 60, // 60-100
+                    riskLevel: Math.random() > 0.7 ? 'High' : (Math.random() > 0.4 ? 'Medium' : 'Low')
+                }));
+                setStudents(mappedStudents);
+            } catch (err) {
+                console.error("Failed to fetch students", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchStudents();
+    }, []);
 
     const getRiskBadge = (risk) => {
         switch (risk) {
@@ -37,65 +48,69 @@ export default function ClinicianStudents() {
                     <p style={{ color: 'var(--color-text-muted)', margin: 0, fontSize: 16 }}>Manage and monitor all your students.</p>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 24 }}>
-                    {students.map(student => {
-                        const riskStyle = getRiskBadge(student.riskLevel);
-                        return (
-                            <div
-                                key={student.id}
-                                className="card"
-                                style={{
-                                    cursor: 'pointer',
-                                    transition: 'transform 0.2s, box-shadow 0.2s',
-                                    padding: 24,
-                                    display: 'flex',
-                                    flexDirection: 'column'
-                                }}
-                                onClick={() => navigate(`/dashboard/clinical/student/${student.id}`)}
-                                onMouseOver={e => {
-                                    e.currentTarget.style.transform = 'translateY(-4px)';
-                                    e.currentTarget.style.boxShadow = '0 12px 24px -10px rgba(0,0,0,0.1)';
-                                }}
-                                onMouseOut={e => {
-                                    e.currentTarget.style.transform = 'none';
-                                    e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)';
-                                }}
-                            >
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-                                    <div style={{ width: 48, height: 48, borderRadius: 24, background: 'linear-gradient(135deg, #e0f2fe 0%, #7dd3fc 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0369a1', fontWeight: 600, fontSize: 18 }}>
-                                        {student.name.charAt(0)}
+                {loading ? (
+                    <div style={{ padding: 40, textAlign: 'center', color: 'var(--color-text-muted)' }}>Loading patients...</div>
+                ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 24 }}>
+                        {students.map(student => {
+                            const riskStyle = getRiskBadge(student.riskLevel);
+                            return (
+                                <div
+                                    key={student.id}
+                                    className="card"
+                                    style={{
+                                        cursor: 'pointer',
+                                        transition: 'transform 0.2s, box-shadow 0.2s',
+                                        padding: 24,
+                                        display: 'flex',
+                                        flexDirection: 'column'
+                                    }}
+                                    onClick={() => navigate(`/dashboard/clinical/student/${student.id}`)}
+                                    onMouseOver={e => {
+                                        e.currentTarget.style.transform = 'translateY(-4px)';
+                                        e.currentTarget.style.boxShadow = '0 12px 24px -10px rgba(0,0,0,0.1)';
+                                    }}
+                                    onMouseOut={e => {
+                                        e.currentTarget.style.transform = 'none';
+                                        e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)';
+                                    }}
+                                >
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+                                        <div style={{ width: 48, height: 48, borderRadius: 24, background: 'linear-gradient(135deg, #e0f2fe 0%, #7dd3fc 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0369a1', fontWeight: 600, fontSize: 18 }}>
+                                            {student.name.charAt(0)}
+                                        </div>
+                                        <span style={{
+                                            background: riskStyle.bg,
+                                            color: riskStyle.text,
+                                            padding: '4px 10px',
+                                            borderRadius: 12,
+                                            fontSize: 12,
+                                            fontWeight: 600
+                                        }}>
+                                            {student.riskLevel} Risk
+                                        </span>
                                     </div>
-                                    <span style={{
-                                        background: riskStyle.bg,
-                                        color: riskStyle.text,
-                                        padding: '4px 10px',
-                                        borderRadius: 12,
-                                        fontSize: 12,
-                                        fontWeight: 600
-                                    }}>
-                                        {student.riskLevel} Risk
-                                    </span>
-                                </div>
 
-                                <h3 style={{ fontSize: 18, margin: '0 0 4px 0', color: 'var(--color-text-primary)' }}>{student.name}</h3>
-                                <p style={{ fontSize: 14, color: 'var(--color-text-muted)', margin: '0 0 16px 0' }}>Age: {student.age}</p>
+                                    <h3 style={{ fontSize: 18, margin: '0 0 4px 0', color: 'var(--color-text-primary)' }}>{student.name}</h3>
+                                    <p style={{ fontSize: 14, color: 'var(--color-text-muted)', margin: '0 0 16px 0' }}>Age: {student.age}</p>
 
-                                <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 16, marginTop: 'auto' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
-                                        <span style={{ color: 'var(--color-text-muted)' }}>Engagement</span>
-                                        <span style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>{student.engagementScore}%</span>
-                                    </div>
-                                    <div style={{ width: '100%', height: 6, background: '#f1f5f9', borderRadius: 3, overflow: 'hidden' }}>
-                                        <div style={{ width: `${student.engagementScore}%`, height: '100%', background: '#0ea5e9' }}></div>
-                                    </div>
-                                    <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 12 }}>
-                                        Last Session: {student.lastSession}
+                                    <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 16, marginTop: 'auto' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
+                                            <span style={{ color: 'var(--color-text-muted)' }}>Engagement</span>
+                                            <span style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>{student.engagementScore}%</span>
+                                        </div>
+                                        <div style={{ width: '100%', height: 6, background: '#f1f5f9', borderRadius: 3, overflow: 'hidden' }}>
+                                            <div style={{ width: `${student.engagementScore}%`, height: '100%', background: '#0ea5e9' }}></div>
+                                        </div>
+                                        <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 12 }}>
+                                            Last Session: {student.lastSessionDate}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        );
-                    })}
-                </div>
+                            );
+                        })}
+                    </div>
+                )}
             </main>
         </div>
     );

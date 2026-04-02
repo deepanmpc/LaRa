@@ -17,6 +17,5 @@ public interface ClinicianProfileRepository extends JpaRepository<ClinicianProfi
     @EntityGraph(attributePaths = {"user"})
     Optional<ClinicianProfile> findByUserId(Long userId);
 
-    @Query("SELECT cp FROM ClinicianProfile cp JOIN FETCH cp.user u WHERE u.status = :status")
-    List<ClinicianProfile> findAllByUserStatus(@Param("status") UserStatus status);
+    List<ClinicianProfile> findAllByUser_Status(UserStatus status);
 }

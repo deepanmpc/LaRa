@@ -1,6 +1,6 @@
 package com.lara.dashboard.repository;
 
-import com.lara.dashboard.model.ZpdMetric;
+import com.lara.dashboard.entity.ZpdMetric;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

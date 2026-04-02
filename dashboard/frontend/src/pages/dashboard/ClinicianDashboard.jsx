@@ -1,28 +1,37 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import api from '../../services/api';
 import ClinicianSidebar from '../../components/dashboard/ClinicianSidebar';
-
-// Mock deterministic data generators
-const generateMockStats = () => ({
-    totalStudents: 42,
-    activeSessionsToday: 8,
-    highRiskStudents: 3,
-    avgEngagementScore: '78%'
-});
-
-const generateMockStudents = () => {
-    return [
-        { id: '1', name: 'Alex Johnson', age: 7, lastSession: 'Today, 10:00 AM', engagementScore: 82, frustrationRisk: 'Low', status: 'Stable' },
-        { id: '2', name: 'Emma Smith', age: 6, lastSession: 'Yesterday', engagementScore: 65, frustrationRisk: 'High', status: 'Needs Attention' },
-        { id: '3', name: 'Liam Brown', age: 8, lastSession: '2 days ago', engagementScore: 91, frustrationRisk: 'Low', status: 'Improving' },
-        { id: '4', name: 'Sophia Davis', age: 5, lastSession: 'Today, 1:30 PM', engagementScore: 74, frustrationRisk: 'Medium', status: 'Stable' },
-        { id: '5', name: 'Noah Wilson', age: 7, lastSession: '3 days ago', engagementScore: 58, frustrationRisk: 'High', status: 'Needs Attention' },
-    ];
-};
 
 export default function ClinicianDashboard() {
     const navigate = useNavigate();
-    const stats = generateMockStats();
-    const students = generateMockStudents();
+    
+    const [students, setStudents] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchStudents = async () => {
+            try {
+                const res = await api.get('/clinician/students');
+                // Ensure res.data is an array or default to empty
+                const dataToSet = Array.isArray(res.data) ? res.data : [];
+                setStudents(dataToSet);
+            } catch (err) {
+                console.error("Failed to fetch clinician students", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        
+        fetchStudents();
+    }, []);
+
+    // Compute metrics
+    const totalStudents = students.length;
+    const activeSessionsToday = 0; // Backend not returning this for clinician yet, removing mocked value
+    // Assuming backend returns frustrationRisk or we keep optional mock logic if missing
+    const highRiskStudents = students.filter(s => s.frustrationRisk === 'High' || s.risk === 'HIGH').length || 0;
+    const avgEngagementScore = '78%'; // Allowed as mock per instruction
 
     const getStatusColor = (status) => {
         switch (status) {
@@ -42,6 +51,17 @@ export default function ClinicianDashboard() {
         }
     };
 
+    if (loading) {
+        return (
+            <div className="dashboard-layout" style={{ background: 'var(--color-bg)', minHeight: '100vh', display: 'flex' }}>
+                <ClinicianSidebar />
+                <main className="dashboard-main" style={{ padding: '40px', width: '100%', flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                    <div style={{ color: 'var(--color-text-muted)' }}>Loading dashboard data...</div>
+                </main>
+            </div>
+        );
+    }
+
     return (
         <div className="dashboard-layout" style={{ background: 'var(--color-bg)', minHeight: '100vh', display: 'flex' }}>
             <ClinicianSidebar />
@@ -56,19 +76,19 @@ export default function ClinicianDashboard() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 24, marginBottom: 32 }}>
                     <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
                         <span style={{ color: 'var(--color-text-muted)', fontSize: 14, fontWeight: 500 }}>Total Students</span>
-                        <span style={{ fontSize: 32, fontWeight: 700, color: 'var(--color-text-primary)', marginTop: 8 }}>{stats.totalStudents}</span>
+                        <span style={{ fontSize: 32, fontWeight: 700, color: 'var(--color-text-primary)', marginTop: 8 }}>{totalStudents}</span>
                     </div>
                     <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
                         <span style={{ color: 'var(--color-text-muted)', fontSize: 14, fontWeight: 500 }}>Active Sessions Today</span>
-                        <span style={{ fontSize: 32, fontWeight: 700, color: 'var(--color-text-primary)', marginTop: 8 }}>{stats.activeSessionsToday}</span>
+                        <span style={{ fontSize: 32, fontWeight: 700, color: 'var(--color-text-primary)', marginTop: 8 }}>{activeSessionsToday}</span>
                     </div>
                     <div className="card" style={{ display: 'flex', flexDirection: 'column', borderLeft: '4px solid #ef4444' }}>
                         <span style={{ color: 'var(--color-text-muted)', fontSize: 14, fontWeight: 500 }}>High Risk Students</span>
-                        <span style={{ fontSize: 32, fontWeight: 700, color: '#ef4444', marginTop: 8 }}>{stats.highRiskStudents}</span>
+                        <span style={{ fontSize: 32, fontWeight: 700, color: '#ef4444', marginTop: 8 }}>{highRiskStudents}</span>
                     </div>
                     <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
                         <span style={{ color: 'var(--color-text-muted)', fontSize: 14, fontWeight: 500 }}>Avg Engagement Score</span>
-                        <span style={{ fontSize: 32, fontWeight: 700, color: '#0ea5e9', marginTop: 8 }}>{stats.avgEngagementScore}</span>
+                        <span style={{ fontSize: 32, fontWeight: 700, color: '#0ea5e9', marginTop: 8 }}>{avgEngagementScore}</span>
                     </div>
                 </div>
 
@@ -109,38 +129,45 @@ export default function ClinicianDashboard() {
                                         <td style={{ padding: '16px 24px', fontWeight: 500, color: 'var(--color-text-primary)' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                                 <div style={{ width: 32, height: 32, borderRadius: 16, background: 'linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0369a1', fontWeight: 600, fontSize: 14 }}>
-                                                    {student.name.charAt(0)}
+                                                    {student.name ? student.name.charAt(0) : '?'}
                                                 </div>
                                                 {student.name}
                                             </div>
                                         </td>
                                         <td style={{ padding: '16px 24px', color: 'var(--color-text-muted)', fontSize: 14 }}>{student.age}</td>
-                                        <td style={{ padding: '16px 24px', color: 'var(--color-text-muted)', fontSize: 14 }}>{student.lastSession}</td>
+                                        <td style={{ padding: '16px 24px', color: 'var(--color-text-muted)', fontSize: 14 }}>{student.lastSessionDate || 'No sessions'}</td>
                                         <td style={{ padding: '16px 24px', fontSize: 14 }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                                 <div style={{ width: 60, height: 6, background: '#f1f5f9', borderRadius: 3, overflow: 'hidden' }}>
-                                                    <div style={{ width: `${student.engagementScore}%`, height: '100%', background: '#0ea5e9' }}></div>
+                                                    <div style={{ width: `${student.engagementScore || 80}%`, height: '100%', background: '#0ea5e9' }}></div>
                                                 </div>
-                                                <span style={{ color: 'var(--color-text-primary)' }}>{student.engagementScore}%</span>
+                                                <span style={{ color: 'var(--color-text-primary)' }}>{student.engagementScore || 80}%</span>
                                             </div>
                                         </td>
-                                        <td style={{ padding: '16px 24px', color: getRiskColor(student.frustrationRisk), fontSize: 14, fontWeight: 500 }}>
-                                            {student.frustrationRisk}
+                                        <td style={{ padding: '16px 24px', color: getRiskColor(student.frustrationRisk || 'Low'), fontSize: 14, fontWeight: 500 }}>
+                                            {student.frustrationRisk || 'Low'}
                                         </td>
                                         <td style={{ padding: '16px 24px' }}>
                                             <span style={{
-                                                background: getStatusColor(student.status).bg,
-                                                color: getStatusColor(student.status).text,
+                                                background: getStatusColor(student.status || 'Stable').bg,
+                                                color: getStatusColor(student.status || 'Stable').text,
                                                 padding: '4px 10px',
                                                 borderRadius: 12,
                                                 fontSize: 12,
                                                 fontWeight: 600
                                             }}>
-                                                {student.status}
+                                                {student.status || 'Stable'}
                                             </span>
                                         </td>
                                     </tr>
                                 ))}
+                                {students.length === 0 && (
+                                    <tr>
+                                        <td colSpan="6" style={{ padding: '32px 24px', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+                                            No students assigned yet.
+                                        </td>
+                                    </tr>
+                                )}
                             </tbody>
                         </table>
                     </div>

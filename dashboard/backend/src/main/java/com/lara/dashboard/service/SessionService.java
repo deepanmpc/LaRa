@@ -1,7 +1,7 @@
 package com.lara.dashboard.service;
 
 import com.lara.dashboard.dto.SessionEndRequest;
-import com.lara.dashboard.model.Session;
+import com.lara.dashboard.entity.Session;
 import com.lara.dashboard.repository.SessionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

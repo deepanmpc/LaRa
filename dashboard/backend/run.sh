@@ -1,23 +1,35 @@
 #!/usr/bin/env bash
-# Start the LaRa Dashboard Backend
 set -e
 
-# Change to the script's directory
 cd "$(dirname "$0")"
 
-# Load environment variables
+# Load environment variables safely
 if [ -f .env ]; then
   echo "Loading environment variables from .env..."
-  export $(grep -v '^#' .env | xargs)
+  set -o allexport
+  source .env
+  set +o allexport
 fi
 
-# Homebrew's 'mvn' script hard-codes JDK 24 if JAVA_HOME is not set.
-# This causes the "TypeTag :: UNKNOWN" error with Lombok.
-# We dynamically fetch the path to the current system 'java' (which is JDK 21).
-export JAVA_HOME=$(java -XshowSettings:properties -version 2>&1 | grep "java.home" | awk '{print $3}')
+# Ensure Maven is installed
+if ! command -v mvn &> /dev/null; then
+  echo "Error: Maven (mvn) is not installed."
+  exit 1
+fi
+
+# Set JAVA_HOME (prefer macOS utility if available)
+if command -v /usr/libexec/java_home &> /dev/null; then
+  export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+else
+  export JAVA_HOME=$(java -XshowSettings:properties -version 2>&1 | awk -F'= ' '/java.home/ {print $2}')
+fi
 
 echo "Using JAVA_HOME: $JAVA_HOME"
 echo "Starting Spring Boot..."
 
-# Run the app
-mvn clean spring-boot:run
+# Run app (prefer wrapper if available)
+if [ -f "./mvnw" ]; then
+  ./mvnw clean spring-boot:run
+else
+  mvn clean spring-boot:run
+fi
