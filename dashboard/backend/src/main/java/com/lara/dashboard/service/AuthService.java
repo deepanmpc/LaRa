@@ -22,6 +22,7 @@ public class AuthService {
     private final ClinicianProfileRepository clinicianProfileRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final ActivityLogService activityLogService;
 
     public AuthResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
@@ -65,6 +66,8 @@ public class AuthService {
                     .build();
             clinicianProfileRepository.save(profile);
         }
+
+        activityLogService.log("New " + role.name() + " user registered");
 
         String token = jwtUtil.generateToken(user.getEmail(), user.getRole().name(), user.getStatus().name());
 

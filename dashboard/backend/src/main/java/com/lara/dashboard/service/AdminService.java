@@ -1,31 +1,86 @@
 package com.lara.dashboard.service;
 
 import com.lara.dashboard.dto.ClinicianResponse;
+import com.lara.dashboard.dto.ChildResponse;
 import com.lara.dashboard.entity.ClinicianProfile;
 import com.lara.dashboard.entity.User;
+import com.lara.dashboard.entity.Child;
 import com.lara.dashboard.enums.UserStatus;
 import com.lara.dashboard.repository.ClinicianProfileRepository;
 import com.lara.dashboard.repository.UserRepository;
+import com.lara.dashboard.repository.ChildRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class AdminService {
 
     private final UserRepository userRepository;
     private final ClinicianProfileRepository clinicianProfileRepository;
+    private final ChildRepository childRepository;
+    private final ActivityLogService activityLogService;
+    private final com.lara.dashboard.repository.ActivityLogRepository activityLogRepository;
+
+    public AdminService(
+        UserRepository userRepository,
+        ClinicianProfileRepository clinicianProfileRepository,
+        ChildRepository childRepository,
+        ActivityLogService activityLogService,
+        com.lara.dashboard.repository.ActivityLogRepository activityLogRepository
+    ) {
+        this.userRepository = userRepository;
+        this.clinicianProfileRepository = clinicianProfileRepository;
+        this.childRepository = childRepository;
+        this.activityLogService = activityLogService;
+        this.activityLogRepository = activityLogRepository;
+    }
+
+    public List<com.lara.dashboard.entity.ActivityLog> getLogs() {
+        return activityLogRepository.findTop10ByOrderByTimestampDesc();
+    }
 
     @Transactional(readOnly = true)
     public List<ClinicianResponse> getPendingClinicians() {
-        return clinicianProfileRepository.findAllByUserStatus(UserStatus.PENDING)
+        return clinicianProfileRepository.findAllByUser_Status(UserStatus.PENDING)
                 .stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<User> getAllUsers() {
+        return userRepository.findAll();
+    }
+
+    @Transactional(readOnly = true)
+    public List<ChildResponse> getAllChildren() {
+        return childRepository.findAll().stream()
+                .map(child -> ChildResponse.builder()
+                        .id(child.getId())
+                        .name(child.getName())
+                        .age(child.getAge())
+                        .gradeLevel(child.getGradeLevel())
+                        .lastSessionDate("Mock Data")
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    public Map<String, Object> getSystemMetrics() {
+        long totalUsers = userRepository.count();
+        long totalChildren = childRepository.count();
+        
+        Map<String, Object> metrics = new HashMap<>();
+        metrics.put("totalUsers", totalUsers);
+        metrics.put("totalChildren", totalChildren);
+        metrics.put("activeSessions", 0L); // Defaulting to 0 instead of mock value
+        metrics.put("systemHealth", "GOOD");
+        return metrics;
     }
 
     @Transactional
@@ -41,6 +96,8 @@ public class AdminService {
                 .orElseGet(() -> ClinicianProfile.builder().user(user).build());
         profile.setApprovalStatus("APPROVED");
         clinicianProfileRepository.save(profile);
+
+        activityLogService.log("Clinician " + user.getName() + " approved");
     }
 
     @Transactional
@@ -59,18 +116,18 @@ public class AdminService {
     }
 
     private ClinicianResponse mapToResponse(ClinicianProfile profile) {
+
         User user = profile.getUser();
-        return ClinicianResponse.builder()
-                .id(user.getId())
-                .name(user.getName())
-                .email(user.getEmail())
-                .phone(profile.getPhone())
-                .organization(profile.getOrganization())
-                .specialization(profile.getSpecialization())
-                .licenseNumber(profile.getLicenseNumber())
-                .yearsOfExperience(profile.getYearsOfExperience())
-                .status(user.getStatus().name())
-                .createdAt(user.getCreatedAt())
-                .build();
+
+        ClinicianResponse dto = new ClinicianResponse();
+
+        dto.setId(user.getId());
+        dto.setName(user.getName());
+        dto.setEmail(user.getEmail());
+        dto.setOrganization(profile.getOrganization());
+        dto.setSpecialization(profile.getSpecialization());
+        dto.setLicenseNumber(profile.getLicenseNumber());
+
+        return dto;
     }
 }

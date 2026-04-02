@@ -1,32 +1,39 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import api from '../../services/api';
 import ClinicianSidebar from '../../components/dashboard/ClinicianSidebar';
-
-const MOCK_SESSIONS = [
-    { id: 1, student: 'Alex Johnson', date: 'Today', duration: '32 min', status: 'Completed', intervention: 'Breathing Exercise' },
-    { id: 2, student: 'Emma Smith', date: 'Yesterday', duration: '28 min', status: 'Completed', intervention: 'Gentle Prompt' },
-    { id: 3, student: 'Liam Brown', date: 'Yesterday', duration: '45 min', status: 'Completed', intervention: 'Visual Schedule' },
-    { id: 4, student: 'Sophia Davis', date: '2 days ago', duration: '20 min', status: 'Incomplete', intervention: 'Token Board' },
-    { id: 5, student: 'Noah Wilson', date: '2 days ago', duration: '35 min', status: 'Completed', intervention: 'Social Story' },
-    { id: 6, student: 'Olivia Martinez', date: '3 days ago', duration: '40 min', status: 'Completed', intervention: 'Breathing Exercise' },
-    { id: 7, student: 'Alex Johnson', date: '3 days ago', duration: '30 min', status: 'Incomplete', intervention: 'Gentle Prompt' },
-    { id: 8, student: 'Emma Smith', date: '4 days ago', duration: '25 min', status: 'Completed', intervention: 'Visual Schedule' },
-];
 
 const STATUS_COLORS = {
     Completed: { bg: '#ecfdf5', text: '#059669' },
     Incomplete: { bg: '#fef2f2', text: '#dc2626' },
 };
 
-const STUDENTS = ['All Students', ...new Set(MOCK_SESSIONS.map(s => s.student))];
-const DATE_OPTIONS = ['All Dates', 'Today', 'Yesterday', '2 days ago', '3 days ago', '4 days ago'];
-const STATUS_OPTIONS = ['All Statuses', 'Completed', 'Incomplete'];
-
 export default function ClinicalSessions() {
+    const [sessions, setSessions] = useState([]);
+    const [loading, setLoading] = useState(true);
+
     const [filterStudent, setFilterStudent] = useState('All Students');
     const [filterDate, setFilterDate] = useState('All Dates');
     const [filterStatus, setFilterStatus] = useState('All Statuses');
 
-    const filtered = MOCK_SESSIONS.filter(s => {
+    useEffect(() => {
+        const fetchSessions = async () => {
+            try {
+                const res = await api.get('/clinician/sessions');
+                setSessions(res.data);
+            } catch (err) {
+                console.error("Failed to fetch sessions", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchSessions();
+    }, []);
+
+    const students = ['All Students', ...new Set(sessions.map(s => s.student))];
+    const dateOptions = ['All Dates', 'Today', 'Yesterday', '2 days ago', '3 days ago', '4 days ago'];
+    const statusOptions = ['All Statuses', 'Completed', 'Incomplete'];
+
+    const filtered = sessions.filter(s => {
         if (filterStudent !== 'All Students' && s.student !== filterStudent) return false;
         if (filterDate !== 'All Dates' && s.date !== filterDate) return false;
         if (filterStatus !== 'All Statuses' && s.status !== filterStatus) return false;
@@ -50,19 +57,19 @@ export default function ClinicalSessions() {
                     <FilterSelect
                         label="Date Range"
                         value={filterDate}
-                        options={DATE_OPTIONS}
+                        options={dateOptions}
                         onChange={setFilterDate}
                     />
                     <FilterSelect
                         label="Student"
                         value={filterStudent}
-                        options={STUDENTS}
+                        options={students}
                         onChange={setFilterStudent}
                     />
                     <FilterSelect
                         label="Session Status"
                         value={filterStatus}
-                        options={STATUS_OPTIONS}
+                        options={statusOptions}
                         onChange={setFilterStatus}
                     />
                     {(filterStudent !== 'All Students' || filterDate !== 'All Dates' || filterStatus !== 'All Statuses') && (

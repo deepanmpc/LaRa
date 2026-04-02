@@ -21,6 +21,7 @@ public class ChildController {
 
     private final ChildRepository childRepository;
     private final UserRepository userRepository;
+    private final com.lara.dashboard.service.ActivityLogService activityLogService;
 
     @PostMapping
     public ResponseEntity<ChildResponse> createChild(@RequestBody ChildRequest request, Authentication authentication) {
@@ -36,6 +37,8 @@ public class ChildController {
                 .build();
 
         Child savedChild = childRepository.save(child);
+
+        activityLogService.log("New child profile created: " + child.getName() + " by " + parent.getName());
 
         return ResponseEntity.ok(mapToResponse(savedChild));
     }
