@@ -159,7 +159,30 @@ async def latest():
     return perception_state.latest.to_dict()
 
 
-# ── Test Mode (CLI) ──────────────────────────────────────────────────────────
+@app.get("/session-metrics")
+async def session_metrics():
+    """
+    Returns current aggregated snapshot of the session.
+    """
+    if not perception_state.is_running():
+        raise HTTPException(
+            status_code=503,
+            detail="Perception engine is not running.",
+        )
+    return _engine.aggregator.snapshot()
+
+
+@app.post("/session-flush")
+async def session_flush():
+    """
+    Returns final session metrics for database storage and clears the aggregator.
+    """
+    if not hasattr(_engine, 'aggregator'):
+        raise HTTPException(status_code=500, detail="Aggregator not ready")
+        
+    metrics = _engine.aggregator.flush()
+    _engine.aggregator.reset()
+    return metrics# ── Test Mode (CLI) ──────────────────────────────────────────────────────────
 
 def _run_test_mode():
     """

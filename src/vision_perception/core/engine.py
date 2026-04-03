@@ -20,6 +20,7 @@ from detection.hand_detector import HandDetector
 from detection.object_detector import ObjectDetector
 from tracking.engagement import EngagementTracker
 from tracking.attention import AttentionTracker
+from tracking.session_aggregator import VisionSessionAggregator
 from config import vision_config
 from utils.logger import get_logger
 
@@ -44,6 +45,7 @@ class PerceptionEngine:
         self._objects    = ObjectDetector()
         self._engagement = EngagementTracker()
         self._attention  = AttentionTracker()
+        self.aggregator  = VisionSessionAggregator(vision_config.TARGET_FPS)
 
         self._thread:   Optional[threading.Thread] = None
         self._watchdog: Optional[threading.Thread] = None
@@ -251,6 +253,7 @@ class PerceptionEngine:
 
                 perception_state.publish(output)
                 perception_state.tick()
+                self.aggregator.ingest(output)
                 elapsed = (time.monotonic() - t_loop_start) * 1000
                 time.sleep(max(0.0, frame_budget_s - elapsed / 1000.0))
                 continue
@@ -269,6 +272,7 @@ class PerceptionEngine:
 
             perception_state.publish(output)
             perception_state.tick()
+            self.aggregator.ingest(output)
 
             loop_ms = (time.monotonic() - t_loop_start) * 1000
             self._objects.update_throttle(loop_ms, budget_ms)
