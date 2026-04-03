@@ -67,6 +67,23 @@ public class ClinicianController {
 
         return ResponseEntity.ok(responses);
     }
+
+    @GetMapping("/students/{id}")
+    @PreAuthorize("hasAuthority('ROLE_CLINICIAN')")
+    public ResponseEntity<ChildResponse> getStudentById(@PathVariable Long id) {
+        Child child = childRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Child not found"));
+
+        ChildResponse response = ChildResponse.builder()
+                .id(child.getId())
+                .name(child.getName())
+                .age(child.getAge())
+                .gradeLevel(child.getGradeLevel())
+                .lastSessionDate("Unknown")
+                .build();
+
+        return ResponseEntity.ok(response);
+    }
     @GetMapping("/sessions")
     @PreAuthorize("hasAuthority('ROLE_CLINICIAN')")
     public ResponseEntity<List<com.lara.dashboard.dto.SessionResponse>> getSessions() {
