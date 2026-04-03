@@ -9,6 +9,7 @@ export default function ClinicianStudentDetail() {
     const navigate = useNavigate();
     const { id } = useParams();
     const [student, setStudent] = useState(null);
+    const [visionData, setVisionData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
 
@@ -18,6 +19,13 @@ export default function ClinicianStudentDetail() {
                 const response = await api.get(`/clinician/students/${id}`);
                 setStudent(response.data);
                 setError(false);
+                
+                try {
+                    const visionRes = await api.get(`/clinician/students/${id}/vision-metrics`);
+                    setVisionData(visionRes.data);
+                } catch (vErr) {
+                    console.log('No vision metrics available:', vErr);
+                }
             } catch (err) {
                 console.error('Failed to fetch student:', err);
                 setError(true);
@@ -85,7 +93,7 @@ export default function ClinicianStudentDetail() {
                         </div>
                     </header>
 
-                    <ClinicalStudentSections record={record} />
+                    <ClinicalStudentSections record={record} visionData={visionData} />
                 </div>
             </main>
         </div>

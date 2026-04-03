@@ -340,7 +340,7 @@ function EngagementGauge({ value }) {
     );
 }
 
-export default function ClinicalStudentSections({ record }) {
+export default function ClinicalStudentSections({ record, visionData }) {
     const stabilityIndex = getStabilityIndex(record.emotional_metrics);
     const reinforcementRanking = getReinforcementRanking(record.reinforcement_metrics);
     const bestStrategy = reinforcementRanking[0];
@@ -350,12 +350,12 @@ export default function ClinicalStudentSections({ record }) {
         record.emotional_metrics.neutral_stability_count >= 20 ? 'Baseline stability sustained' : 'Baseline variability noted'
     ];
     const radarMetrics = [
-        { label: 'Engage', value: record.vision_session_stats.avg_engagement_score },
-        { label: 'Gaze', value: record.vision_session_stats.avg_gaze_score },
-        { label: 'System', value: record.vision_session_stats.system_confidence },
-        { label: 'Face', value: record.perception_confidence.face_conf },
-        { label: 'Gesture', value: record.perception_confidence.gesture_conf },
-        { label: 'Object', value: record.perception_confidence.object_conf }
+        { label: 'Engage', value: visionData ? visionData.avg_engagement_score : record.vision_session_stats.avg_engagement_score },
+        { label: 'Gaze', value: visionData ? visionData.avg_gaze_score : record.vision_session_stats.avg_gaze_score },
+        { label: 'System', value: visionData ? visionData.system_confidence : record.vision_session_stats.system_confidence },
+        { label: 'Face', value: visionData ? visionData.face_conf : record.perception_confidence.face_conf },
+        { label: 'Gesture', value: visionData ? visionData.gesture_conf : record.perception_confidence.gesture_conf },
+        { label: 'Object', value: visionData ? visionData.object_conf : record.perception_confidence.object_conf }
     ];
     const vocalDistribution = [
         { label: 'Neutral', value: record.vocal_mood_distribution.neutral, tone: 'calm' },
@@ -509,22 +509,22 @@ export default function ClinicalStudentSections({ record }) {
                         </div>
 
                         <div className="confidence-stack">
-                            <HorizontalBar label="Face Confidence" value={formatPercent(record.perception_confidence.face_conf)} percent={Math.round(record.perception_confidence.face_conf * 100)} tone="green" />
-                            <HorizontalBar label="Gesture Confidence" value={formatPercent(record.perception_confidence.gesture_conf)} percent={Math.round(record.perception_confidence.gesture_conf * 100)} tone="blue" />
-                            <HorizontalBar label="Object Confidence" value={formatPercent(record.perception_confidence.object_conf)} percent={Math.round(record.perception_confidence.object_conf * 100)} tone="blue" />
+                            <HorizontalBar label="Face Confidence" value={formatPercent(visionData ? visionData.face_conf : record.perception_confidence.face_conf)} percent={Math.round((visionData ? visionData.face_conf : record.perception_confidence.face_conf) * 100)} tone="green" />
+                            <HorizontalBar label="Gesture Confidence" value={formatPercent(visionData ? visionData.gesture_conf : record.perception_confidence.gesture_conf)} percent={Math.round((visionData ? visionData.gesture_conf : record.perception_confidence.gesture_conf) * 100)} tone="blue" />
+                            <HorizontalBar label="Object Confidence" value={formatPercent(visionData ? visionData.object_conf : record.perception_confidence.object_conf)} percent={Math.round((visionData ? visionData.object_conf : record.perception_confidence.object_conf) * 100)} tone="blue" />
                         </div>
 
                         <AttentionTimeline
-                            focusedDuration={record.vision_behavior_counts.focused_duration}
+                            focusedDuration={visionData ? visionData.focused_duration : record.vision_behavior_counts.focused_duration}
                             sessionDuration={record.total_engagement_summary.session_duration}
-                            distractionFrames={record.vision_behavior_counts.distraction_frames}
+                            distractionFrames={visionData ? visionData.distraction_frames : record.vision_behavior_counts.distraction_frames}
                         />
 
                         <div className="clinical-tiles-grid">
-                            <MetricTile label="Engagement Signal" value={formatPercent(record.vision_session_stats.avg_engagement_score)} tone="blue" />
-                            <MetricTile label="Visual Attention" value={formatPercent(record.vision_session_stats.avg_gaze_score)} tone="blue" />
-                            <MetricTile label="Focus Retention" value={`${record.vision_behavior_counts.focused_duration} min`} tone="green" />
-                            <MetricTile label="Sensor Confidence" value={formatPercent(record.vision_session_stats.system_confidence)} />
+                            <MetricTile label="Engagement Signal" value={formatPercent(visionData ? visionData.avg_engagement_score : record.vision_session_stats.avg_engagement_score)} tone="blue" />
+                            <MetricTile label="Visual Attention" value={formatPercent(visionData ? visionData.avg_gaze_score : record.vision_session_stats.avg_gaze_score)} tone="blue" />
+                            <MetricTile label="Focus Retention" value={`${visionData ? visionData.focused_duration : record.vision_behavior_counts.focused_duration} min`} tone="green" />
+                            <MetricTile label="Sensor Confidence" value={formatPercent(visionData ? visionData.system_confidence : record.vision_session_stats.system_confidence)} />
                         </div>
                     </article>
                 </div>

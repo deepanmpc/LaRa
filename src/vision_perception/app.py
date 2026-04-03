@@ -182,7 +182,10 @@ async def session_flush():
         
     metrics = _engine.aggregator.flush()
     _engine.aggregator.reset()
-    return metrics# ── Test Mode (CLI) ──────────────────────────────────────────────────────────
+    return metrics
+
+
+# ── Test Mode (CLI) ──────────────────────────────────────────────────────────
 
 def _run_test_mode():
     """
