@@ -124,3 +124,6 @@ target/
 .env
 .env.local
 .env.production
+
+.gemini/
+gha-creds-*.json

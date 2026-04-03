@@ -273,7 +273,58 @@ export default function FamilyDashboard() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [startingSession, setStartingSession] = useState(false);
+    const [activeSessionUuid, setActiveSessionUuid] = useState(null);
     const user = getStoredUser();
+
+    useEffect(() => {
+        const ws = new WebSocket('ws://localhost:8765');
+        ws.onmessage = (event) => {
+            try {
+                const msg = JSON.parse(event.data);
+                if (msg.type === 'session_ack' && (msg.status === 'starting' || msg.status === 'already_running')) {
+                    // This is tricky because we don't have the UUID here easily unless we poll an API
+                    // But for the sake of the requirement, we'll try to get it if we can
+                }
+                // Actually, a better way is to poll a backend endpoint that tracks active sessions
+                // Or just listen for system_state which is emitted regularly
+                if (msg.type === 'system_state' && msg.mode !== 'resting') {
+                   // Session is likely active
+                   if (!activeSessionUuid) setActiveSessionUuid('live'); 
+                }
+                if (msg.type === 'session_ended') {
+                    setActiveSessionUuid(null);
+                }
+            } catch (e) {}
+        };
+        // Also check on mount if a session is already active
+        const checkActive = async () => {
+            try {
+                // Assuming there's an endpoint or we just use the WS to probe
+                ws.onopen = () => {
+                    ws.send(JSON.stringify({ type: 'session_status_request' })); // speculative, depends on bridge
+                };
+            } catch (e) {}
+        };
+        checkActive();
+        return () => ws.close();
+    }, [activeSessionUuid]);
+
+    // Re-fetch active session status occasionally or trust WS
+    useEffect(() => {
+        const pollActive = setInterval(async () => {
+            try {
+                const res = await api.get(`/family/session/active/${childId}`);
+                if (res.data && res.data.active) {
+                    setActiveSessionUuid(res.data.sessionUuid);
+                } else {
+                    setActiveSessionUuid(null);
+                }
+            } catch (e) {
+                // Fallback to null if API fails or not implemented
+            }
+        }, 5000);
+        return () => clearInterval(pollActive);
+    }, [childId]);
 
     const now = new Date();
     const dateStr = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
@@ -324,8 +375,15 @@ export default function FamilyDashboard() {
                 }
             };
             startSession();
+        } else if (activeNav === 'live-monitor') {
+            if (activeSessionUuid) {
+                window.open(`/live-monitor/${childId}/${activeSessionUuid || 'current'}`, '_blank');
+            } else {
+                alert('No active session currently tracking.');
+            }
+            setActiveNav('summary');
         }
-    }, [activeNav, childId, navigate]);
+    }, [activeNav, childId, navigate, activeSessionUuid]);
 
     const child = dashboardData?.childProfile;
     const session = dashboardData?.sessionSummary;
@@ -405,12 +463,48 @@ export default function FamilyDashboard() {
                                 </div>
                             </div>
 
-                            <div style={{ flexShrink: 0 }}>
+                            <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                <button
+                                    className="btn btn-secondary"
+                                    disabled={!activeSessionUuid}
+                                    style={{
+                                        padding: '12px 24px',
+                                        fontSize: 14,
+                                        fontWeight: 800,
+                                        borderRadius: 12,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 10,
+                                        background: activeSessionUuid ? '#2563eb' : '#f1f5f9',
+                                        color: activeSessionUuid ? 'white' : '#94a3b8',
+                                        border: activeSessionUuid ? 'none' : '1px solid #e2e8f0',
+                                        cursor: activeSessionUuid ? 'pointer' : 'not-allowed',
+                                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                        boxShadow: activeSessionUuid ? '0 8px 24px rgba(37, 99, 235, 0.35)' : 'none',
+                                        animation: activeSessionUuid ? 'pulse-blue 2s infinite' : 'none'
+                                    }}
+                                    onClick={() => window.open(`/live-monitor/${childId}/${activeSessionUuid || 'current'}`, '_blank')}
+                                >
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                        <circle cx="12" cy="12" r="3" />
+                                    </svg>
+                                    LIVE TRACKING
+                                </button>
+                                
+                                <style>{`
+                                    @keyframes pulse-blue {
+                                        0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.6); }
+                                        70% { box-shadow: 0 0 0 10px rgba(37, 99, 235, 0); }
+                                        100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+                                    }
+                                `}</style>
+                                
                                 <div className="status-badge-doing-well">
                                     <div className="status-dot"></div>
                                     {child.statusBadge}
                                 </div>
-                                <div style={{ fontSize: 11, opacity: 0.7, marginTop: 6, textAlign: 'center' }}>
+                                <div style={{ fontSize: 11, opacity: 0.7, textAlign: 'center' }}>
                                     Focus: {child.currentFocus}
                                 </div>
                             </div>

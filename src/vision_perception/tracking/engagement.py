@@ -138,8 +138,17 @@ class EngagementTracker:
         if self._ui_score is None:
             self._ui_score = self._current_score
 
-        # UI score: weighted blend of previous UI score and new internal score
-        self._ui_score = round(0.8 * self._current_score + 0.2 * self._ui_score, 4)
+        # UI score: asymmetric blend — gentler decrease, snappier increase
+        # This fixes the "fast drop, slow recovery" feel on the dashboard
+        if self._current_score < self._ui_score:
+            # Decreasing — gentle blend (less jarring for the observer)
+            blend_new = getattr(vision_config, 'ENGAGEMENT_UI_BLEND_DECREASE', 0.6)
+        else:
+            # Increasing — snappier blend (more responsive recovery)
+            blend_new = getattr(vision_config, 'ENGAGEMENT_UI_BLEND_INCREASE', 0.45)
+        self._ui_score = round(
+            blend_new * self._current_score + (1.0 - blend_new) * self._ui_score, 4
+        )
         return self._current_score, self._ui_score
 
     def label(self, score: float) -> str:

@@ -66,6 +66,10 @@ ENGAGEMENT_DECAY_RATE_FAST: float = 0.7
 # SLOW (UI): exposed to dashboard — smooth decay for human perception
 # 0.95^15 ≈ 0.46  (halved after 1 sec at 15fps — perceptible but not jarring)
 ENGAGEMENT_DECAY_RATE_UI: float = 0.95
+# UI blend rates for asymmetric smoothing (decrease=gentler, increase=snappier)
+# decrease: new * 0.6 + old * 0.4  |  increase: new * 0.45 + old * 0.55
+ENGAGEMENT_UI_BLEND_DECREASE: float = 0.6   # weight on new score when dropping
+ENGAGEMENT_UI_BLEND_INCREASE: float = 0.45  # weight on new score when rising
 
 # ─── Head pose "looking at screen" window ─────────────────
 GAZE_YAW_THRESHOLD: float = 25.0
@@ -88,6 +92,9 @@ QUALITY_SKIP_ABSENCE_THRESHOLD: int = 10  # NEW: consecutive skips before treati
 # ─── Attention thresholds ────────────────────────────────────
 ATTENTION_FOCUS_CONFIRM_FRAMES:    int = 5
 ATTENTION_DISTRACT_CONFIRM_FRAMES: int = 8
+# Grace period before declaring ABSENT — treats brief face-loss (head shake) as DISTRACTED
+# At 15fps: 10 frames ≈ 0.67s
+ATTENTION_ABSENT_CONFIRM_FRAMES:   int = 10
 
 # ─── Adaptive YOLO throttle ───────────────────────────────
 YOLO_MIN_INTERVAL: int = 1

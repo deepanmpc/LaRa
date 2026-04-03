@@ -41,10 +41,11 @@ signal.signal(signal.SIGTERM, _handle_signal)
 
 _session_lock = threading.Lock()
 _session_active = False
+_current_session = None
 
 def _start_pipeline():
     """Fired by WS bridge on session_start. Runs in daemon thread named 'lara-pipeline'."""
-    global _session_active
+    global _session_active, _current_session
     
     with _session_lock:
         if _session_active:
@@ -54,16 +55,52 @@ def _start_pipeline():
         
     logging.info("[Main] session_start received — launching conversation loop")
     print("\n[LaRa] Session started by UI ▶")
+
+    session_obj = None
     try:
+        from src.session.session_state import SessionState
         from src.perception.speech_to_text import run_conversation_loop
         from src.bridge.ws_server import LaRaBridge
-        run_conversation_loop(bridge=LaRaBridge.get(), skip_wake_word=True)
+        from src.vision.vision_bridge import VisionBridgeService
+
+        session_obj = SessionState()
+        _current_session = session_obj
+
+        bridge = LaRaBridge.get()
+        vision = VisionBridgeService.get()
+        vision.start_vision_service()
+        vision.start_polling(bridge=bridge, session=session_obj, interval_s=0.5)
+
+        run_conversation_loop(
+            bridge=bridge,
+            skip_wake_word=True,
+            session=session_obj,
+        )
     except KeyboardInterrupt:
         pass
     except Exception as e:
         logging.error(f"[Main] Pipeline error: {e}", exc_info=True)
         print(f"[LaRa] Pipeline error: {e}")
     finally:
+        try:
+            from src.vision.vision_bridge import VisionBridgeService
+            vision = VisionBridgeService.get()
+            vision.stop_polling()
+            vision.stop_vision_service()
+        except Exception:
+            pass
+
+        # Flush final session state to disk before clearing
+        if session_obj is not None and hasattr(session_obj, 'flush_to_disk'):
+            try:
+                session_obj.flush_to_disk()
+            except Exception as e:
+                logging.warning(f"[Main] Session flush failed: {e}")
+
+        with _session_lock:
+            _session_active = False
+            _current_session = None
+
         try:
             from src.bridge.ws_server import LaRaBridge
             LaRaBridge.get().mark_session_ended()
@@ -74,7 +111,7 @@ def _start_pipeline():
 
 def _stop_pipeline():
     """Fired by WS bridge on session_stop. Raises KeyboardInterrupt in pipeline thread."""
-    global _session_active
+    global _session_active, _current_session
     
     with _session_lock:
         if not _session_active:
@@ -107,6 +144,16 @@ def _stop_pipeline():
             LaRaBridge.get().mark_session_ended()
         except Exception:
             pass
+
+    try:
+        from src.vision.vision_bridge import VisionBridgeService
+        vision = VisionBridgeService.get()
+        vision.stop_polling()
+        vision.stop_vision_service()
+    except Exception as e:
+        logging.warning(f"[Main] Failed to stop vision service cleanly: {e}")
+
+    _current_session = None
 
 
 if __name__ == "__main__":

@@ -23,7 +23,8 @@ import uuid
 import logging
 import json
 import os
-from dataclasses import dataclass, field, asdict
+import threading
+from dataclasses import dataclass, field, fields
 
 
 # Configuration access
@@ -87,6 +88,14 @@ class SessionState:
     # Phase 4 extensions
     difficulty_history: list = field(default_factory=list)
     last_3_input_lengths: list = field(default_factory=list)
+
+    # Live vision state
+    vision_presence: bool = False
+    vision_attention: str = "UNKNOWN"
+    vision_engagement: float = 0.0
+    vision_gesture: str = "NONE"
+    vision_timestamp: float = 0.0
+    vision_lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
     
     def reset(self):
         """Reset session state to clean defaults while keeping object instance."""
@@ -104,6 +113,12 @@ class SessionState:
         self.difficulty_locked_turns = 0
         self.difficulty_history = []
         self.last_3_input_lengths = []
+        with self.vision_lock:
+            self.vision_presence = False
+            self.vision_attention = "UNKNOWN"
+            self.vision_engagement = 0.0
+            self.vision_gesture = "NONE"
+            self.vision_timestamp = 0.0
         logging.info(f"[Session] Reset complete. New ID: {self.session_id}")
 
     def is_expired(self) -> bool:
@@ -167,22 +182,67 @@ class SessionState:
     
     def save_to_disk(self):
         """
-        Serializes the non-narrative metadata turn state to LARA_DATA_DIR/sessions
-        allowing programmatic resumption or offline tracking.
-        Runs in a background thread to prevent loop latency.
+        Debounced disk persistence — coalesces rapid writes to at most once per 2s.
+        Spawns a timer on first call; subsequent calls within the window just set
+        the pending flag. The timer fires and writes once, then resets.
         """
-        import threading
-        def _save():
-            try:
-                from src.core.runtime_paths import get_sessions_dir
-                sessions_dir = get_sessions_dir()
-                state_file = os.path.join(sessions_dir, f"session_{self.session_id}_state.json")
-                with open(state_file, "w", encoding="utf-8") as f:
-                    json.dump(asdict(self), f, indent=2)
-            except Exception as e:
-                logging.error(f"[Session] Failed to persist state to disk: {e}")
-        
-        threading.Thread(target=_save, daemon=True).start()
+        self._save_pending = True
+        if not hasattr(self, '_save_timer') or self._save_timer is None or not self._save_timer.is_alive():
+            self._save_timer = threading.Timer(2.0, self._debounced_save)
+            self._save_timer.daemon = True
+            self._save_timer.start()
+
+    def _debounced_save(self):
+        """Internal: called by the debounce timer to flush pending state."""
+        if not getattr(self, '_save_pending', False):
+            return
+        self._save_pending = False
+        try:
+            from src.core.runtime_paths import get_sessions_dir
+            sessions_dir = get_sessions_dir()
+            state_file = os.path.join(sessions_dir, f"session_{self.session_id}_state.json")
+            with open(state_file, "w", encoding="utf-8") as f:
+                json.dump(self._serialize(), f, indent=2)
+        except Exception as e:
+            logging.error(f"[Session] Failed to persist state to disk: {e}")
+
+    def flush_to_disk(self):
+        """
+        Immediate disk write — call on session end to ensure final state is persisted.
+        Cancels any pending debounce timer.
+        """
+        if hasattr(self, '_save_timer') and self._save_timer is not None:
+            self._save_timer.cancel()
+            self._save_timer = None
+        self._save_pending = False
+        try:
+            from src.core.runtime_paths import get_sessions_dir
+            sessions_dir = get_sessions_dir()
+            state_file = os.path.join(sessions_dir, f"session_{self.session_id}_state.json")
+            with open(state_file, "w", encoding="utf-8") as f:
+                json.dump(self._serialize(), f, indent=2)
+            logging.info(f"[Session] Final state flushed to {state_file}")
+        except Exception as e:
+            logging.error(f"[Session] Failed to flush state to disk: {e}")
+
+    def _serialize(self) -> dict:
+        data = {}
+        with self.vision_lock:
+            for item in fields(self):
+                if item.name == "vision_lock":
+                    continue
+                data[item.name] = getattr(self, item.name)
+        return data
+
+    def get_vision_snapshot(self) -> dict:
+        with self.vision_lock:
+            return {
+                "presence": self.vision_presence,
+                "attention": self.vision_attention,
+                "engagement": self.vision_engagement,
+                "gesture": self.vision_gesture,
+                "timestamp": self.vision_timestamp,
+            }
             
     def _update_streaks(self, mood: str, confidence: float):
         """
