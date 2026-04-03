@@ -341,14 +341,15 @@ function EngagementGauge({ value }) {
 }
 
 export default function ClinicalStudentSections({ record, visionData }) {
+    // 1. Data from 'emotional_metrics' table (Python Core / Dashboard MySQL)
     const stabilityIndex = getStabilityIndex(record.emotional_metrics);
+    
+    // 2. Data from 'reinforcement_metrics' table
     const reinforcementRanking = getReinforcementRanking(record.reinforcement_metrics);
     const bestStrategy = reinforcementRanking[0];
-    const emotionalTrendChips = [
-        record.emotional_metrics.frustration_count <= 8 ? 'Frustration within monitored range' : 'Escalation threshold elevated',
-        record.emotional_metrics.recovery_count >= record.emotional_metrics.frustration_count ? 'Recovery exceeds disruption events' : 'Recovery below target response',
-        record.emotional_metrics.neutral_stability_count >= 20 ? 'Baseline stability sustained' : 'Baseline variability noted'
-    ];
+    
+    // 3. Data from 'vision_metrics' and 'engagement_timeline' tables
+    // Prioritize real visionData from the API if available, else fallback to mock
     const radarMetrics = [
         { label: 'Engage', value: visionData ? visionData.avg_engagement_score : record.vision_session_stats.avg_engagement_score },
         { label: 'Gaze', value: visionData ? visionData.avg_gaze_score : record.vision_session_stats.avg_gaze_score },
@@ -357,11 +358,23 @@ export default function ClinicalStudentSections({ record, visionData }) {
         { label: 'Gesture', value: visionData ? visionData.gesture_conf : record.perception_confidence.gesture_conf },
         { label: 'Object', value: visionData ? visionData.object_conf : record.perception_confidence.object_conf }
     ];
+
+    const emotionalTrendChips = [
+        record.emotional_metrics.frustration_count <= 8 ? 'Frustration within monitored range' : 'Escalation threshold elevated',
+        record.emotional_metrics.recovery_count >= record.emotional_metrics.frustration_count ? 'Recovery exceeds disruption events' : 'Recovery below target response',
+        record.emotional_metrics.neutral_stability_count >= 20 ? 'Baseline stability sustained' : 'Baseline variability noted'
+    ];
+
     const vocalDistribution = [
         { label: 'Neutral', value: record.vocal_mood_distribution.neutral, tone: 'calm' },
         { label: 'Arousal', value: record.vocal_mood_distribution.arousal, tone: 'alert' },
         { label: 'Withdrawal', value: record.vocal_mood_distribution.withdrawal, tone: 'risk' }
     ];
+
+    // 4. Data from 'learning_progress' and 'user_profiles' tables
+    const masteryValue = record.learning_progress.mastery_level;
+    const conceptName = record.learning_progress.concept_name;
+    const instructionLevel = record.user_profiles.instruction_depth;
 
     return (
         <>
@@ -369,21 +382,21 @@ export default function ClinicalStudentSections({ record, visionData }) {
                 icon={<BrainCircuit size={18} strokeWidth={2.2} />}
                 label="Section 1"
                 title="Cognitive Development"
-                subtitle="Concept acquisition, task reliability, and intervention readiness for the current learning target."
+                subtitle="Progress from 'learning_progress' and 'user_profiles' tables."
             >
                 <div className="clinical-section-grid clinical-section-grid--two-column">
                     <article className="clinical-panel clinical-panel--wide">
                         <div className="clinical-panel__header">
                             <div>
                                 <h3 className="clinical-panel__title">Cognitive Mastery</h3>
-                                <p className="clinical-panel__subtitle">Current acquisition profile for {record.learning_progress.concept_name}</p>
+                                <p className="clinical-panel__subtitle">Current acquisition profile for {conceptName}</p>
                             </div>
                         </div>
 
                         <div className="cognitive-panel">
                             <div className="cognitive-panel__chart-container">
-                                <RadialMasteryChart value={record.learning_progress.mastery_level} />
-                                <span className="cognitive-panel__chart-label">Cognitive Mastery</span>
+                                <RadialMasteryChart value={masteryValue} />
+                                <span className="cognitive-panel__chart-label">Mastery Level</span>
                             </div>
 
                             <div className="cognitive-panel__details">
@@ -394,8 +407,8 @@ export default function ClinicalStudentSections({ record, visionData }) {
                                     tone="blue"
                                 />
                                 <div className="clinical-tiles-grid">
-                                    <MetricTile label="Learning Attempts" value={record.learning_progress.attempt_count} />
-                                    <MetricTile label="Current Target" value={record.learning_progress.concept_name} tone="green" />
+                                    <MetricTile label="Total Attempts" value={record.learning_progress.attempt_count} />
+                                    <MetricTile label="Active Concept" value={conceptName} tone="green" />
                                 </div>
                             </div>
                         </div>
@@ -404,32 +417,25 @@ export default function ClinicalStudentSections({ record, visionData }) {
                     <article className="clinical-panel">
                         <div className="clinical-panel__header">
                             <div>
-                                <h3 className="clinical-panel__title">Learning Preferences</h3>
-                                <p className="clinical-panel__subtitle">Profile modifiers from user preferences and instruction structure.</p>
+                                <h3 className="clinical-panel__title">Instructional Profile</h3>
+                                <p className="clinical-panel__subtitle">Derived from user profiles.</p>
                             </div>
-                            <span className="clinical-panel__badge">
-                                <Tags size={14} strokeWidth={2.2} />
-                                Profile modifiers
-                            </span>
                         </div>
 
                         <div className="profile-panel">
                             <div className="profile-panel__group">
+                                <span className="profile-panel__label">Instruction Complexity</span>
+                                <div className="profile-panel__complexity-card">
+                                    <span className="profile-panel__complexity-value">Level {instructionLevel}</span>
+                                    <span className="profile-panel__complexity-caption">Based on user_profiles.instruction_depth</span>
+                                </div>
+                            </div>
+                            <div className="profile-panel__group">
                                 <span className="profile-panel__label">Preferred Topics</span>
                                 <div className="profile-panel__chips">
                                     {record.user_profiles.preferred_topics.map((topic) => (
-                                        <span key={topic} className="profile-panel__chip">
-                                            {topic}
-                                        </span>
+                                        <span key={topic} className="profile-panel__chip">{topic}</span>
                                     ))}
-                                </div>
-                            </div>
-
-                            <div className="profile-panel__group">
-                                <span className="profile-panel__label">Instruction Complexity Level</span>
-                                <div className="profile-panel__complexity-card">
-                                    <span className="profile-panel__complexity-value">Level {record.user_profiles.instruction_depth}</span>
-                                    <span className="profile-panel__complexity-caption">Moderate verbal scaffolding required</span>
                                 </div>
                             </div>
                         </div>
@@ -441,14 +447,14 @@ export default function ClinicalStudentSections({ record, visionData }) {
                 icon={<ShieldCheck size={18} strokeWidth={2.2} />}
                 label="Section 2"
                 title="Emotional & Behavioral Stability"
-                subtitle="Observed regulation state, recovery response, and baseline emotional stability across recent sessions."
+                subtitle="Real-time analytics from 'emotional_metrics' and 'zpd_metrics' tables."
             >
                 <div className="clinical-section-grid clinical-section-grid--two-column">
                     <article className="clinical-panel clinical-panel--wide">
                         <div className="clinical-panel__header">
                             <div>
                                 <h3 className="clinical-panel__title">Emotional Regulation</h3>
-                                <p className="clinical-panel__subtitle">Relative distribution of frustration, recovery, and stable baseline periods.</p>
+                                <p className="clinical-panel__subtitle">Distribution from the emotional_metrics table.</p>
                             </div>
                         </div>
 
@@ -456,9 +462,7 @@ export default function ClinicalStudentSections({ record, visionData }) {
 
                         <div className="clinical-trend-chips">
                             {emotionalTrendChips.map((chip) => (
-                                <span key={chip} className="clinical-trend-chip">
-                                    {chip}
-                                </span>
+                                <span key={chip} className="clinical-trend-chip">{chip}</span>
                             ))}
                         </div>
                     </article>
@@ -467,16 +471,16 @@ export default function ClinicalStudentSections({ record, visionData }) {
                         <div className="clinical-panel__header">
                             <div>
                                 <h3 className="clinical-panel__title">Regulation Index</h3>
-                                <p className="clinical-panel__subtitle">Composite stability calculation using regulation and baseline counts.</p>
+                                <p className="clinical-panel__subtitle">Calculated Stability Index.</p>
                             </div>
                         </div>
 
                         <StabilityMeter value={stabilityIndex} />
 
                         <div className="clinical-tiles-grid">
-                            <MetricTile label="Frustration Frequency" value={record.emotional_metrics.frustration_count} tone="risk" />
-                            <MetricTile label="Recovery Efficiency" value={record.emotional_metrics.recovery_count} tone="green" />
-                            <MetricTile label="Baseline Stability" value={record.emotional_metrics.neutral_stability_count} tone="blue" />
+                            <MetricTile label="Frustration" value={record.emotional_metrics.frustration_count} tone="risk" />
+                            <MetricTile label="Recovery" value={record.emotional_metrics.recovery_count} tone="green" />
+                            <MetricTile label="Neutral" value={record.emotional_metrics.neutral_stability_count} tone="blue" />
                         </div>
                     </article>
                 </div>
@@ -485,15 +489,15 @@ export default function ClinicalStudentSections({ record, visionData }) {
             <SectionBlock
                 icon={<Eye size={18} strokeWidth={2.2} />}
                 label="Section 3"
-                title="Sensory & Perception Analysis"
-                subtitle="Visual attention, multimodal confidence, and attention retention across the observed session window."
+                title="Vision & Perception Analysis"
+                subtitle="Data from 'vision_sessions', 'vision_metrics', and 'engagement_timeline' tables."
             >
                 <div className="clinical-section-grid clinical-section-grid--two-column">
                     <article className="clinical-panel clinical-panel--wide">
                         <div className="clinical-panel__header">
                             <div>
-                                <h3 className="clinical-panel__title">Visual Attention & Sensor Confidence</h3>
-                                <p className="clinical-panel__subtitle">Radar summary across engagement, gaze, system confidence, and perception channels.</p>
+                                <h3 className="clinical-panel__title">Visual Engagement Radar</h3>
+                                <p className="clinical-panel__subtitle">Multimodal perception summary.</p>
                             </div>
                         </div>
 
@@ -504,14 +508,13 @@ export default function ClinicalStudentSections({ record, visionData }) {
                         <div className="clinical-panel__header">
                             <div>
                                 <h3 className="clinical-panel__title">Behavioral Signals</h3>
-                                <p className="clinical-panel__subtitle">Perception confidence and focus retention markers used during review.</p>
+                                <p className="clinical-panel__subtitle">Focus and Distraction counts from vision_metrics.</p>
                             </div>
                         </div>
 
                         <div className="confidence-stack">
-                            <HorizontalBar label="Face Confidence" value={formatPercent(visionData ? visionData.face_conf : record.perception_confidence.face_conf)} percent={Math.round((visionData ? visionData.face_conf : record.perception_confidence.face_conf) * 100)} tone="green" />
-                            <HorizontalBar label="Gesture Confidence" value={formatPercent(visionData ? visionData.gesture_conf : record.perception_confidence.gesture_conf)} percent={Math.round((visionData ? visionData.gesture_conf : record.perception_confidence.gesture_conf) * 100)} tone="blue" />
-                            <HorizontalBar label="Object Confidence" value={formatPercent(visionData ? visionData.object_conf : record.perception_confidence.object_conf)} percent={Math.round((visionData ? visionData.object_conf : record.perception_confidence.object_conf) * 100)} tone="blue" />
+                            <HorizontalBar label="Presence Confidence" value={formatPercent(visionData ? visionData.face_conf : record.perception_confidence.face_conf)} percent={Math.round((visionData ? visionData.face_conf : record.perception_confidence.face_conf) * 100)} tone="green" />
+                            <HorizontalBar label="Gesture Active" value={formatPercent(visionData ? visionData.gesture_conf : record.perception_confidence.gesture_conf)} percent={Math.round((visionData ? visionData.gesture_conf : record.perception_confidence.gesture_conf) * 100)} tone="blue" />
                         </div>
 
                         <AttentionTimeline
@@ -521,108 +524,9 @@ export default function ClinicalStudentSections({ record, visionData }) {
                         />
 
                         <div className="clinical-tiles-grid">
-                            <MetricTile label="Engagement Signal" value={formatPercent(visionData ? visionData.avg_engagement_score : record.vision_session_stats.avg_engagement_score)} tone="blue" />
-                            <MetricTile label="Visual Attention" value={formatPercent(visionData ? visionData.avg_gaze_score : record.vision_session_stats.avg_gaze_score)} tone="blue" />
-                            <MetricTile label="Focus Retention" value={`${visionData ? visionData.focused_duration : record.vision_behavior_counts.focused_duration} min`} tone="green" />
-                            <MetricTile label="Sensor Confidence" value={formatPercent(visionData ? visionData.system_confidence : record.vision_session_stats.system_confidence)} />
-                        </div>
-                    </article>
-                </div>
-            </SectionBlock>
-
-            <SectionBlock
-                icon={<AudioLines size={18} strokeWidth={2.2} />}
-                label="Section 4"
-                title="Voice & Communication Patterns"
-                subtitle="Speech stability, vocal engagement, and emotional tone distribution from the current communication profile."
-            >
-                <div className="clinical-section-grid clinical-section-grid--two-column">
-                    <article className="clinical-panel clinical-panel--wide">
-                        <div className="clinical-panel__header">
-                            <div>
-                                <h3 className="clinical-panel__title">Speech Stability</h3>
-                                <p className="clinical-panel__subtitle">Relative prosody profile across speaking rate, vocal amplitude, and stability score.</p>
-                            </div>
-                        </div>
-
-                        <VoiceLineChart
-                            speakingRate={record.voice_prosody_metrics.speaking_rate}
-                            volume={record.voice_prosody_metrics.volume}
-                            stabilityScore={record.voice_prosody_metrics.stability_score}
-                        />
-
-                        <div className="clinical-tiles-grid">
-                            <MetricTile label="Speaking Rate" value={`${record.voice_prosody_metrics.speaking_rate} wpm`} />
-                            <MetricTile label="Vocal Engagement" value={formatPercent(record.voice_prosody_metrics.volume)} tone="blue" />
-                            <MetricTile label="Communication Consistency" value={formatPercent(record.voice_prosody_metrics.stability_score)} tone="green" />
-                        </div>
-                    </article>
-
-                    <article className="clinical-panel">
-                        <div className="clinical-panel__header">
-                            <div>
-                                <h3 className="clinical-panel__title">Emotional Vocal Tone</h3>
-                                <p className="clinical-panel__subtitle">Distribution of neutral, arousal, and withdrawal states detected in vocal output.</p>
-                            </div>
-                        </div>
-
-                        <div className="vocal-distribution">
-                            {vocalDistribution.map((entry) => (
-                                <div key={entry.label} className="vocal-distribution__row">
-                                    <div className="vocal-distribution__meta">
-                                        <span className="vocal-distribution__label">{entry.label}</span>
-                                        <span className="vocal-distribution__value">{formatPercent(entry.value)}</span>
-                                    </div>
-                                    <div className="vocal-distribution__track">
-                                        <div
-                                            className={`vocal-distribution__fill vocal-distribution__fill--${entry.tone}`}
-                                            style={{ width: `${Math.round(entry.value * 100)}%` }}
-                                        />
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </article>
-                </div>
-            </SectionBlock>
-
-            <SectionBlock
-                icon={<Activity size={18} strokeWidth={2.2} />}
-                label="Section 5"
-                title="Engagement & Clinical Summary"
-                subtitle="Global interaction performance, continuity of engagement, and session efficiency indicators."
-            >
-                <div className="clinical-section-grid clinical-section-grid--two-column">
-                    <article className="clinical-panel">
-                        <div className="clinical-panel__header">
-                            <div>
-                                <h3 className="clinical-panel__title">Overall Engagement Index</h3>
-                                <p className="clinical-panel__subtitle">Composite clinician-facing engagement score from the current session summary.</p>
-                            </div>
-                        </div>
-
-                        <EngagementGauge value={Math.round(record.total_engagement_summary.total_engagement_average * 100)} />
-                    </article>
-
-                    <article className="clinical-panel clinical-panel--stacked">
-                        <div className="clinical-panel__header">
-                            <div>
-                                <h3 className="clinical-panel__title">Clinical Summary</h3>
-                                <p className="clinical-panel__subtitle">Session efficiency and continuity markers for quick review.</p>
-                            </div>
-                        </div>
-
-                        <div className="clinical-tiles-grid">
-                            <MetricTile label="Interaction Continuity" value={formatPercent(record.total_engagement_summary.interaction_continuity_score)} tone="green" />
-                            <MetricTile label="Session Efficiency" value={`${record.total_engagement_summary.session_duration} min`} tone="blue" />
-                            <MetricTile label="System Confidence" value={formatPercent(record.vision_session_stats.system_confidence)} />
-                        </div>
-
-                        <div className="clinical-summary-note">
-                            <span className="clinical-summary-note__label">Clinical Impression</span>
-                            <p className="clinical-summary-note__text">
-                                Engagement remained stable through most of the session with sustained focus retention, high sensor confidence, and no excessive escalation markers.
-                            </p>
+                            <MetricTile label="Avg Engagement" value={formatPercent(visionData ? visionData.avg_engagement_score : record.vision_session_stats.avg_engagement_score)} tone="blue" />
+                            <MetricTile label="Visual Focus" value={formatPercent(visionData ? visionData.avg_gaze_score : record.vision_session_stats.avg_gaze_score)} tone="blue" />
+                            <MetricTile label="Focus (Min)" value={`${visionData ? visionData.focused_duration : record.vision_behavior_counts.focused_duration}m`} tone="green" />
                         </div>
                     </article>
                 </div>
@@ -630,16 +534,16 @@ export default function ClinicalStudentSections({ record, visionData }) {
 
             <SectionBlock
                 icon={<Sparkles size={18} strokeWidth={2.2} />}
-                label="Section 6"
+                label="Section 4"
                 title="Adaptive Reinforcement Intelligence"
-                subtitle="Behavioral reinforcement effectiveness, intervention ranking, and preferred strategy performance over time."
+                subtitle="Performance data from 'reinforcement_metrics' table."
             >
                 <div className="clinical-section-grid clinical-section-grid--two-column">
                     <article className="clinical-panel clinical-panel--wide">
                         <div className="clinical-panel__header">
                             <div>
-                                <h3 className="clinical-panel__title">Behavioral Reinforcement Effectiveness</h3>
-                                <p className="clinical-panel__subtitle">Comparative performance of active reinforcement styles observed in structured interventions.</p>
+                                <h3 className="clinical-panel__title">Strategy Effectiveness</h3>
+                                <p className="clinical-panel__subtitle">Comparative performance from reinforcement_metrics.</p>
                             </div>
                         </div>
 
@@ -664,33 +568,24 @@ export default function ClinicalStudentSections({ record, visionData }) {
                     <article className="clinical-panel">
                         <div className="clinical-panel__header">
                             <div>
-                                <h3 className="clinical-panel__title">Preferred Intervention Strategy</h3>
-                                <p className="clinical-panel__subtitle">Primary reinforcement signal and strategy usage volume across recorded events.</p>
+                                <h3 className="clinical-panel__title">Preferred Pathway</h3>
+                                <p className="clinical-panel__subtitle">Top reinforcement style.</p>
                             </div>
                         </div>
 
                         <div className="reinforcement-summary">
                             <div className="reinforcement-summary__hero">
-                                <span className="reinforcement-summary__label">Best Performing Strategy</span>
+                                <span className="reinforcement-summary__label">Optimal Strategy</span>
                                 <span className="reinforcement-summary__value">{bestStrategy.label}</span>
                                 <span className="reinforcement-summary__caption">
-                                    Preferred style recorded as {formatStyleLabel(record.reinforcement_metrics.preferred_style)}
+                                    Based on {record.reinforcement_metrics.total_events} recorded events
                                 </span>
                             </div>
 
                             <div className="clinical-tiles-grid">
-                                <MetricTile label="Preferred Style" value={formatStyleLabel(record.reinforcement_metrics.preferred_style)} tone="green" />
                                 <MetricTile label="Total Events" value={record.reinforcement_metrics.total_events} />
+                                <MetricTile label="Style" value={bestStrategy.label} tone="green" />
                             </div>
-
-                            <ol className="reinforcement-ranking-list">
-                                {reinforcementRanking.map((entry) => (
-                                    <li key={entry.key} className="reinforcement-ranking-list__item">
-                                        <span>{entry.label}</span>
-                                        <span>{formatPercent(entry.score)}</span>
-                                    </li>
-                                ))}
-                            </ol>
                         </div>
                     </article>
                 </div>

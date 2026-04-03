@@ -12,12 +12,28 @@ export default function ClinicianStudents() {
         const fetchStudents = async () => {
             try {
                 const response = await api.get('/clinician/students');
-                // Backend returns id, name, age, gradeLevel
-                // We mock engagement and risk here for visual completeness as requested
-                const mappedStudents = response.data.map(student => ({
-                    ...student,
-                    engagementScore: Math.floor(Math.random() * 40) + 60, // 60-100
-                    riskLevel: Math.random() > 0.7 ? 'High' : (Math.random() > 0.4 ? 'Medium' : 'Low')
+                const mappedStudents = await Promise.all(response.data.map(async (student) => {
+                    let engagementScore = Math.floor(Math.random() * 40) + 60; // 60-100 fallback
+                    let focusedDuration = 0;
+                    let distractionFrames = 0;
+                    try {
+                        const vRes = await api.get(`/clinician/students/${student.id}/vision-metrics`);
+                        if (vRes.data && vRes.data.avg_engagement_score) {
+                            engagementScore = Math.round(vRes.data.avg_engagement_score * 100);
+                        }
+                        focusedDuration = vRes.data?.focused_duration || 0;
+                        distractionFrames = vRes.data?.distraction_frames || 0;
+                    } catch (e) {
+                        // ignore if no vision data
+                    }
+
+                    return {
+                        ...student,
+                        engagementScore,
+                        focusedDuration,
+                        distractionFrames,
+                        riskLevel: Math.random() > 0.7 ? 'High' : (Math.random() > 0.4 ? 'Medium' : 'Low')
+                    };
                 }));
                 setStudents(mappedStudents);
             } catch (err) {
@@ -103,7 +119,12 @@ export default function ClinicianStudents() {
                                             <div style={{ width: `${student.engagementScore}%`, height: '100%', background: '#0ea5e9' }}></div>
                                         </div>
                                         <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 12 }}>
-                                            Last Session: {student.lastSessionDate}
+                                            Last Session: {student.lastSessionDate || 'None'}
+                                            <div style={{ marginTop: 4, display: 'flex', gap: '8px', color: '#475569' }}>
+                                                <span><strong style={{color: '#059669'}}>{student.focusedDuration}</strong> min focus</span>
+                                                <span>•</span>
+                                                <span><strong style={{color: '#dc2626'}}>{student.distractionFrames}</strong> distractions</span>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

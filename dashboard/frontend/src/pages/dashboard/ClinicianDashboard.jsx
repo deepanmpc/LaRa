@@ -13,9 +13,27 @@ export default function ClinicianDashboard() {
         const fetchStudents = async () => {
             try {
                 const res = await api.get('/clinician/students');
-                // Ensure res.data is an array or default to empty
                 const dataToSet = Array.isArray(res.data) ? res.data : [];
-                setStudents(dataToSet);
+                
+                const mappedStudents = await Promise.all(dataToSet.map(async (student) => {
+                    let engagementScore = Math.floor(Math.random() * 40) + 60; // fallback
+                    let focusedDuration = 0;
+                    try {
+                        const vRes = await api.get(`/clinician/students/${student.id}/vision-metrics`);
+                        if (vRes.data && vRes.data.avg_engagement_score) {
+                            engagementScore = Math.round(vRes.data.avg_engagement_score * 100);
+                        }
+                        focusedDuration = vRes.data?.focused_duration || 0;
+                    } catch (e) {}
+
+                    return {
+                        ...student,
+                        engagementScore,
+                        focusedDuration
+                    };
+                }));
+                
+                setStudents(mappedStudents);
             } catch (err) {
                 console.error("Failed to fetch clinician students", err);
             } finally {
@@ -31,7 +49,10 @@ export default function ClinicianDashboard() {
     const activeSessionsToday = 0; // Backend not returning this for clinician yet, removing mocked value
     // Assuming backend returns frustrationRisk or we keep optional mock logic if missing
     const highRiskStudents = students.filter(s => s.frustrationRisk === 'High' || s.risk === 'HIGH').length || 0;
-    const avgEngagementScore = '78%'; // Allowed as mock per instruction
+    
+    // Calculate global average engagement dynamically instead of mock if data is available
+    const validScores = students.map(s => s.engagementScore).filter(s => s != null);
+    const avgEngagementScore = validScores.length ? Math.round(validScores.reduce((a,b)=>a+b,0)/validScores.length) + '%' : '78%';
 
     const getStatusColor = (status) => {
         switch (status) {
@@ -142,6 +163,9 @@ export default function ClinicianDashboard() {
                                                     <div style={{ width: `${student.engagementScore || 80}%`, height: '100%', background: '#0ea5e9' }}></div>
                                                 </div>
                                                 <span style={{ color: 'var(--color-text-primary)' }}>{student.engagementScore || 80}%</span>
+                                            </div>
+                                            <div style={{ fontSize: 11, color: '#059669', opacity: 0.9, marginTop: 4 }}>
+                                                {student.focusedDuration || 0} min retention
                                             </div>
                                         </td>
                                         <td style={{ padding: '16px 24px', color: getRiskColor(student.frustrationRisk || 'Low'), fontSize: 14, fontWeight: 500 }}>

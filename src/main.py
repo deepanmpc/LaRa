@@ -43,7 +43,7 @@ _session_lock = threading.Lock()
 _session_active = False
 _current_session = None
 
-def _start_pipeline():
+def _start_pipeline(child_id=None, session_uuid=None):
     """Fired by WS bridge on session_start. Runs in daemon thread named 'lara-pipeline'."""
     global _session_active, _current_session
     
@@ -53,8 +53,8 @@ def _start_pipeline():
             return
         _session_active = True
         
-    logging.info("[Main] session_start received — launching conversation loop")
-    print("\n[LaRa] Session started by UI ▶")
+    logging.info(f"[Main] session_start received for child {child_id} — launching conversation loop")
+    print(f"\n[LaRa] Session started for child {child_id} ▶")
 
     session_obj = None
     try:
@@ -64,6 +64,8 @@ def _start_pipeline():
         from src.vision.vision_bridge import VisionBridgeService
 
         session_obj = SessionState()
+        if child_id: session_obj.child_id = child_id
+        if session_uuid: session_obj.session_uuid = session_uuid
         _current_session = session_obj
 
         bridge = LaRaBridge.get()
@@ -85,6 +87,13 @@ def _start_pipeline():
         try:
             from src.vision.vision_bridge import VisionBridgeService
             vision = VisionBridgeService.get()
+            
+            if session_obj:
+                vision.flush_vision_analytics(
+                    child_id=session_obj.child_id,
+                    session_uuid=session_obj.session_uuid
+                )
+                
             vision.stop_polling()
             vision.stop_vision_service()
         except Exception:
@@ -148,6 +157,14 @@ def _stop_pipeline():
     try:
         from src.vision.vision_bridge import VisionBridgeService
         vision = VisionBridgeService.get()
+        
+        # Flush analytics if session is active
+        if _current_session:
+            vision.flush_vision_analytics(
+                child_id=_current_session.child_id,
+                session_uuid=_current_session.session_uuid
+            )
+            
         vision.stop_polling()
         vision.stop_vision_service()
     except Exception as e:
