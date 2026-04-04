@@ -6,6 +6,7 @@ import com.lara.dashboard.entity.ClinicianProfile;
 import com.lara.dashboard.entity.User;
 import com.lara.dashboard.repository.ChildRepository;
 import com.lara.dashboard.repository.ClinicianProfileRepository;
+import com.lara.dashboard.repository.SessionRepository;
 import com.lara.dashboard.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

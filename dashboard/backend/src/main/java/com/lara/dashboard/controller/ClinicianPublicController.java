@@ -24,7 +24,7 @@ public class ClinicianPublicController {
     @PreAuthorize("hasAnyAuthority('ROLE_FAMILY', 'ROLE_ADMIN')")
     public ResponseEntity<List<ClinicianSummaryDTO>> getApprovedClinicians() {
         List<ClinicianSummaryDTO> result = clinicianProfileRepository
-            .findAllByUser_Status(UserStatus.APPROVED)
+            .findByApprovalStatus("APPROVED")
             .stream()
             .map(p -> ClinicianSummaryDTO.builder()
                 .id(p.getId())
