@@ -118,6 +118,22 @@ public class ClinicianController {
         return ResponseEntity.ok(responses);
     }
 
+    @GetMapping("/approved")
+    @PreAuthorize("hasAnyAuthority('ROLE_FAMILY', 'ROLE_ADMIN')")
+    public ResponseEntity<List<com.lara.dashboard.dto.ClinicianSummaryDTO>> getApprovedClinicians() {
+        List<com.lara.dashboard.dto.ClinicianSummaryDTO> result = clinicianProfileRepository
+            .findByApprovalStatus("APPROVED")
+            .stream()
+            .map(p -> com.lara.dashboard.dto.ClinicianSummaryDTO.builder()
+                .id(p.getId())
+                .name(p.getUser() != null ? p.getUser().getName() : null)
+                .organization(p.getOrganization())
+                .specialization(p.getSpecialization())
+                .build())
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(result);
+    }
+
     private ChildResponse mapToResponse(Child child) {
         String lastSessionDate = sessionRepository.findTopByChild_IdOrderByEndTimeDesc(child.getId())
                 .map(s -> s.getEndTime() != null ? s.getEndTime().format(java.time.format.DateTimeFormatter.ofPattern("MMM dd, yyyy")) : "No sessions yet")

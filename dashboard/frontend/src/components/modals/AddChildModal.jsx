@@ -11,7 +11,7 @@ export default function AddChildModal({ isOpen, onClose, onAdd }) {
         if (!isOpen) return;
         
         setCliniciansLoading(true);
-        api.get('/clinicians/approved')
+        api.get('/clinician/approved')
             .then(res => setClinicians(res.data))
             .catch(() => setClinicians([]))
             .finally(() => setCliniciansLoading(false));
