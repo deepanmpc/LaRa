@@ -101,7 +101,7 @@ log "Starting Dashboard Backend (http://localhost:8080)…"
         export $(grep -v '^#' .env | xargs)
     fi
     export JAVA_HOME=$(java -XshowSettings:properties -version 2>&1 | grep "java.home" | awk '{print $3}')
-    mvn -q spring-boot:run
+    mvn clean spring-boot:run
 ) >> runtime/logs/backend.log 2>&1 &
 BACKEND_PID=$!
 PIDS+=($BACKEND_PID)
