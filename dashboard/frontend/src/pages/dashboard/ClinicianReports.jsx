@@ -1,9 +1,13 @@
+import { useState, useEffect } from 'react';
 import ClinicianSidebar from '../../components/dashboard/ClinicianSidebar';
 import ClinicalReportDownloads from '../../components/dashboard/ClinicalReportDownloads';
-import { clinicalStudentMock, getClinicalReports } from '../../data/clinicalStudentMock';
 
 export default function ClinicianReports() {
-    const reports = getClinicalReports(clinicalStudentMock);
+    const [reports, setReports] = useState([]);
+
+    // Note: In Task 14 we integrated real session data, but a dedicated 
+    // clinical reports aggregation endpoint hasn't been built yet.
+    // Setting to empty array for now to fix the break.
 
     return (
         <div className="dashboard-layout" style={{ background: 'var(--color-bg)', minHeight: '100vh', display: 'flex' }}>

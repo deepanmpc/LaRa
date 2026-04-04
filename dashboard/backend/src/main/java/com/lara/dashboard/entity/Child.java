@@ -25,6 +25,13 @@ public class Child {
     @JoinColumn(name = "parent_id", nullable = false)
     private User parent;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "clinician_id", nullable = true)
+    private ClinicianProfile clinician;
+
+    @OneToMany(mappedBy = "child", cascade = CascadeType.ALL, orphanRemoval = true)
+    private java.util.List<Session> sessions;
+
     @Column(nullable = false)
     private String name;
 

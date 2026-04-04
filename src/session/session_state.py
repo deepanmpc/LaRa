@@ -25,6 +25,7 @@ import json
 import os
 import threading
 from dataclasses import dataclass, field, fields
+from typing import Optional, List, Dict
 
 
 # Configuration access
@@ -61,6 +62,8 @@ class SessionState:
     Auto-expires after 24 hours. Never persists emotional narratives.
     """
     session_id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
+    session_uuid: str = field(default_factory=lambda: str(uuid.uuid4()))
+    child_id: Optional[int] = None
     created_at: float = field(default_factory=time.time)
     
     # Turn tracking

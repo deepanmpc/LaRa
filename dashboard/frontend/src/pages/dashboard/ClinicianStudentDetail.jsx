@@ -3,12 +3,13 @@ import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../services/api';
 import ClinicianSidebar from '../../components/dashboard/ClinicianSidebar';
 import ClinicalStudentSections from '../../components/dashboard/ClinicalStudentSections';
-import { getSeededMock } from '../../data/clinicalStudentMock';
 
 export default function ClinicianStudentDetail() {
     const navigate = useNavigate();
     const { id } = useParams();
     const [student, setStudent] = useState(null);
+    const [visionData, setVisionData] = useState(null);
+    const [record, setRecord] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
 
@@ -18,6 +19,31 @@ export default function ClinicianStudentDetail() {
                 const response = await api.get(`/clinician/students/${id}`);
                 setStudent(response.data);
                 setError(false);
+                
+                try {
+                    const visionRes = await api.get(`/clinician/students/${id}/vision-metrics`);
+                    setVisionData(visionRes.data);
+                } catch (vErr) {
+                    console.log('No vision metrics available:', vErr);
+                }
+
+                try {
+                    const dashboardRes = await api.get(`/family/dashboard/${id}`);
+                    setRecord(dashboardRes.data);
+                } catch (dErr) {
+                    console.log('No dashboard metrics available:', dErr);
+                    // Fallback empty record structure to prevent crashes
+                    setRecord({
+                        childProfile: {},
+                        sessionSummary: {},
+                        emotionalMetrics: {
+                            frustration_count: 0,
+                            recovery_count: 0,
+                            neutral_stability_count: 0
+                        },
+                        engagementMetrics: {}
+                    });
+                }
             } catch (err) {
                 console.error('Failed to fetch student:', err);
                 setError(true);
@@ -39,10 +65,10 @@ export default function ClinicianStudentDetail() {
         );
     }
 
-    if (error || !student) {
+    if (error || !student || !record) {
         return (
             <div className="dashboard-layout" style={{ background: 'var(--color-bg)', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                <p style={{ marginBottom: 16 }}>Student not found.</p>
+                <p style={{ marginBottom: 16 }}>{(!student || !record) ? "Student or data not found." : "Loading..."}</p>
                 <button 
                     className="btn-primary" 
                     style={{ width: 'auto', padding: '10px 20px' }} 
@@ -53,8 +79,6 @@ export default function ClinicianStudentDetail() {
             </div>
         );
     }
-
-    const record = getSeededMock(id, student);
 
     return (
         <div className="dashboard-layout" style={{ background: 'var(--color-bg)', minHeight: '100vh', display: 'flex' }}>
@@ -85,7 +109,7 @@ export default function ClinicianStudentDetail() {
                         </div>
                     </header>
 
-                    <ClinicalStudentSections record={record} />
+                    <ClinicalStudentSections record={record} visionData={visionData} />
                 </div>
             </main>
         </div>

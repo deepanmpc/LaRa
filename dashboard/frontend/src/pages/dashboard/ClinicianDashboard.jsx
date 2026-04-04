@@ -13,9 +13,28 @@ export default function ClinicianDashboard() {
         const fetchStudents = async () => {
             try {
                 const res = await api.get('/clinician/students');
-                // Ensure res.data is an array or default to empty
                 const dataToSet = Array.isArray(res.data) ? res.data : [];
-                setStudents(dataToSet);
+                
+                const mappedStudents = await Promise.all(dataToSet.map(async (student) => {
+                    let engagementScore = null;
+                    let focusedDuration = 0;
+                    try {
+                        const vRes = await api.get(`/clinician/students/${student.id}/vision-metrics`);
+                        if (vRes.data && vRes.data.avg_engagement_score) {
+                            engagementScore = Math.round(vRes.data.avg_engagement_score * 100);
+                        }
+                        focusedDuration = vRes.data?.focused_duration || 0;
+                    } catch (e) {}
+
+                    return {
+                        ...student,
+                        // Only add computed fields if the backend actually returns them
+                        ...(engagementScore !== null && { engagementScore }),
+                        focusedDuration
+                    };
+                }));
+                
+                setStudents(mappedStudents);
             } catch (err) {
                 console.error("Failed to fetch clinician students", err);
             } finally {
@@ -28,28 +47,6 @@ export default function ClinicianDashboard() {
 
     // Compute metrics
     const totalStudents = students.length;
-    const activeSessionsToday = 0; // Backend not returning this for clinician yet, removing mocked value
-    // Assuming backend returns frustrationRisk or we keep optional mock logic if missing
-    const highRiskStudents = students.filter(s => s.frustrationRisk === 'High' || s.risk === 'HIGH').length || 0;
-    const avgEngagementScore = '78%'; // Allowed as mock per instruction
-
-    const getStatusColor = (status) => {
-        switch (status) {
-            case 'Stable': return { bg: '#e0f2fe', text: '#0369a1' };
-            case 'Improving': return { bg: '#ecfdf5', text: '#059669' };
-            case 'Needs Attention': return { bg: '#fef2f2', text: '#dc2626' };
-            default: return { bg: '#f1f5f9', text: '#475569' };
-        }
-    };
-
-    const getRiskColor = (risk) => {
-        switch (risk) {
-            case 'Low': return '#059669';
-            case 'Medium': return '#d97706';
-            case 'High': return '#dc2626';
-            default: return '#475569';
-        }
-    };
 
     if (loading) {
         return (
@@ -78,18 +75,6 @@ export default function ClinicianDashboard() {
                         <span style={{ color: 'var(--color-text-muted)', fontSize: 14, fontWeight: 500 }}>Total Students</span>
                         <span style={{ fontSize: 32, fontWeight: 700, color: 'var(--color-text-primary)', marginTop: 8 }}>{totalStudents}</span>
                     </div>
-                    <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ color: 'var(--color-text-muted)', fontSize: 14, fontWeight: 500 }}>Active Sessions Today</span>
-                        <span style={{ fontSize: 32, fontWeight: 700, color: 'var(--color-text-primary)', marginTop: 8 }}>{activeSessionsToday}</span>
-                    </div>
-                    <div className="card" style={{ display: 'flex', flexDirection: 'column', borderLeft: '4px solid #ef4444' }}>
-                        <span style={{ color: 'var(--color-text-muted)', fontSize: 14, fontWeight: 500 }}>High Risk Students</span>
-                        <span style={{ fontSize: 32, fontWeight: 700, color: '#ef4444', marginTop: 8 }}>{highRiskStudents}</span>
-                    </div>
-                    <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ color: 'var(--color-text-muted)', fontSize: 14, fontWeight: 500 }}>Avg Engagement Score</span>
-                        <span style={{ fontSize: 32, fontWeight: 700, color: '#0ea5e9', marginTop: 8 }}>{avgEngagementScore}</span>
-                    </div>
                 </div>
 
                 {/* 2. Student Monitoring Table */}
@@ -111,10 +96,8 @@ export default function ClinicianDashboard() {
                                 <tr style={{ borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-muted)', fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                     <th style={{ padding: '16px 24px', fontWeight: 600 }}>Student Name</th>
                                     <th style={{ padding: '16px 24px', fontWeight: 600 }}>Age</th>
+                                    <th style={{ padding: '16px 24px', fontWeight: 600 }}>Grade Level</th>
                                     <th style={{ padding: '16px 24px', fontWeight: 600 }}>Last Session</th>
-                                    <th style={{ padding: '16px 24px', fontWeight: 600 }}>Engagement</th>
-                                    <th style={{ padding: '16px 24px', fontWeight: 600 }}>Frustration Risk</th>
-                                    <th style={{ padding: '16px 24px', fontWeight: 600 }}>Status</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -135,30 +118,8 @@ export default function ClinicianDashboard() {
                                             </div>
                                         </td>
                                         <td style={{ padding: '16px 24px', color: 'var(--color-text-muted)', fontSize: 14 }}>{student.age}</td>
+                                        <td style={{ padding: '16px 24px', color: 'var(--color-text-muted)', fontSize: 14 }}>{student.gradeLevel || 'N/A'}</td>
                                         <td style={{ padding: '16px 24px', color: 'var(--color-text-muted)', fontSize: 14 }}>{student.lastSessionDate || 'No sessions'}</td>
-                                        <td style={{ padding: '16px 24px', fontSize: 14 }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                <div style={{ width: 60, height: 6, background: '#f1f5f9', borderRadius: 3, overflow: 'hidden' }}>
-                                                    <div style={{ width: `${student.engagementScore || 80}%`, height: '100%', background: '#0ea5e9' }}></div>
-                                                </div>
-                                                <span style={{ color: 'var(--color-text-primary)' }}>{student.engagementScore || 80}%</span>
-                                            </div>
-                                        </td>
-                                        <td style={{ padding: '16px 24px', color: getRiskColor(student.frustrationRisk || 'Low'), fontSize: 14, fontWeight: 500 }}>
-                                            {student.frustrationRisk || 'Low'}
-                                        </td>
-                                        <td style={{ padding: '16px 24px' }}>
-                                            <span style={{
-                                                background: getStatusColor(student.status || 'Stable').bg,
-                                                color: getStatusColor(student.status || 'Stable').text,
-                                                padding: '4px 10px',
-                                                borderRadius: 12,
-                                                fontSize: 12,
-                                                fontWeight: 600
-                                            }}>
-                                                {student.status || 'Stable'}
-                                            </span>
-                                        </td>
                                     </tr>
                                 ))}
                                 {students.length === 0 && (

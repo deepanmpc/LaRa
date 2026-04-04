@@ -26,19 +26,22 @@ public class AdminService {
     private final ChildRepository childRepository;
     private final ActivityLogService activityLogService;
     private final com.lara.dashboard.repository.ActivityLogRepository activityLogRepository;
+    private final com.lara.dashboard.repository.SessionRepository sessionRepository;
 
     public AdminService(
         UserRepository userRepository,
         ClinicianProfileRepository clinicianProfileRepository,
         ChildRepository childRepository,
         ActivityLogService activityLogService,
-        com.lara.dashboard.repository.ActivityLogRepository activityLogRepository
+        com.lara.dashboard.repository.ActivityLogRepository activityLogRepository,
+        com.lara.dashboard.repository.SessionRepository sessionRepository
     ) {
         this.userRepository = userRepository;
         this.clinicianProfileRepository = clinicianProfileRepository;
         this.childRepository = childRepository;
         this.activityLogService = activityLogService;
         this.activityLogRepository = activityLogRepository;
+        this.sessionRepository = sessionRepository;
     }
 
     public List<com.lara.dashboard.entity.ActivityLog> getLogs() {
@@ -66,7 +69,9 @@ public class AdminService {
                         .name(child.getName())
                         .age(child.getAge())
                         .gradeLevel(child.getGradeLevel())
-                        .lastSessionDate("Mock Data")
+                        .lastSessionDate(sessionRepository.findTopByChild_IdOrderByEndTimeDesc(child.getId())
+                                .map(s -> s.getEndTime() != null ? s.getEndTime().format(java.time.format.DateTimeFormatter.ofPattern("MMM dd, yyyy")) : "No sessions")
+                                .orElse("No sessions"))
                         .build())
                 .collect(Collectors.toList());
     }
@@ -78,7 +83,7 @@ public class AdminService {
         Map<String, Object> metrics = new HashMap<>();
         metrics.put("totalUsers", totalUsers);
         metrics.put("totalChildren", totalChildren);
-        metrics.put("activeSessions", 0L); // Defaulting to 0 instead of mock value
+        metrics.put("activeSessions", sessionRepository.countByStatus(com.lara.dashboard.enums.SessionStatus.IN_PROGRESS));
         metrics.put("systemHealth", "GOOD");
         return metrics;
     }
