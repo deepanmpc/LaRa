@@ -11,9 +11,8 @@ import java.util.Map;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class FamilyDashboardResponse {
-    private Map<String, Object> childProfile;
-    private Map<String, Object> sessionSummary;
-    private Map<String, Object> emotionalMetrics;
-    private Map<String, Object> engagementMetrics;
+    private ChildProfileDTO childProfile;
+    private SessionSummaryDTO sessionSummary;
+    private EmotionalSummaryDTO emotionalMetrics;
+    private EngagementSummaryDTO engagementMetrics;
 }

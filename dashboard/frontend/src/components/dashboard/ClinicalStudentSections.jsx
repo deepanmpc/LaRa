@@ -7,12 +7,36 @@ import {
     Sparkles,
     Tags
 } from 'lucide-react';
-import {
-    formatPercent,
-    formatStyleLabel,
-    getReinforcementRanking,
-    getStabilityIndex
-} from '../../data/clinicalStudentMock';
+export function formatPercent(value) {
+    return `${Math.round(value * 100)}%`;
+}
+
+export function formatStyleLabel(style) {
+    if (!style) return 'None';
+    return style
+        .split('_')
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ');
+}
+
+export function getStabilityIndex(data) {
+    // Map from new DTO: overallMoodScore or stability. Safely falling back if undefined.
+    if (!data) return 0;
+    return data.emotionStability || data.overallMoodScore || 0;
+}
+
+export function getReinforcementRanking(data) {
+    if (!data) return [{ key: 'none', label: 'None Available', score: 0 }];
+    return [
+        { key: 'primary', score: data.focusScore || 0 },
+        { key: 'secondary', score: data.collaborationScore || 0 },
+    ]
+        .map((item) => ({
+            ...item,
+            label: formatStyleLabel(item.key)
+        }))
+        .sort((left, right) => right.score - left.score);
+}
 
 function clamp(value, min, max) {
     return Math.min(Math.max(value, min), max);

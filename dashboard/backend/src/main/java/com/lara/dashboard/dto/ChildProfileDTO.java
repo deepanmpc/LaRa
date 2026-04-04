@@ -9,13 +9,12 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ChildResponse {
-    private Long id;
+public class ChildProfileDTO {
     private String name;
     private Integer age;
     private String gradeLevel;
-    private String lastSessionDate;
-    private Long clinicianId;
-    private String clinicianName;
-    private String clinicianOrganization;
+    private String therapistAssigned;
+    private String currentFocus;
+    private String lastSessionTime;
+    private String statusBadge;
 }

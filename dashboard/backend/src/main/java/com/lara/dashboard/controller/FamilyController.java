@@ -1,7 +1,7 @@
 package com.lara.dashboard.controller;
 
 import com.lara.dashboard.dto.FamilyDashboardResponse;
-import com.lara.dashboard.service.MockFamilyDashboardService;
+import com.lara.dashboard.service.FamilyDashboardService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class FamilyController {
 
-    private final MockFamilyDashboardService dashboardService;
+    private final FamilyDashboardService dashboardService;
     private final com.lara.dashboard.service.SessionService sessionService;
 
     @GetMapping({"/dashboard", "/dashboard/{childId}"})
