@@ -56,7 +56,7 @@ public class ClinicianController {
         User clinician = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        List<Child> children = childRepository.findByClinicianId(clinician.getId());
+        List<Child> children = childRepository.findByClinicianUserId(clinician.getId());
         
         List<ChildResponse> responses = children.stream()
                 .map(child -> ChildResponse.builder()
@@ -82,7 +82,7 @@ public class ClinicianController {
                 .orElseThrow(() -> new RuntimeException("Child not found"));
 
         // Access check
-        if (child.getClinician() == null || !child.getClinician().getId().equals(clinician.getId())) {
+        if (child.getClinician() == null || !child.getClinician().getUser().getId().equals(clinician.getId())) {
             throw new RuntimeException("Unauthorized: This student is not assigned to you.");
         }
 

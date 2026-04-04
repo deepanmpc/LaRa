@@ -26,8 +26,8 @@ public class Child {
     private User parent;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "clinician_id")
-    private User clinician;
+    @JoinColumn(name = "clinician_id", nullable = true)
+    private ClinicianProfile clinician;
 
     @Column(nullable = false)
     private String name;

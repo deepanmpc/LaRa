@@ -9,5 +9,6 @@ import java.util.List;
 @Repository
 public interface ChildRepository extends JpaRepository<Child, Long> {
     List<Child> findByParentId(Long parentId);
+    List<Child> findByClinicianUserId(Long clinicianUserId);
     List<Child> findByClinicianId(Long clinicianId);
 }
