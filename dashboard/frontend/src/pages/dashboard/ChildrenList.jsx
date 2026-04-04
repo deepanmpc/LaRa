@@ -25,15 +25,26 @@ export default function ChildrenList() {
         fetchChildren();
     }, []);
 
+    const handleDeleteChild = async (id, name) => {
+        if (!window.confirm(`Are you sure you want to delete the profile for ${name}?`)) return;
+        
+        try {
+            await api.delete(`/children/${id}`);
+            await fetchChildren();
+        } catch (err) {
+            console.error('Failed to delete child', err);
+            alert('Failed to delete child profile.');
+        }
+    };
+
     const handleAddChild = async (childData) => {
         try {
             await api.post('/children', childData);
             await fetchChildren();
         } catch (err) {
             console.error('Failed to add child', err);
-            // Show error to user — do not silently mock success
             alert(err.response?.data?.error || 'Failed to add child. Please try again.');
-            throw err; // Propagate to modal to keep it open or show error
+            throw err;
         }
     };
 
@@ -57,7 +68,10 @@ export default function ChildrenList() {
                 ) : (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 24 }}>
                         {children.map(child => (
-                            <ChildCard key={child.id} child={child} />
+                            <ChildCard 
+                                key={child.id} 
+                                child={{...child, onDelete: handleDeleteChild }} 
+                            />
                         ))}
                         <AddChildCard onClick={() => setIsModalOpen(true)} />
                     </div>

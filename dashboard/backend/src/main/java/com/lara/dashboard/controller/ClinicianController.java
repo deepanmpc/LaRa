@@ -119,14 +119,18 @@ public class ClinicianController {
     }
 
     @GetMapping("/approved")
-    @PreAuthorize("hasAnyAuthority('ROLE_FAMILY', 'ROLE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_FAMILY', 'ROLE_ADMIN', 'ROLE_CLINICIAN')")
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public ResponseEntity<List<com.lara.dashboard.dto.ClinicianSummaryDTO>> getApprovedClinicians() {
-        List<com.lara.dashboard.dto.ClinicianSummaryDTO> result = clinicianProfileRepository
-            .findByApprovalStatus("APPROVED")
-            .stream()
+        // Use a more explicit query to avoid any hidden status filtering
+        List<ClinicianProfile> profiles = clinicianProfileRepository.findByApprovalStatus("APPROVED");
+        
+        System.out.println("DEBUG: Found " + profiles.size() + " approved clinician profiles");
+
+        List<com.lara.dashboard.dto.ClinicianSummaryDTO> result = profiles.stream()
             .map(p -> com.lara.dashboard.dto.ClinicianSummaryDTO.builder()
                 .id(p.getId())
-                .name(p.getUser() != null ? p.getUser().getName() : null)
+                .name(p.getUser() != null ? p.getUser().getName() : "Unknown Clinician")
                 .organization(p.getOrganization())
                 .specialization(p.getSpecialization())
                 .build())

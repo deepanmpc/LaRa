@@ -29,6 +29,7 @@ public class ChildController {
     private final UserRepository userRepository;
     private final ClinicianProfileRepository clinicianProfileRepository;
     private final SessionRepository sessionRepository;
+    private final com.lara.dashboard.repository.VisionSessionRepository visionSessionRepository;
     private final ActivityLogService activityLogService;
 
     @GetMapping("/clinicians")
@@ -91,6 +92,7 @@ public class ChildController {
     }
 
     @DeleteMapping("/{id}")
+    @org.springframework.transaction.annotation.Transactional
     public ResponseEntity<?> deleteChild(@PathVariable Long id, Authentication authentication) {
         String email = authentication.getName();
         User parent = userRepository.findByEmail(email)
@@ -103,7 +105,12 @@ public class ChildController {
             return ResponseEntity.status(403).body("Unauthorized to delete this child");
         }
 
+        // Clean up unmapped references manually
+        visionSessionRepository.deleteByChildId(child.getId());
+
+        // Delete the child (sessions will be deleted via CascadeType.ALL in Child.java)
         childRepository.delete(child);
+        
         activityLogService.log("Child profile deleted: " + child.getName() + " by " + parent.getName());
         return ResponseEntity.ok().build();
     }

@@ -11,4 +11,5 @@ import java.util.Optional;
 public interface VisionSessionRepository extends JpaRepository<VisionSession, Long> {
     List<VisionSession> findByChildIdOrderByStartedAtDesc(Long childId);
     Optional<VisionSession> findFirstByChildIdOrderByStartedAtDesc(Long childId);
+    void deleteByChildId(Long childId);
 }

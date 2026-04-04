@@ -10,10 +10,17 @@ export default function AddChildModal({ isOpen, onClose, onAdd }) {
     useEffect(() => {
         if (!isOpen) return;
         
+        console.log('Fetching approved clinicians from /clinician/approved...');
         setCliniciansLoading(true);
         api.get('/clinician/approved')
-            .then(res => setClinicians(res.data))
-            .catch(() => setClinicians([]))
+            .then(res => {
+                console.log('Clinicians fetched successfully:', res.data);
+                setClinicians(res.data);
+            })
+            .catch(err => {
+                console.error('Failed to fetch clinicians:', err.response || err);
+                setClinicians([]);
+            })
             .finally(() => setCliniciansLoading(false));
     }, [isOpen]);
 
