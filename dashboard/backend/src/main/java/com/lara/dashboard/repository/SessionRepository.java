@@ -9,4 +9,5 @@ import java.util.Optional;
 public interface SessionRepository extends JpaRepository<Session, Long> {
     Optional<Session> findBySessionId(String sessionId);
     java.util.List<Session> findAllByChild_Id(Long childId);
+    java.util.List<Session> findByChild_Clinician_Id(Long clinicianId);
 }

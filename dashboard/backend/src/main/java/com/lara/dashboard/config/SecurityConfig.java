@@ -43,6 +43,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
+                        .requestMatchers("/api/clinician/list-clinicians").hasAnyAuthority("ROLE_FAMILY", "ROLE_CLINICIAN")
                         .requestMatchers("/api/children/**").hasAnyAuthority("ROLE_FAMILY", "ROLE_CLINICIAN")
                         .requestMatchers("/api/family/**").hasAuthority("ROLE_FAMILY")
                         .requestMatchers("/api/clinician/**").hasAuthority("ROLE_CLINICIAN")

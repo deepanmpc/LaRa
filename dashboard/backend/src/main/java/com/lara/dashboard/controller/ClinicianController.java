@@ -51,9 +51,12 @@ public class ClinicianController {
 
     @GetMapping("/students")
     @PreAuthorize("hasAuthority('ROLE_CLINICIAN')")
-    public ResponseEntity<List<ChildResponse>> getAllStudents() {
-        // Fetch all children for clinician view
-        List<Child> children = childRepository.findAll();
+    public ResponseEntity<List<ChildResponse>> getAllStudents(Authentication authentication) {
+        String email = authentication.getName();
+        User clinician = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        List<Child> children = childRepository.findByClinicianId(clinician.getId());
         
         List<ChildResponse> responses = children.stream()
                 .map(child -> ChildResponse.builder()
@@ -70,9 +73,18 @@ public class ClinicianController {
 
     @GetMapping("/students/{id}")
     @PreAuthorize("hasAuthority('ROLE_CLINICIAN')")
-    public ResponseEntity<ChildResponse> getStudentById(@PathVariable Long id) {
+    public ResponseEntity<ChildResponse> getStudentById(@PathVariable Long id, Authentication authentication) {
+        String email = authentication.getName();
+        User clinician = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
         Child child = childRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Child not found"));
+
+        // Access check
+        if (child.getClinician() == null || !child.getClinician().getId().equals(clinician.getId())) {
+            throw new RuntimeException("Unauthorized: This student is not assigned to you.");
+        }
 
         ChildResponse response = ChildResponse.builder()
                 .id(child.getId())
@@ -86,7 +98,25 @@ public class ClinicianController {
     }
     @GetMapping("/sessions")
     @PreAuthorize("hasAuthority('ROLE_CLINICIAN')")
-    public ResponseEntity<List<com.lara.dashboard.dto.SessionResponse>> getSessions() {
-        return ResponseEntity.ok(clinicianService.getAllSessions());
+    public ResponseEntity<List<com.lara.dashboard.dto.SessionResponse>> getSessions(Authentication authentication) {
+        String email = authentication.getName();
+        User clinician = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        return ResponseEntity.ok(clinicianService.getAllSessions(clinician.getId()));
+    }
+
+    @GetMapping("/list-clinicians")
+    public ResponseEntity<List<Map<String, Object>>> getClinicianList() {
+        // Find by approvalStatus column in clinician_profiles table
+        List<ClinicianProfile> approvedProfiles = clinicianProfileRepository.findByApprovalStatus("APPROVED");
+        
+        List<Map<String, Object>> responses = approvedProfiles.stream()
+                .map(cp -> Map.of(
+                    "id", (Object)cp.getUser().getId(), 
+                    "name", (Object)cp.getUser().getName()
+                ))
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(responses);
     }
 }

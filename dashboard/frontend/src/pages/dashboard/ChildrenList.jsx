@@ -30,14 +30,9 @@ export default function ChildrenList() {
             await api.post('/children', childData);
             await fetchChildren();
         } catch (err) {
-            console.warn('API Add failed, mocking success', err);
-            // Mock adding locally if backend isn't ready
-            const newChild = {
-                id: Math.random().toString(36).substr(2, 9),
-                ...childData,
-                lastSessionDate: 'Never'
-            };
-            setChildren(prev => [...prev, newChild]);
+            console.error('Failed to add child to database:', err);
+            alert('Error: Could not save child to database. Please check if the backend is running.');
+            throw err; // Propagate to modal to keep it open or show error
         }
     };
 

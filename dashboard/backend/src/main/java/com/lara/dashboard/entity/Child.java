@@ -25,6 +25,10 @@ public class Child {
     @JoinColumn(name = "parent_id", nullable = false)
     private User parent;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "clinician_id")
+    private User clinician;
+
     @Column(nullable = false)
     private String name;
 

@@ -45,10 +45,12 @@ public class MockFamilyDashboardService {
             profile.put("name", child.getName());
             profile.put("age", child.getAge());
             profile.put("gradeLevel", child.getGradeLevel());
+            profile.put("therapistAssigned", child.getClinician() != null ? child.getClinician().getName() : "None Assigned");
         } else {
             profile.put("name", "Unknown Child");
             profile.put("age", 0);
             profile.put("gradeLevel", "N/A");
+            profile.put("therapistAssigned", "None Assigned");
         }
         
         String[] focuses = {"Reading Comprehension", "Math Basics", "Social Scenarios", "Vocabulary"};
@@ -57,7 +59,6 @@ public class MockFamilyDashboardService {
         profile.put("currentFocus", focuses[random.nextInt(focuses.length)]);
         profile.put("lastSessionTime", "Today, 2:30 PM"); // Mock
         profile.put("statusBadge", badges[random.nextInt(badges.length)]);
-        profile.put("therapistAssigned", "Dr. Sarah Mitchell");
         return profile;
     }
 

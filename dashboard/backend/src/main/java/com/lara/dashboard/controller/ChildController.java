@@ -21,7 +21,24 @@ public class ChildController {
 
     private final ChildRepository childRepository;
     private final UserRepository userRepository;
+    private final com.lara.dashboard.repository.ClinicianProfileRepository clinicianProfileRepository;
     private final com.lara.dashboard.service.ActivityLogService activityLogService;
+
+    @GetMapping("/clinicians")
+    public ResponseEntity<List<java.util.Map<String, Object>>> getClinicianList() {
+        // Fetch approved clinicians from profiles table
+        List<com.lara.dashboard.entity.ClinicianProfile> approvedProfiles = clinicianProfileRepository.findByApprovalStatus("APPROVED");
+        
+        List<java.util.Map<String, Object>> responses = approvedProfiles.stream()
+                .filter(cp -> cp.getUser() != null)
+                .map(cp -> java.util.Map.of(
+                    "id", (Object)cp.getUser().getId(), 
+                    "name", (Object)cp.getUser().getName()
+                ))
+                .collect(java.util.stream.Collectors.toList());
+
+        return ResponseEntity.ok(responses);
+    }
 
     @PostMapping
     public ResponseEntity<ChildResponse> createChild(@RequestBody ChildRequest request, Authentication authentication) {
@@ -29,11 +46,18 @@ public class ChildController {
         User parent = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
+        User clinician = null;
+        if (request.getClinicianId() != null) {
+            clinician = userRepository.findById(request.getClinicianId())
+                    .orElse(null);
+        }
+
         Child child = Child.builder()
                 .name(request.getName())
                 .age(request.getAge())
                 .gradeLevel(request.getGradeLevel())
                 .parent(parent)
+                .clinician(clinician)
                 .build();
 
         Child savedChild = childRepository.save(child);

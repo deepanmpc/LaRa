@@ -15,8 +15,8 @@ public class ClinicianService {
 
     private final SessionRepository sessionRepository;
 
-    public List<SessionResponse> getAllSessions() {
-        return sessionRepository.findAll()
+    public List<SessionResponse> getAllSessions(Long clinicianId) {
+        return sessionRepository.findByChild_Clinician_Id(clinicianId)
             .stream()
             // Ensure only sessions that have an explicit child mapped from DB are correctly formatted 
             .map(this::mapToResponse)
