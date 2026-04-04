@@ -9,6 +9,7 @@ export default function ChildrenList() {
     const [children, setChildren] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingChild, setEditingChild] = useState(null);
 
     const fetchChildren = async () => {
         try {
@@ -37,15 +38,31 @@ export default function ChildrenList() {
         }
     };
 
-    const handleAddChild = async (childData) => {
+    const handleEditChild = (child) => {
+        setEditingChild(child);
+        setIsModalOpen(true);
+    };
+
+    const handleAddOrUpdateChild = async (childData) => {
         try {
-            await api.post('/children', childData);
+            if (childData.id) {
+                // Update existing
+                await api.put(`/children/${childData.id}`, childData);
+            } else {
+                // Create new
+                await api.post('/children', childData);
+            }
             await fetchChildren();
         } catch (err) {
-            console.error('Failed to add child', err);
-            alert(err.response?.data?.error || 'Failed to add child. Please try again.');
+            console.error('Failed to save child', err);
+            alert(err.response?.data?.error || 'Failed to save child profile. Please try again.');
             throw err;
         }
+    };
+
+    const handleCloseModal = () => {
+        setIsModalOpen(false);
+        setEditingChild(null);
     };
 
     return (
@@ -70,7 +87,7 @@ export default function ChildrenList() {
                         {children.map(child => (
                             <ChildCard 
                                 key={child.id} 
-                                child={{...child, onDelete: handleDeleteChild }} 
+                                child={{...child, onDelete: handleDeleteChild, onEdit: handleEditChild }} 
                             />
                         ))}
                         <AddChildCard onClick={() => setIsModalOpen(true)} />
@@ -80,8 +97,9 @@ export default function ChildrenList() {
 
             <AddChildModal
                 isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                onAdd={handleAddChild}
+                onClose={handleCloseModal}
+                onAdd={handleAddOrUpdateChild}
+                childToEdit={editingChild}
             />
         </div>
     );
