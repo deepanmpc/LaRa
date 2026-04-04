@@ -43,7 +43,7 @@ _session_lock = threading.Lock()
 _session_active = False
 _current_session = None
 
-def _start_pipeline():
+def _start_pipeline(child_id=None, session_uuid=None):
     """Fired by WS bridge on session_start. Runs in daemon thread named 'lara-pipeline'."""
     global _session_active, _current_session
     
@@ -53,8 +53,8 @@ def _start_pipeline():
             return
         _session_active = True
         
-    logging.info("[Main] session_start received — launching conversation loop")
-    print("\n[LaRa] Session started by UI ▶")
+    logging.info(f"[Main] session_start received for child {child_id} — launching conversation loop")
+    print(f"\n[LaRa] Session started for child {child_id} ▶")
 
     session_obj = None
     try:
@@ -64,7 +64,31 @@ def _start_pipeline():
         from src.vision.vision_bridge import VisionBridgeService
 
         session_obj = SessionState()
+        if child_id: session_obj.child_id = child_id
+        if session_uuid: session_obj.session_uuid = session_uuid
         _current_session = session_obj
+
+        # Step 3 — SQL Session Start
+        try:
+            from src.persistence.session_db_sync import SessionDBSync
+            from src.core.config_loader import CONFIG
+            
+            # Use child_id from config if not provided
+            if not getattr(session_obj, 'child_id', None):
+                session_obj.child_id = CONFIG.get("dashboard", {}).get("child_id", 1)
+            
+            db_sync = SessionDBSync.get()
+            db_id, child_id_hashed = db_sync.session_start(
+                session_uuid=session_obj.session_uuid,
+                child_id=session_obj.child_id
+            )
+            session_obj.session_db_id = db_id
+            session_obj.child_id_hashed = child_id_hashed
+            logging.info(f"[Main] SQL Session Start successful: DB ID={db_id}, HashedID={child_id_hashed}")
+        except ImportError:
+            logging.error("[Main] SQL Session Start failed: mysql-connector-python not installed.")
+        except Exception as e:
+            logging.error(f"[Main] SQL Session Start failed: {e}")
 
         bridge = LaRaBridge.get()
         vision = VisionBridgeService.get()
@@ -85,6 +109,13 @@ def _start_pipeline():
         try:
             from src.vision.vision_bridge import VisionBridgeService
             vision = VisionBridgeService.get()
+            
+            if session_obj:
+                vision.flush_vision_analytics(
+                    child_id=session_obj.child_id,
+                    session_uuid=session_obj.session_uuid
+                )
+                
             vision.stop_polling()
             vision.stop_vision_service()
         except Exception:
@@ -96,6 +127,38 @@ def _start_pipeline():
                 session_obj.flush_to_disk()
             except Exception as e:
                 logging.warning(f"[Main] Session flush failed: {e}")
+
+        # Step 5 to 12 — SQL Session End & Aggregates
+        if session_obj is not None and getattr(session_obj, 'session_db_id', None):
+            try:
+                from src.persistence.session_db_sync import SessionDBSync
+                db_sync = SessionDBSync.get()
+                final_stats = session_obj.get_final_stats()
+                db_sync.session_end(
+                    session_id=session_obj.session_db_id,
+                    session_uuid=session_obj.session_uuid,
+                    child_id=session_obj.child_id,
+                    final_stats=final_stats
+                )
+                logging.info(f"[Main] SQL Session End successful for DB ID={session_obj.session_db_id}")
+            except Exception as e:
+                logging.error(f"[Main] SQL Session End failed: {e}")
+
+        # ── Report session to Dashboard API ──
+        if session_obj is not None:
+            try:
+                dashboard_cfg = CONFIG.get("dashboard", {})
+                if dashboard_cfg.get("enabled", False):
+                    from src.bridge.dashboard_reporter import build_session_payload, report_session_to_dashboard
+                    
+                    child_id = dashboard_cfg.get("child_id", 1)
+                    api_url = dashboard_cfg.get("api_url", "http://localhost:8080") + "/api/pipeline/session-complete"
+                    timeout = dashboard_cfg.get("report_timeout", 5.0)
+                    
+                    payload = build_session_payload(session_obj)
+                    report_session_to_dashboard(payload, child_id=child_id, api_url=api_url, timeout=timeout)
+            except Exception as e:
+                logging.warning(f"[Main] Dashboard report failed (non-fatal): {e}")
 
         with _session_lock:
             _session_active = False
@@ -148,6 +211,14 @@ def _stop_pipeline():
     try:
         from src.vision.vision_bridge import VisionBridgeService
         vision = VisionBridgeService.get()
+        
+        # Flush analytics if session is active
+        if _current_session:
+            vision.flush_vision_analytics(
+                child_id=_current_session.child_id,
+                session_uuid=_current_session.session_uuid
+            )
+            
         vision.stop_polling()
         vision.stop_vision_service()
     except Exception as e:

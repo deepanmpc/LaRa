@@ -30,7 +30,7 @@ export default function ClinicalSessions() {
     }, []);
 
     const students = ['All Students', ...new Set(sessions.map(s => s.student))];
-    const dateOptions = ['All Dates', 'Today', 'Yesterday', '2 days ago', '3 days ago', '4 days ago'];
+    const dateOptions = ['All Dates', ...new Set(sessions.map(s => s.date))];
     const statusOptions = ['All Statuses', 'Completed', 'Incomplete'];
 
     const filtered = sessions.filter(s => {

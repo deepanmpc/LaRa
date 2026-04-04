@@ -14,4 +14,9 @@ public interface EmotionalMetricRepository extends JpaRepository<EmotionalMetric
         String childIdHashed,
         LocalDateTime timestamp
     );
+
+    List<EmotionalMetric> findByChildIdHashedAndTimestampAfter(String childIdHashed, LocalDateTime after);
+
+    @org.springframework.data.jpa.repository.Query("SELECT e.primaryEmotion, COUNT(e) FROM EmotionalMetric e WHERE e.childIdHashed = :hash AND e.timestamp > :after GROUP BY e.primaryEmotion ORDER BY COUNT(e) DESC")
+    List<Object[]> findEmotionBreakdown(@org.springframework.data.repository.query.Param("hash") String childIdHashed, @org.springframework.data.repository.query.Param("after") LocalDateTime after);
 }

@@ -9,6 +9,7 @@ export default function ChildrenList() {
     const [children, setChildren] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingChild, setEditingChild] = useState(null);
 
     const fetchChildren = async () => {
         try {
@@ -25,20 +26,43 @@ export default function ChildrenList() {
         fetchChildren();
     }, []);
 
-    const handleAddChild = async (childData) => {
+    const handleDeleteChild = async (id, name) => {
+        if (!window.confirm(`Are you sure you want to delete the profile for ${name}?`)) return;
+        
         try {
-            await api.post('/children', childData);
+            await api.delete(`/children/${id}`);
             await fetchChildren();
         } catch (err) {
-            console.warn('API Add failed, mocking success', err);
-            // Mock adding locally if backend isn't ready
-            const newChild = {
-                id: Math.random().toString(36).substr(2, 9),
-                ...childData,
-                lastSessionDate: 'Never'
-            };
-            setChildren(prev => [...prev, newChild]);
+            console.error('Failed to delete child', err);
+            alert('Failed to delete child profile.');
         }
+    };
+
+    const handleEditChild = (child) => {
+        setEditingChild(child);
+        setIsModalOpen(true);
+    };
+
+    const handleAddOrUpdateChild = async (childData) => {
+        try {
+            if (childData.id) {
+                // Update existing
+                await api.put(`/children/${childData.id}`, childData);
+            } else {
+                // Create new
+                await api.post('/children', childData);
+            }
+            await fetchChildren();
+        } catch (err) {
+            console.error('Failed to save child', err);
+            alert(err.response?.data?.error || 'Failed to save child profile. Please try again.');
+            throw err;
+        }
+    };
+
+    const handleCloseModal = () => {
+        setIsModalOpen(false);
+        setEditingChild(null);
     };
 
     return (
@@ -61,7 +85,10 @@ export default function ChildrenList() {
                 ) : (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 24 }}>
                         {children.map(child => (
-                            <ChildCard key={child.id} child={child} />
+                            <ChildCard 
+                                key={child.id} 
+                                child={{...child, onDelete: handleDeleteChild, onEdit: handleEditChild }} 
+                            />
                         ))}
                         <AddChildCard onClick={() => setIsModalOpen(true)} />
                     </div>
@@ -70,8 +97,9 @@ export default function ChildrenList() {
 
             <AddChildModal
                 isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                onAdd={handleAddChild}
+                onClose={handleCloseModal}
+                onAdd={handleAddOrUpdateChild}
+                childToEdit={editingChild}
             />
         </div>
     );

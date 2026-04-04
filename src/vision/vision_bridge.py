@@ -56,6 +56,35 @@ class VisionBridge:
         finally:
             self._active = False
 
+    def flush_vision_analytics(self, child_id: int, session_uuid: str):
+        """
+        Calls /session-flush on vision service and sends result to Dashboard Backend.
+        """
+        if not self._active:
+            logging.debug("[VisionBridge] Service inactive, skipping flush")
+            return
+
+        try:
+            # 1. Get aggregated metrics from vision service
+            res = requests.post(f"{VISION_BASE_URL}/session-flush", timeout=2.0)
+            res.raise_for_status()
+            metrics = res.json()
+
+            # 2. Enrich with identifiers
+            metrics["child_id"] = child_id
+            metrics["session_uuid"] = session_uuid
+            
+            # 3. Post to Dashboard Backend
+            # Note: Using standard local backend URL
+            BACKEND_URL = "http://localhost:8080/api/clinician/vision/flush"
+            
+            backend_res = requests.post(BACKEND_URL, json=metrics, timeout=2.0)
+            backend_res.raise_for_status()
+            logging.info(f"[VisionBridge] Flushed vision analytics for child {child_id}")
+            
+        except Exception as e:
+            logging.warning(f"[VisionBridge] Failed to flush vision analytics: {e}")
+
     def start_polling(self, bridge, session, interval_s=0.5):
         with self._thread_lock:
             if self._poll_thread and self._poll_thread.is_alive():
@@ -200,6 +229,16 @@ class VisionBridge:
                 session.vision_engagement = smooth_engagement
                 session.vision_gesture = gesture
                 session.vision_timestamp = timestamp
+                
+                # Step 11 — Engagement Timeline Persistence (Data Collection)
+                if hasattr(session, "vision_history"):
+                    session.vision_history.append({
+                        "presence": presence,
+                        "attention": attention,
+                        "engagement": smooth_engagement,
+                        "gesture": gesture,
+                        "timestamp": timestamp
+                    })
 
     def _should_alert(self, alert_type):
         now = time.time()

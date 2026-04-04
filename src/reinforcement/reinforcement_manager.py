@@ -237,6 +237,24 @@ class ReinforcementAdaptationManager:
             # Table might not exist yet — that's fine
             pass
     
+    def get_session_metrics(self) -> list:
+        """
+        Get reinforcement metrics for the current session.
+        
+        Returns:
+            List of dicts compatible with SessionDBSync._persist_reinforcement_metrics
+        """
+        metrics_list = []
+        for style, m in self._session_metrics.items():
+            if m.total_count > 0:
+                metrics_list.append({
+                    "style_name": style,
+                    "total_uses": m.total_count,
+                    "success_count": m.success_count,
+                    "success_rate": m.success_rate
+                })
+        return metrics_list
+
     def persist_session_metrics(self):
         """
         Persist reinforcement metrics to DB at end of session.

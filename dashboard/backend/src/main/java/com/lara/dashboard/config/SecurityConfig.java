@@ -42,7 +42,11 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/pipeline/**").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/clinician/approved").hasAnyAuthority("ROLE_FAMILY", "ROLE_ADMIN", "ROLE_CLINICIAN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/children/**").hasAnyAuthority("ROLE_FAMILY", "ROLE_ADMIN")
+                        .requestMatchers("/api/clinician/list-clinicians").hasAnyAuthority("ROLE_FAMILY", "ROLE_CLINICIAN")
                         .requestMatchers("/api/children/**").hasAnyAuthority("ROLE_FAMILY", "ROLE_CLINICIAN")
                         .requestMatchers("/api/family/**").hasAuthority("ROLE_FAMILY")
                         .requestMatchers("/api/clinician/**").hasAuthority("ROLE_CLINICIAN")

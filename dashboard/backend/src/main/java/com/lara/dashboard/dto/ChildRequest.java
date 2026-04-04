@@ -13,4 +13,9 @@ public class ChildRequest {
     private String name;
     private Integer age;
     private String gradeLevel;
+    private Long clinicianId;
+    private String diagnosis;
+    private String notes;
+    private String avatarColor;
+    private Integer weeklySessionGoal;
 }

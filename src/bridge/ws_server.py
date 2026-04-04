@@ -127,7 +127,9 @@ class LaRaBridge:
                 # Strict command validation
                 if msg_type == "session_start":
                     log.info(f"[Bridge] <- session_start")
-                    await self._handle_session_start(websocket)
+                    child_id = msg.get("child_id")
+                    session_uuid = msg.get("session_uuid")
+                    await self._handle_session_start(websocket, child_id, session_uuid)
                 elif msg_type == "session_stop":
                     log.info(f"[Bridge] <- session_stop")
                     await self._handle_session_stop(websocket)
@@ -140,7 +142,7 @@ class LaRaBridge:
             self._clients.discard(websocket)
             log.info("[Bridge] Client disconnected")
 
-    async def _handle_session_start(self, websocket):
+    async def _handle_session_start(self, websocket, child_id=None, session_uuid=None):
         with self._cb_lock:
             if self._session_active:
                 await websocket.send(json.dumps({"type": "session_ack", "status": "already_running"}))
@@ -152,10 +154,11 @@ class LaRaBridge:
         if self._start_callback:
             threading.Thread(
                 target=self._start_callback,
+                args=(child_id, session_uuid),
                 daemon=True,
                 name="lara-pipeline",   # name must match what _stop_pipeline searches for
             ).start()
-            log.info("[Bridge] Pipeline start callback fired")
+            log.info(f"[Bridge] Pipeline start callback fired for child {child_id}")
         else:
             log.warning("[Bridge] session_start: no callback registered")
 

@@ -136,6 +136,7 @@ const VoiceSessionPage = () => {
         setLastGesture(null);
         const s = buildSummary();
         setSummary(s);
+        localStorage.removeItem(`activeSession_${childId}`);
         setShowSummary(true);
 
         try {

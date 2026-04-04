@@ -312,6 +312,11 @@ def run_conversation_loop(bridge=None, skip_wake_word=False, session=None):
         reinforcement_manager = ReinforcementAdaptationManager(memory)
         reinforcement_manager.set_user(USER_ID)
     
+    # Link managers to session for end-of-session aggregation
+    if session:
+        session.learning_manager = learning_manager
+        session.reinforcement_manager = reinforcement_manager
+
     # Initialize Child Preference Manager
     preference_manager = None
     if ChildPreferenceManager and memory:
@@ -476,7 +481,8 @@ def run_conversation_loop(bridge=None, skip_wake_word=False, session=None):
 
     try:
         with sd.InputStream(samplerate=SAMPLE_RATE, channels=CHANNELS, 
-                            callback=callback, blocksize=FRAME_SIZE):
+                            callback=callback, blocksize=FRAME_SIZE,
+                            latency='low'):
             while True:
                 indata = audio_queue.get()
                 if len(indata) != FRAME_SIZE: continue
@@ -782,6 +788,46 @@ def run_conversation_loop(bridge=None, skip_wake_word=False, session=None):
                                         mood_confidence=mood_conf,
                                         strategy=strategy.label if strategy else "neutral")
                                     
+                                    # Sync Turn to DB
+                                    try:
+                                        from src.persistence.session_db_sync import SessionDBSync
+                                        
+                                        # Get timing from performance monitor
+                                        perf = PerformanceMonitor.get()
+                                        turn_perf = perf.get_last_turn_metrics() if hasattr(perf, 'get_last_turn_metrics') else {}
+                                        
+                                        turn_data = {
+                                            "turn_number": session.turn_count if session else 0,
+                                            "child_utterance": text,
+                                            "lara_response": full_ai_response,
+                                            "detected_mood": detected_mood,
+                                            "mood_confidence": mood_conf,
+                                            "vision_attention_state": vision_snap.get("attention", "UNKNOWN"),
+                                            "vision_presence": vision_snap.get("presence", False),
+                                            "vision_gesture": vision_snap.get("gesture", "NONE"),
+                                            "vision_engagement_score": vision_snap.get("engagement", 0.0),
+                                            "difficulty_level": session.current_difficulty if session else 2,
+                                            "regulation_state": regulation.emotional_trend_score if regulation else 0.5,
+                                            "strategy_applied": strategy.label if strategy else "neutral",
+                                            "reinforcement_style": reinforcement_prompt[:30] if reinforcement_prompt else "calm_validation",
+                                            "inference_ms": int(turn_perf.get("llm_generation_ms", 0)),
+                                            "tts_ms": int(turn_perf.get("tts_ms", 0))
+                                        }
+                                        
+                                        # Track history in session object for end-of-session aggregation
+                                        if session:
+                                            session.turn_history.append(turn_data)
+                                            if hasattr(session, 'difficulty_history'):
+                                                session.difficulty_history.append(session.current_difficulty)
+                                        
+                                        # Immediate DB write
+                                        db_sync = SessionDBSync.get()
+                                        if session and getattr(session, 'session_db_id', None):
+                                            db_sync.session_turn_metrics(session.session_db_id, turn_data)
+                                            
+                                    except Exception as e:
+                                        logging.warning(f"[STT] DB Turn Sync failed: {e}")
+                                    
                                     perf.start_timer("tts")
                                     completed = speak_and_monitor(full_ai_response.strip())
                                     perf.end_timer("tts")
@@ -806,8 +852,18 @@ def run_conversation_loop(bridge=None, skip_wake_word=False, session=None):
         print("\n\n\033[91m[System Transition]\033[0m Stopping gently...")
         logging.info("[SYSTEM_STATE] Transitioned to SHUTDOWN (KeyboardInterrupt)")
     except Exception as e:
-        logging.critical(f"System Error: {e}")
-        print(f"\n\033[91mError:\033[0m {e}")
+        if "PaErrorCode -9986" in str(e) or "Internal PortAudio error" in str(e):
+            msg = (
+                "\n\033[91mCRITICAL AUDIO ERROR (macOS):\033[0m Microphone access denied or Device conflict.\n"
+                "1. Go to System Settings > Privacy & Security > Microphone.\n"
+                "2. Ensure your Terminal/IDE is toggled ON.\n"
+                "3. Ensure no other apps (Zoom, Teams) are locking the microphone at a different sample rate."
+            )
+            logging.critical(msg)
+            print(msg)
+        else:
+            logging.critical(f"System Error: {e}")
+            print(f"\n\033[91mError:\033[0m {e}")
 
 if __name__ == "__main__":
     run_conversation_loop()
