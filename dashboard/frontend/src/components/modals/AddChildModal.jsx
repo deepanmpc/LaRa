@@ -75,7 +75,7 @@ export default function AddChildModal({ isOpen, onClose, onAdd }) {
                         >
                             <option value="">Select a Clinician</option>
                             {clinicians.map(c => (
-                                <option key={c.id} value={c.id}>{c.name}</option>
+                                <option key={c.id} value={c.id}>{c.name} {c.organization ? `(${c.organization})` : ''}</option>
                             ))}
                         </select>
                         <p style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>

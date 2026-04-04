@@ -30,8 +30,9 @@ export default function ChildrenList() {
             await api.post('/children', childData);
             await fetchChildren();
         } catch (err) {
-            console.error('Failed to add child to database:', err);
-            alert('Error: Could not save child to database. Please check if the backend is running.');
+            console.error('Failed to add child', err);
+            // Show error to user — do not silently mock success
+            alert(err.response?.data?.error || 'Failed to add child. Please try again.');
             throw err; // Propagate to modal to keep it open or show error
         }
     };

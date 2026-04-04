@@ -25,12 +25,15 @@ public class ClinicianService {
 
     private SessionResponse mapToResponse(Session session) {
         String childName = session.getChild() != null ? session.getChild().getName() : "Unknown";
-        String date = session.getStartTime() != null ? session.getStartTime().format(DateTimeFormatter.ofPattern("MMM dd, yyyy")) : "Today";
-        String duration = session.getDurationSeconds() != null ? (session.getDurationSeconds() / 60) + " min" : "0 min";
-        
-        String status = session.getStatus() != null ? 
-            session.getStatus().name().substring(0, 1) + session.getStatus().name().substring(1).toLowerCase() : 
-            "Completed";
+        String date = session.getStartTime() != null 
+            ? session.getStartTime().format(DateTimeFormatter.ofPattern("MMM dd, yyyy")) 
+            : "—";
+        String duration = session.getDurationSeconds() != null 
+            ? (session.getDurationSeconds() / 60) + " min" 
+            : "—";
+        String status = session.getStatus() != null 
+            ? session.getStatus().name().substring(0, 1) + session.getStatus().name().substring(1).toLowerCase() 
+            : "—";
 
         return SessionResponse.builder()
                 .id(session.getId())
@@ -38,7 +41,7 @@ public class ClinicianService {
                 .date(date)
                 .duration(duration)
                 .status(status)
-                .intervention(session.getInterventionUsed() != null ? session.getInterventionUsed() : "None")
+                .intervention(session.getInterventionUsed() != null ? session.getInterventionUsed() : "—")
                 .build();
     }
 }

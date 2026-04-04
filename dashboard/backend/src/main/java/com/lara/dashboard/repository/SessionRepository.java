@@ -21,4 +21,5 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
     Long countByChild_Id(Long childId);
     Optional<Session> findTopByChild_IdOrderByEndTimeDesc(Long childId);
     java.util.List<Session> findByChild_IdAndStartTimeBetween(Long childId, java.time.LocalDateTime from, java.time.LocalDateTime to);
+    Long countByStatus(com.lara.dashboard.enums.SessionStatus status);
 }
