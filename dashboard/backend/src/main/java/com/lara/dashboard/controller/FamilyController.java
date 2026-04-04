@@ -12,15 +12,16 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class FamilyController {
 
-    private final FamilyDashboardService dashboardService;
+    private final com.lara.dashboard.service.FamilyDashboardService dashboardService;
     private final com.lara.dashboard.service.SessionService sessionService;
 
     @GetMapping({"/dashboard", "/dashboard/{childId}"})
-    public ResponseEntity<FamilyDashboardResponse> getDashboard(Authentication authentication, @PathVariable(required = false) Long childId) {
+    public ResponseEntity<com.lara.dashboard.dto.FamilyDashboardResponse> getDashboard(Authentication authentication, @PathVariable(required = false) Long childId) {
         String email = authentication.getName();
-        FamilyDashboardResponse response = dashboardService.getDashboardData(email, childId);
+        com.lara.dashboard.dto.FamilyDashboardResponse response = dashboardService.getDashboardData(email, childId);
         return ResponseEntity.ok(response);
     }
+
 
     @PostMapping("/session/start")
     public ResponseEntity<java.util.Map<String, String>> startSession(@RequestBody java.util.Map<String, Object> payload) {
