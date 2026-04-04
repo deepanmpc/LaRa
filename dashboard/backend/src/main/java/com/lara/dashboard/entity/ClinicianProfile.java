@@ -35,4 +35,11 @@ public class ClinicianProfile {
 
     @Column(name = "approval_status")
     private String approvalStatus;
+
+    @Column(name = "bio", columnDefinition = "TEXT")
+    private String bio;
+
+    @Builder.Default
+    @Column(name = "max_patients")
+    private Integer maxPatients = 20;
 }

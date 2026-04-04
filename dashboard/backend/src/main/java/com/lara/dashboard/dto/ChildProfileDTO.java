@@ -13,6 +13,8 @@ public class ChildProfileDTO {
     private String name;
     private Integer age;
     private String gradeLevel;
+    private String diagnosis;
+    private String assignedClinician;
     private String therapistAssigned;
     private String currentFocus;
     private String lastSessionTime;

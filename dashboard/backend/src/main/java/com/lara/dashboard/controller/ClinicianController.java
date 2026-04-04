@@ -29,6 +29,7 @@ public class ClinicianController {
     private final ChildRepository childRepository;
     private final SessionRepository sessionRepository;
     private final com.lara.dashboard.service.ClinicianService clinicianService;
+    private final com.lara.dashboard.service.ChildAnalyticsService childAnalyticsService;
 
     @GetMapping("/status")
     public ResponseEntity<?> getStatus(Authentication authentication) {
@@ -136,6 +137,17 @@ public class ClinicianController {
                 .build())
             .collect(Collectors.toList());
         return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/students/{childId}/analytics")
+    @PreAuthorize("hasAnyAuthority('ROLE_CLINICIAN', 'ROLE_ADMIN')")
+    public ResponseEntity<java.util.Map<String, Object>> getStudentAnalytics(@PathVariable Long childId, Authentication authentication) {
+        try {
+            java.util.Map<String, Object> analytics = childAnalyticsService.getFullAnalytics(childId);
+            return ResponseEntity.ok(analytics);
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     private ChildResponse mapToResponse(Child child) {
