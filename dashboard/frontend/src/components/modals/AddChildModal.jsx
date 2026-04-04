@@ -105,7 +105,12 @@ export default function AddChildModal({ isOpen, onClose, onAdd, childToEdit = nu
                         <textarea className="form-input" rows={3} value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} placeholder="Any notes about the child..." style={{ resize: 'vertical' }} />
                     </div>
                     <div className="form-group" style={{ position: 'relative' }}>
-                        <label className="form-label">Assign Clinician (recommended for detailed dashboard)</label>
+                        <label className="form-label">
+                            Assign Clinician 
+                            <span style={{ color: 'var(--color-primary)', fontWeight: 500, fontSize: '11px', marginLeft: '6px', background: 'var(--color-primary-light)', padding: '2px 8px', borderRadius: '10px' }}>
+                                recommended for detailed dashboard
+                            </span>
+                        </label>
                         <div style={{ position: 'relative', marginBottom: 4 }}>
                             <input 
                                 type="text" 
