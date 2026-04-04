@@ -183,3 +183,14 @@ dashboard:
   child_id: 1              # Default child ID for single-child mode
   enabled: true
   report_timeout: 5.0      # Seconds before timing out the POST
+
+# ───────────────────────────────────────────────
+# MYSQL DATABASE (Persistence)
+# ───────────────────────────────────────────────
+mysql:
+  host: "localhost"
+  port: 3306
+  user: "root"             # Adjusted for common local setup
+  password: ""             # Adjusted for common local setup
+  database: "lara_dashboard"
+  pool_size: 5

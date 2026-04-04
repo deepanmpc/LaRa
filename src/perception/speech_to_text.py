@@ -782,6 +782,46 @@ def run_conversation_loop(bridge=None, skip_wake_word=False, session=None):
                                         mood_confidence=mood_conf,
                                         strategy=strategy.label if strategy else "neutral")
                                     
+                                    # Sync Turn to DB
+                                    try:
+                                        from src.persistence.session_db_sync import SessionDBSync
+                                        
+                                        # Get timing from performance monitor
+                                        perf = PerformanceMonitor.get()
+                                        turn_perf = perf.get_last_turn_metrics() if hasattr(perf, 'get_last_turn_metrics') else {}
+                                        
+                                        turn_data = {
+                                            "turn_number": session.turn_count if session else 0,
+                                            "child_utterance": text,
+                                            "lara_response": full_ai_response,
+                                            "detected_mood": detected_mood,
+                                            "mood_confidence": mood_conf,
+                                            "vision_attention_state": vision_snap.get("attention", "UNKNOWN"),
+                                            "vision_presence": vision_snap.get("presence", False),
+                                            "vision_gesture": vision_snap.get("gesture", "NONE"),
+                                            "vision_engagement_score": vision_snap.get("engagement", 0.0),
+                                            "difficulty_level": session.current_difficulty if session else 2,
+                                            "regulation_state": regulation.emotional_trend_score if regulation else 0.5,
+                                            "strategy_applied": strategy.label if strategy else "neutral",
+                                            "reinforcement_style": reinforcement_prompt[:30] if reinforcement_prompt else "calm_validation",
+                                            "inference_ms": int(turn_perf.get("llm_generation_ms", 0)),
+                                            "tts_ms": int(turn_perf.get("tts_ms", 0))
+                                        }
+                                        
+                                        # Track history in session object for end-of-session aggregation
+                                        if session:
+                                            session.turn_history.append(turn_data)
+                                            if hasattr(session, 'difficulty_history'):
+                                                session.difficulty_history.append(session.current_difficulty)
+                                        
+                                        # Immediate DB write
+                                        db_sync = SessionDBSync.get()
+                                        if session and getattr(session, 'session_db_id', None):
+                                            db_sync.session_turn_metrics(session.session_db_id, turn_data)
+                                            
+                                    except Exception as e:
+                                        logging.warning(f"[STT] DB Turn Sync failed: {e}")
+                                    
                                     perf.start_timer("tts")
                                     completed = speak_and_monitor(full_ai_response.strip())
                                     perf.end_timer("tts")

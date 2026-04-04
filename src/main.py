@@ -68,6 +68,18 @@ def _start_pipeline(child_id=None, session_uuid=None):
         if session_uuid: session_obj.session_uuid = session_uuid
         _current_session = session_obj
 
+        # Step 3 — SQL Session Start
+        try:
+            from src.persistence.session_db_sync import SessionDBSync
+            db_sync = SessionDBSync.get()
+            db_id = db_sync.session_start(
+                session_uuid=session_obj.session_uuid,
+                child_id=session_obj.child_id
+            )
+            session_obj.session_db_id = db_id
+        except Exception as e:
+            logging.error(f"[Main] SQL Session Start failed: {e}")
+
         bridge = LaRaBridge.get()
         vision = VisionBridgeService.get()
         vision.start_vision_service()
@@ -105,6 +117,21 @@ def _start_pipeline(child_id=None, session_uuid=None):
                 session_obj.flush_to_disk()
             except Exception as e:
                 logging.warning(f"[Main] Session flush failed: {e}")
+
+        # Step 5 to 12 — SQL Session End & Aggregates
+        if session_obj is not None and getattr(session_obj, 'session_db_id', None):
+            try:
+                from src.persistence.session_db_sync import SessionDBSync
+                db_sync = SessionDBSync.get()
+                final_stats = session_obj.get_final_stats()
+                db_sync.session_end(
+                    session_id=session_obj.session_db_id,
+                    session_uuid=session_obj.session_uuid,
+                    child_id=session_obj.child_id,
+                    final_stats=final_stats
+                )
+            except Exception as e:
+                logging.error(f"[Main] SQL Session End failed: {e}")
 
         # ── Report session to Dashboard API ──
         if session_obj is not None:

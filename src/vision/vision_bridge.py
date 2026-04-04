@@ -229,6 +229,16 @@ class VisionBridge:
                 session.vision_engagement = smooth_engagement
                 session.vision_gesture = gesture
                 session.vision_timestamp = timestamp
+                
+                # Step 11 — Engagement Timeline Persistence (Data Collection)
+                if hasattr(session, "vision_history"):
+                    session.vision_history.append({
+                        "presence": presence,
+                        "attention": attention,
+                        "engagement": smooth_engagement,
+                        "gesture": gesture,
+                        "timestamp": timestamp
+                    })
 
     def _should_alert(self, alert_type):
         now = time.time()
