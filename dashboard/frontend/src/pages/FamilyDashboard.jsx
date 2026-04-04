@@ -58,24 +58,24 @@ function SessionSummaryCard({ data }) {
                     </div>
                     Today's Summary
                 </div>
-                <span className="card-badge green">Week {data.totalSessionsThisWeek}/5</span>
+                <span className="card-badge green">Week {data.totalSessionsThisWeek || 0}/5</span>
             </div>
 
             <div className="stat-grid" style={{ marginBottom: 20 }}>
                 <div className="stat-item">
-                    <div className="stat-item-value">{data.totalSessionsThisWeek}</div>
+                    <div className="stat-item-value">{data.totalSessionsThisWeek || 0}</div>
                     <div className="stat-item-label">Sessions This Week</div>
                 </div>
                 <div className="stat-item">
-                    <div className="stat-item-value">{data.todaySessionDuration}</div>
+                    <div className="stat-item-value">{data.todaySessionDuration || '0 minutes'}</div>
                     <div className="stat-item-label">Today's Duration</div>
                 </div>
                 <div className="stat-item">
-                    <div className="stat-item-value">{data.activitiesCompletedToday}</div>
+                    <div className="stat-item-value">{data.activitiesCompletedToday || 0}</div>
                     <div className="stat-item-label">Activities Today</div>
                 </div>
                 <div className="stat-item">
-                    <div className="stat-item-value">{data.totalSessionsAllTime}</div>
+                    <div className="stat-item-value">{data.totalSessionsAllTime || 0}</div>
                     <div className="stat-item-label">All-Time Sessions</div>
                 </div>
             </div>
@@ -84,25 +84,27 @@ function SessionSummaryCard({ data }) {
                 <div className="progress-item">
                     <div className="progress-label-row">
                         <span className="progress-label">Weekly Goal Progress</span>
-                        <span className="progress-value">{data.weeklyGoalProgress}%</span>
+                        <span className="progress-value">{data.weeklyGoalProgress || 0}%</span>
                     </div>
-                    <ProgressBar value={data.weeklyGoalProgress} variant="primary" />
+                    <ProgressBar value={data.weeklyGoalProgress || 0} variant="primary" />
                 </div>
             </div>
 
-            <div style={{ marginTop: 16, padding: '12px 14px', background: 'var(--color-bg)', borderRadius: 12 }}>
-                {data.lastActivityCompleted && (
-                    <>
-                        <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600, marginBottom: 3 }}>LAST ACTIVITY</div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>{data.lastActivityCompleted}</div>
-                    </>
-                )}
-                {data.nextScheduledSession && (
-                    <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
-                        Next: {data.nextScheduledSession}
-                    </div>
-                )}
-            </div>
+            {(data.lastActivityCompleted || data.nextScheduledSession) && (
+                <div style={{ marginTop: 16, padding: '12px 14px', background: 'var(--color-bg)', borderRadius: 12 }}>
+                    {data.lastActivityCompleted && (
+                        <>
+                            <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600, marginBottom: 3 }}>LAST ACTIVITY</div>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>{data.lastActivityCompleted}</div>
+                        </>
+                    )}
+                    {data.nextScheduledSession && (
+                        <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: data.lastActivityCompleted ? 8 : 0 }}>
+                            Next: {data.nextScheduledSession}
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 }
@@ -132,16 +134,16 @@ function EmotionalCard({ data }) {
                     </div>
                     Emotional Wellbeing
                 </div>
-                <span className="card-badge green">{data.moodTrend}</span>
+                {data.moodTrend && <span className="card-badge green">{data.moodTrend}</span>}
             </div>
 
             <div className="stat-grid" style={{ marginBottom: 20 }}>
                 <div className="stat-item">
-                    <div className="stat-item-value" style={{ color: 'var(--color-accent)' }}>{data.overallMoodScore}</div>
+                    <div className="stat-item-value" style={{ color: 'var(--color-accent)' }}>{data.overallMoodScore || '--'}</div>
                     <div className="stat-item-label">Mood Score</div>
                 </div>
                 <div className="stat-item">
-                    <div className="stat-item-value">{data.primaryEmotion}</div>
+                    <div className="stat-item-value">{data.primaryEmotion || '--'}</div>
                     <div className="stat-item-label">Primary Emotion</div>
                 </div>
                 {data.selfRegulationScore != null && (
@@ -158,12 +160,16 @@ function EmotionalCard({ data }) {
                 )}
             </div>
 
-            <div style={{ marginBottom: 8, fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                Emotion Breakdown
-            </div>
-            {Object.entries(breakdown).map(([emotion, percent]) => (
-                <MoodDot key={emotion} color={moodColors[emotion] || '#94a3b8'} label={emotion} percent={percent} />
-            ))}
+            {Object.keys(breakdown).length > 0 && (
+                <>
+                    <div style={{ marginBottom: 8, fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                        Emotion Breakdown
+                    </div>
+                    {Object.entries(breakdown).map(([emotion, percent]) => (
+                        <MoodDot key={emotion} color={moodColors[emotion] || '#94a3b8'} label={emotion} percent={percent} />
+                    ))}
+                </>
+            )}
 
             {data.emotionStability != null && (
                 <div className="progress-group" style={{ marginTop: 16 }}>
@@ -195,7 +201,7 @@ function EngagementCard({ data }) {
                     </div>
                     Engagement & Focus
                 </div>
-                <span className="card-badge blue">{data.participationLevel} Participation</span>
+                {data.participationLevel && <span className="card-badge blue">{data.participationLevel} Participation</span>}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20 }}>
@@ -203,21 +209,27 @@ function EngagementCard({ data }) {
                 <div>
                     <div className="stat-grid">
                         <div className="stat-item">
-                            <div className="stat-item-value" style={{ color: 'var(--color-primary)' }}>{data.focusScore}</div>
+                            <div className="stat-item-value" style={{ color: 'var(--color-primary)' }}>{data.focusScore || '--'}</div>
                             <div className="stat-item-label">Focus Score</div>
                         </div>
-                        <div className="stat-item">
-                            <div className="stat-item-value">{data.attentionSpanMinutes}m</div>
-                            <div className="stat-item-label">Attention Span</div>
-                        </div>
-                        <div className="stat-item">
-                            <div className="stat-item-value">{data.taskCompletionRate}%</div>
-                            <div className="stat-item-label">Task Completion</div>
-                        </div>
-                        <div className="stat-item">
-                            <div className="stat-item-value">{data.responsiveness}</div>
-                            <div className="stat-item-label">Responsiveness</div>
-                        </div>
+                        {data.attentionSpanMinutes != null && (
+                            <div className="stat-item">
+                                <div className="stat-item-value">{data.attentionSpanMinutes}m</div>
+                                <div className="stat-item-label">Attention Span</div>
+                            </div>
+                        )}
+                        {data.taskCompletionRate != null && (
+                            <div className="stat-item">
+                                <div className="stat-item-value">{data.taskCompletionRate}%</div>
+                                <div className="stat-item-label">Task Completion</div>
+                            </div>
+                        )}
+                        {data.responsiveness != null && (
+                            <div className="stat-item">
+                                <div className="stat-item-value">{data.responsiveness}</div>
+                                <div className="stat-item-label">Responsiveness</div>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -229,31 +241,37 @@ function EngagementCard({ data }) {
                     <div className="progress-item">
                         <div className="progress-label-row">
                             <span className="progress-label">Focus Score</span>
-                            <span className="progress-value">{data.focusScore}%</span>
+                            <span className="progress-value">{data.focusScore || 0}%</span>
                         </div>
-                        <ProgressBar value={data.focusScore} variant="primary" />
+                        <ProgressBar value={data.focusScore || 0} variant="primary" />
                     </div>
-                    <div className="progress-item">
-                        <div className="progress-label-row">
-                            <span className="progress-label">Task Completion</span>
-                            <span className="progress-value">{data.taskCompletionRate}%</span>
+                    {data.taskCompletionRate != null && (
+                        <div className="progress-item">
+                            <div className="progress-label-row">
+                                <span className="progress-label">Task Completion</span>
+                                <span className="progress-value">{data.taskCompletionRate}%</span>
+                            </div>
+                            <ProgressBar value={data.taskCompletionRate} variant="green" />
                         </div>
-                        <ProgressBar value={data.taskCompletionRate} variant="green" />
-                    </div>
-                    <div className="progress-item">
-                        <div className="progress-label-row">
-                            <span className="progress-label">Collaboration</span>
-                            <span className="progress-value">{data.collaborationScore}%</span>
+                    )}
+                    {data.collaborationScore != null && (
+                        <div className="progress-item">
+                            <div className="progress-label-row">
+                                <span className="progress-label">Collaboration</span>
+                                <span className="progress-value">{data.collaborationScore}%</span>
+                            </div>
+                            <ProgressBar value={data.collaborationScore} variant="amber" />
                         </div>
-                        <ProgressBar value={data.collaborationScore} variant="amber" />
-                    </div>
-                    <div className="progress-item">
-                        <div className="progress-label-row">
-                            <span className="progress-label">Initiative</span>
-                            <span className="progress-value">{data.initiativeTaking}%</span>
+                    )}
+                    {data.initiativeTaking != null && (
+                        <div className="progress-item">
+                            <div className="progress-label-row">
+                                <span className="progress-label">Initiative</span>
+                                <span className="progress-value">{data.initiativeTaking}%</span>
+                            </div>
+                            <ProgressBar value={data.initiativeTaking} variant="primary" />
                         </div>
-                        <ProgressBar value={data.initiativeTaking} variant="primary" />
-                    </div>
+                    )}
                 </div>
 
                 {/* Right col: top activities */}
@@ -262,13 +280,17 @@ function EngagementCard({ data }) {
                         Top Activities
                     </div>
                     <div className="activity-list">
-                        {(data.topActivities || []).map((activity, idx) => (
-                            <div key={idx} className="activity-item">
-                                <span className="activity-rank">#{idx + 1}</span>
-                                <span className="activity-name">{activity.name}</span>
-                                <span className="activity-score">{activity.score}%</span>
-                            </div>
-                        ))}
+                        {data.topActivities && data.topActivities.length > 0 ? (
+                            data.topActivities.map((activity, idx) => (
+                                <div key={idx} className="activity-item">
+                                    <span className="activity-rank">#{idx + 1}</span>
+                                    <span className="activity-name">{activity.name}</span>
+                                    <span className="activity-score">{activity.score}%</span>
+                                </div>
+                            ))
+                        ) : (
+                            <div style={{ fontSize: 13, color: 'var(--color-text-muted)', padding: '12px 0' }}>No activity data yet</div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -284,7 +306,6 @@ export default function FamilyDashboard() {
     const [dashboardData, setDashboardData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [startingSession, setStartingSession] = useState(false);
     const [activeSessionUuid, setActiveSessionUuid] = useState(null);
     const user = getStoredUser();
 
@@ -296,19 +317,13 @@ export default function FamilyDashboard() {
     useEffect(() => {
         const fetchDashboard = async () => {
             try {
+                setLoading(true);
                 const response = await api.get(`/family/dashboard/${childId}`);
                 setDashboardData(response.data);
+                setError('');
             } catch (err) {
-                console.warn('Endpoint with childId failed, falling back to existing dashboard mock endpoint', err);
-                try {
-                    const mockResponse = await api.get('/family/dashboard');
-                    const data = mockResponse.data;
-                    // If we have a child profile but the ID doesn't match our selected mock child, 
-                    // we could theoretically override the name, but to be safe and use exactly the mock data:
-                    setDashboardData(data);
-                } catch (fallbackErr) {
-                    setError('Failed to load dashboard data. Please try again.');
-                }
+                console.error('Failed to load dashboard data', err);
+                setError('Failed to load dashboard data. Please try again.');
             } finally {
                 setLoading(false);
             }
@@ -322,24 +337,23 @@ export default function FamilyDashboard() {
     useEffect(() => {
         if (activeNav === 'session') {
             const startSession = async () => {
-                setStartingSession(true);
                 try {
                     const res = await api.post('/family/session/start', { childId });
-                    const sessionUuid = res.data?.sessionUuid || `mock-${Date.now()}`;
-                    navigate(`/voice-session/${childId || 'demo'}/${sessionUuid}`);
+                    const sessionUuid = res.data?.sessionUuid;
+                    if (sessionUuid) {
+                        navigate(`/voice-session/${childId}/${sessionUuid}`);
+                    }
                 } catch (err) {
-                    console.warn('Failed to start session via API, mocking success', err);
-                    const sessionUuid = `mock-${Date.now()}`;
-                    navigate(`/voice-session/${childId || 'demo'}/${sessionUuid}`);
+                    console.error('Failed to start session', err);
+                    alert('Failed to start session. Please try again.');
                 } finally {
-                    setStartingSession(false);
-                    setActiveNav('summary'); // Reset nav state if they hit back
+                    setActiveNav('summary'); // Reset nav state
                 }
             };
             startSession();
         } else if (activeNav === 'live-monitor') {
             if (activeSessionUuid) {
-                window.open(`/live-monitor/${childId}/${activeSessionUuid || 'current'}`, '_blank');
+                window.open(`/live-monitor/${childId}/${activeSessionUuid}`, '_blank');
             } else {
                 alert('No active session currently tracking.');
             }
@@ -445,7 +459,7 @@ export default function FamilyDashboard() {
                                         boxShadow: activeSessionUuid ? '0 8px 24px rgba(37, 99, 235, 0.35)' : 'none',
                                         animation: activeSessionUuid ? 'pulse-blue 2s infinite' : 'none'
                                     }}
-                                    onClick={() => window.open(`/live-monitor/${childId}/${activeSessionUuid || 'current'}`, '_blank')}
+                                    onClick={() => window.open(`/live-monitor/${childId}/${activeSessionUuid}`, '_blank')}
                                 >
                                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                                         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
@@ -462,13 +476,17 @@ export default function FamilyDashboard() {
                                     }
                                 `}</style>
                                 
-                                <div className="status-badge-doing-well">
-                                    <div className="status-dot"></div>
-                                    {child.statusBadge}
-                                </div>
-                                <div style={{ fontSize: 11, opacity: 0.7, textAlign: 'center' }}>
-                                    Focus: {child.currentFocus}
-                                </div>
+                                {child.statusBadge && (
+                                    <div className="status-badge-doing-well">
+                                        <div className="status-dot"></div>
+                                        {child.statusBadge}
+                                    </div>
+                                )}
+                                {child.currentFocus && (
+                                    <div style={{ fontSize: 11, opacity: 0.7, textAlign: 'center' }}>
+                                        Focus: {child.currentFocus}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     ) : null}

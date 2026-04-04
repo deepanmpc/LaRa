@@ -26,6 +26,7 @@ public class ClinicianController {
     private final UserRepository userRepository;
     private final ClinicianProfileRepository clinicianProfileRepository;
     private final ChildRepository childRepository;
+    private final SessionRepository sessionRepository;
     private final com.lara.dashboard.service.ClinicianService clinicianService;
 
     @GetMapping("/status")
@@ -53,19 +54,16 @@ public class ClinicianController {
     @PreAuthorize("hasAuthority('ROLE_CLINICIAN')")
     public ResponseEntity<List<ChildResponse>> getAllStudents(Authentication authentication) {
         String email = authentication.getName();
-        User clinician = userRepository.findByEmail(email)
+        User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        List<Child> children = childRepository.findByClinicianUserId(clinician.getId());
+        ClinicianProfile profile = clinicianProfileRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new RuntimeException("Clinician profile not found"));
+
+        List<Child> children = childRepository.findByClinicianId(profile.getId());
         
         List<ChildResponse> responses = children.stream()
-                .map(child -> ChildResponse.builder()
-                        .id(child.getId())
-                        .name(child.getName())
-                        .age(child.getAge())
-                        .gradeLevel(child.getGradeLevel())
-                        .lastSessionDate("Unknown") // Mock fallback
-                        .build())
+                .map(this::mapToResponse)
                 .collect(Collectors.toList());
 
         return ResponseEntity.ok(responses);
@@ -75,48 +73,64 @@ public class ClinicianController {
     @PreAuthorize("hasAuthority('ROLE_CLINICIAN')")
     public ResponseEntity<ChildResponse> getStudentById(@PathVariable Long id, Authentication authentication) {
         String email = authentication.getName();
-        User clinician = userRepository.findByEmail(email)
+        User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
+
+        ClinicianProfile profile = clinicianProfileRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new RuntimeException("Clinician profile not found"));
 
         Child child = childRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Child not found"));
 
-        // Access check
-        if (child.getClinician() == null || !child.getClinician().getUser().getId().equals(clinician.getId())) {
-            throw new RuntimeException("Unauthorized: This student is not assigned to you.");
+        // Security check — child must belong to this clinician
+        if (child.getClinician() == null || !child.getClinician().getId().equals(profile.getId())) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.FORBIDDEN).build();
         }
 
-        ChildResponse response = ChildResponse.builder()
-                .id(child.getId())
-                .name(child.getName())
-                .age(child.getAge())
-                .gradeLevel(child.getGradeLevel())
-                .lastSessionDate("Unknown")
-                .build();
-
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(mapToResponse(child));
     }
+
     @GetMapping("/sessions")
     @PreAuthorize("hasAuthority('ROLE_CLINICIAN')")
     public ResponseEntity<List<com.lara.dashboard.dto.SessionResponse>> getSessions(Authentication authentication) {
         String email = authentication.getName();
-        User clinician = userRepository.findByEmail(email)
+        User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
-        return ResponseEntity.ok(clinicianService.getAllSessions(clinician.getId()));
+        
+        ClinicianProfile profile = clinicianProfileRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new RuntimeException("Clinician profile not found"));
+
+        return ResponseEntity.ok(clinicianService.getAllSessions(profile.getId()));
     }
 
     @GetMapping("/list-clinicians")
     public ResponseEntity<List<Map<String, Object>>> getClinicianList() {
-        // Find by approvalStatus column in clinician_profiles table
         List<ClinicianProfile> approvedProfiles = clinicianProfileRepository.findByApprovalStatus("APPROVED");
         
         List<Map<String, Object>> responses = approvedProfiles.stream()
                 .map(cp -> Map.of(
-                    "id", (Object)cp.getUser().getId(), 
-                    "name", (Object)cp.getUser().getName()
+                    "id", (Object)cp.getId(), 
+                    "name", (Object)(cp.getUser() != null ? cp.getUser().getName() : "Unknown")
                 ))
                 .collect(Collectors.toList());
 
         return ResponseEntity.ok(responses);
+    }
+
+    private ChildResponse mapToResponse(Child child) {
+        String lastSessionDate = sessionRepository.findTopByChild_IdOrderByEndTimeDesc(child.getId())
+                .map(s -> s.getEndTime() != null ? s.getEndTime().format(java.time.format.DateTimeFormatter.ofPattern("MMM dd, yyyy")) : "No sessions yet")
+                .orElse("No sessions yet");
+
+        ClinicianProfile cp = child.getClinician();
+        return ChildResponse.builder()
+                .id(child.getId())
+                .name(child.getName())
+                .age(child.getAge())
+                .gradeLevel(child.getGradeLevel())
+                .lastSessionDate(lastSessionDate)
+                .clinicianId(cp != null ? cp.getId() : null)
+                .clinicianName(cp != null && cp.getUser() != null ? cp.getUser().getName() : null)
+                .build();
     }
 }

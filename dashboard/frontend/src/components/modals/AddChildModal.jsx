@@ -4,20 +4,17 @@ import api from '../../services/api';
 export default function AddChildModal({ isOpen, onClose, onAdd }) {
     const [formData, setFormData] = useState({ name: '', age: '', gradeLevel: '', clinicianId: '' });
     const [clinicians, setClinicians] = useState([]);
+    const [cliniciansLoading, setCliniciansLoading] = useState(false);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        if (isOpen) {
-            const fetchClinicians = async () => {
-                try {
-                    const res = await api.get('/children/clinicians');
-                    setClinicians(res.data);
-                } catch (err) {
-                    console.error('Failed to fetch clinicians', err);
-                }
-            };
-            fetchClinicians();
-        }
+        if (!isOpen) return;
+        
+        setCliniciansLoading(true);
+        api.get('/clinicians/approved')
+            .then(res => setClinicians(res.data))
+            .catch(() => setClinicians([]))
+            .finally(() => setCliniciansLoading(false));
     }, [isOpen]);
 
     if (!isOpen) return null;
@@ -66,21 +63,28 @@ export default function AddChildModal({ isOpen, onClose, onAdd }) {
                         <input type="text" className="form-input" required value={formData.gradeLevel} onChange={(e) => setFormData({ ...formData, gradeLevel: e.target.value })} placeholder="e.g. 2nd Grade" />
                     </div>
                     <div className="form-group">
-                        <label className="form-label">Assign to Clinician</label>
-                        <select 
-                            className="form-input" 
-                            required
-                            value={formData.clinicianId} 
-                            onChange={(e) => setFormData({ ...formData, clinicianId: e.target.value })}
-                        >
-                            <option value="">Select a Clinician</option>
-                            {clinicians.map(c => (
-                                <option key={c.id} value={c.id}>{c.name} {c.organization ? `(${c.organization})` : ''}</option>
-                            ))}
-                        </select>
-                        <p style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>
-                            A clinician must be assigned to monitor progress and provide expert care.
-                        </p>
+                        <label className="form-label">Assign Clinician (optional)</label>
+                        {cliniciansLoading ? (
+                            <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Loading clinicians...</div>
+                        ) : (
+                            <select
+                                className="form-select"
+                                value={formData.clinicianId}
+                                onChange={(e) => setFormData({ ...formData, clinicianId: e.target.value })}
+                            >
+                                <option value="">— No clinician assigned —</option>
+                                {clinicians.map(c => (
+                                    <option key={c.id} value={c.id}>
+                                        {c.name}{c.organization ? ` · ${c.organization}` : ''}{c.specialization ? ` (${c.specialization})` : ''}
+                                    </option>
+                                ))}
+                            </select>
+                        )}
+                        {clinicians.length === 0 && !cliniciansLoading && (
+                            <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4 }}>
+                                No approved clinicians available yet.
+                            </div>
+                        )}
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
                         <button type="button" onClick={onClose} className="btn-secondary" style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--color-border)', background: 'white', cursor: 'pointer', color: 'var(--color-text-primary)' }}>Cancel</button>

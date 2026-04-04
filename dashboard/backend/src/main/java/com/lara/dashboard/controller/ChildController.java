@@ -3,9 +3,11 @@ package com.lara.dashboard.controller;
 import com.lara.dashboard.dto.ChildRequest;
 import com.lara.dashboard.dto.ChildResponse;
 import com.lara.dashboard.entity.Child;
+import com.lara.dashboard.entity.ClinicianProfile;
 import com.lara.dashboard.entity.User;
 import com.lara.dashboard.repository.ChildRepository;
 import com.lara.dashboard.repository.ClinicianProfileRepository;
+import com.lara.dashboard.repository.SessionRepository;
 import com.lara.dashboard.repository.UserRepository;
 import com.lara.dashboard.service.ActivityLogService;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -25,6 +28,7 @@ public class ChildController {
     private final ChildRepository childRepository;
     private final UserRepository userRepository;
     private final ClinicianProfileRepository clinicianProfileRepository;
+    private final SessionRepository sessionRepository;
     private final ActivityLogService activityLogService;
 
     @GetMapping("/clinicians")
@@ -33,9 +37,9 @@ public class ChildController {
         return ResponseEntity.ok(clinicianProfileRepository.findByApprovalStatus("APPROVED").stream()
                 .filter(cp -> cp.getUser() != null)
                 .map(cp -> Map.of(
-                        "id", (Object) cp.getUser().getId(),
+                        "id", (Object) cp.getId(), // Return ClinicianProfile ID
                         "name", (Object) cp.getUser().getName(),
-                        "organization", (Object) cp.getOrganization()
+                        "organization", (Object) (cp.getOrganization() != null ? cp.getOrganization() : "")
                 ))
                 .collect(Collectors.toList()));
     }
@@ -46,22 +50,21 @@ public class ChildController {
         User parent = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        User clinician = null;
-        if (request.getClinicianId() != null) {
-            clinician = userRepository.findById(request.getClinicianId()).orElse(null);
-        }
-
         Child child = Child.builder()
                 .name(request.getName())
                 .age(request.getAge())
                 .gradeLevel(request.getGradeLevel())
                 .parent(parent)
-                .clinician(clinician)
                 .build();
+
+        if (request.getClinicianId() != null) {
+            clinicianProfileRepository.findById(request.getClinicianId()).ifPresent(child::setClinician);
+        }
 
         Child savedChild = childRepository.save(child);
 
-        activityLogService.log("New child profile created: " + child.getName() + " by " + parent.getName());
+        activityLogService.log("New child profile created: " + child.getName() + " by " + parent.getName() + 
+                (request.getClinicianId() != null ? " mapped to clinician ID: " + request.getClinicianId() : ""));
 
         return ResponseEntity.ok(mapToResponse(savedChild));
     }
@@ -106,14 +109,20 @@ public class ChildController {
     }
 
     private ChildResponse mapToResponse(Child child) {
+        String lastSessionDate = sessionRepository.findTopByChild_IdOrderByEndTimeDesc(child.getId())
+                .map(s -> s.getEndTime() != null ? s.getEndTime().format(DateTimeFormatter.ofPattern("MMM dd, yyyy")) : "No sessions yet")
+                .orElse("No sessions yet");
+
+        ClinicianProfile cp = child.getClinician();
         return ChildResponse.builder()
                 .id(child.getId())
                 .name(child.getName())
                 .age(child.getAge())
                 .gradeLevel(child.getGradeLevel())
-                .lastSessionDate("Never") // Fallback
-                .clinicianId(child.getClinician() != null ? child.getClinician().getId() : null)
-                .clinicianName(child.getClinician() != null ? child.getClinician().getName() : "None Assigned")
+                .lastSessionDate(lastSessionDate)
+                .clinicianId(cp != null ? cp.getId() : null)
+                .clinicianName(cp != null && cp.getUser() != null ? cp.getUser().getName() : null)
+                .clinicianOrganization(cp != null ? cp.getOrganization() : null)
                 .build();
     }
 }
