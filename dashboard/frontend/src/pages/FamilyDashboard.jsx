@@ -306,7 +306,7 @@ export default function FamilyDashboard() {
     const [dashboardData, setDashboardData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [activeSessionUuid, setActiveSessionUuid] = useState(null);
+    const [activeSessionUuid, setActiveSessionUuid] = useState(localStorage.getItem(`activeSession_${childId}`) || null);
     const user = getStoredUser();
 
     const now = new Date();
@@ -330,6 +330,8 @@ export default function FamilyDashboard() {
         };
         if (childId) {
             fetchDashboard();
+            const stored = localStorage.getItem(`activeSession_${childId}`);
+            if (stored) setActiveSessionUuid(stored);
         }
     }, [childId]);
 
@@ -341,6 +343,8 @@ export default function FamilyDashboard() {
                     const res = await api.post('/family/session/start', { childId });
                     const sessionUuid = res.data?.sessionUuid;
                     if (sessionUuid) {
+                        localStorage.setItem(`activeSession_${childId}`, sessionUuid);
+                        setActiveSessionUuid(sessionUuid);
                         navigate(`/voice-session/${childId}/${sessionUuid}`);
                     }
                 } catch (err) {

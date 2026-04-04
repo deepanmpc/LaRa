@@ -124,6 +124,7 @@ public class SessionIngestionService {
         Session session = Session.builder()
                 .sessionUuid(req.getSessionUuid())
                 .child(child)
+                .childIdHashed(child.getId() != null ? child.getId().toString() : null)
                 .startTime(parseTimestamp(req.getStartTime()))
                 .endTime(parseTimestamp(req.getEndTime()))
                 .durationSeconds(req.getDurationSeconds())
