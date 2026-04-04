@@ -5,13 +5,16 @@ import com.lara.dashboard.dto.ChildResponse;
 import com.lara.dashboard.entity.Child;
 import com.lara.dashboard.entity.User;
 import com.lara.dashboard.repository.ChildRepository;
+import com.lara.dashboard.repository.ClinicianProfileRepository;
 import com.lara.dashboard.repository.UserRepository;
+import com.lara.dashboard.service.ActivityLogService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
@@ -21,23 +24,20 @@ public class ChildController {
 
     private final ChildRepository childRepository;
     private final UserRepository userRepository;
-    private final com.lara.dashboard.repository.ClinicianProfileRepository clinicianProfileRepository;
-    private final com.lara.dashboard.service.ActivityLogService activityLogService;
+    private final ClinicianProfileRepository clinicianProfileRepository;
+    private final ActivityLogService activityLogService;
 
     @GetMapping("/clinicians")
-    public ResponseEntity<List<java.util.Map<String, Object>>> getClinicianList() {
+    public ResponseEntity<List<Map<String, Object>>> getClinicianList() {
         // Fetch approved clinicians from profiles table
-        List<com.lara.dashboard.entity.ClinicianProfile> approvedProfiles = clinicianProfileRepository.findByApprovalStatus("APPROVED");
-        
-        List<java.util.Map<String, Object>> responses = approvedProfiles.stream()
+        return ResponseEntity.ok(clinicianProfileRepository.findByApprovalStatus("APPROVED").stream()
                 .filter(cp -> cp.getUser() != null)
-                .map(cp -> java.util.Map.of(
-                    "id", (Object)cp.getUser().getId(), 
-                    "name", (Object)cp.getUser().getName()
+                .map(cp -> Map.of(
+                        "id", (Object) cp.getUser().getId(),
+                        "name", (Object) cp.getUser().getName(),
+                        "organization", (Object) cp.getOrganization()
                 ))
-                .collect(java.util.stream.Collectors.toList());
-
-        return ResponseEntity.ok(responses);
+                .collect(Collectors.toList()));
     }
 
     @PostMapping
@@ -48,8 +48,7 @@ public class ChildController {
 
         User clinician = null;
         if (request.getClinicianId() != null) {
-            clinician = userRepository.findById(request.getClinicianId())
-                    .orElse(null);
+            clinician = userRepository.findById(request.getClinicianId()).orElse(null);
         }
 
         Child child = Child.builder()
@@ -75,19 +74,35 @@ public class ChildController {
 
         List<Child> children = childRepository.findByParentId(parent.getId());
 
-        List<ChildResponse> responses = children.stream()
+        return ResponseEntity.ok(children.stream()
                 .map(this::mapToResponse)
-                .collect(Collectors.toList());
-
-        return ResponseEntity.ok(responses);
+                .collect(Collectors.toList()));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ChildResponse> getChild(@PathVariable Long id, Authentication authentication) {
+    public ResponseEntity<ChildResponse> getChild(@PathVariable Long id) {
         Child child = childRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Child not found"));
 
         return ResponseEntity.ok(mapToResponse(child));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteChild(@PathVariable Long id, Authentication authentication) {
+        String email = authentication.getName();
+        User parent = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        Child child = childRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Child not found"));
+
+        if (!child.getParent().getId().equals(parent.getId())) {
+            return ResponseEntity.status(403).body("Unauthorized to delete this child");
+        }
+
+        childRepository.delete(child);
+        activityLogService.log("Child profile deleted: " + child.getName() + " by " + parent.getName());
+        return ResponseEntity.ok().build();
     }
 
     private ChildResponse mapToResponse(Child child) {
@@ -96,7 +111,9 @@ public class ChildController {
                 .name(child.getName())
                 .age(child.getAge())
                 .gradeLevel(child.getGradeLevel())
-                .lastSessionDate("Never") // Default mock value
+                .lastSessionDate("Never") // Fallback
+                .clinicianId(child.getClinician() != null ? child.getClinician().getId() : null)
+                .clinicianName(child.getClinician() != null ? child.getClinician().getName() : "None Assigned")
                 .build();
     }
 }

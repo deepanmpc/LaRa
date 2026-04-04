@@ -13,7 +13,7 @@ export default function ClinicianStudents() {
             try {
                 const response = await api.get('/clinician/students');
                 const mappedStudents = await Promise.all(response.data.map(async (student) => {
-                    let engagementScore = Math.floor(Math.random() * 40) + 60; // 60-100 fallback
+                    let engagementScore = null;
                     let focusedDuration = 0;
                     let distractionFrames = 0;
                     try {
@@ -29,10 +29,9 @@ export default function ClinicianStudents() {
 
                     return {
                         ...student,
-                        engagementScore,
+                        ...(engagementScore !== null && { engagementScore }),
                         focusedDuration,
-                        distractionFrames,
-                        riskLevel: Math.random() > 0.7 ? 'High' : (Math.random() > 0.4 ? 'Medium' : 'Low')
+                        distractionFrames
                     };
                 }));
                 setStudents(mappedStudents);
@@ -95,29 +94,35 @@ export default function ClinicianStudents() {
                                         <div style={{ width: 48, height: 48, borderRadius: 24, background: 'linear-gradient(135deg, #e0f2fe 0%, #7dd3fc 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0369a1', fontWeight: 600, fontSize: 18 }}>
                                             {student.name.charAt(0)}
                                         </div>
-                                        <span style={{
-                                            background: riskStyle.bg,
-                                            color: riskStyle.text,
-                                            padding: '4px 10px',
-                                            borderRadius: 12,
-                                            fontSize: 12,
-                                            fontWeight: 600
-                                        }}>
-                                            {student.riskLevel} Risk
-                                        </span>
+                                        {student.riskLevel && (
+                                            <span style={{
+                                                background: riskStyle.bg,
+                                                color: riskStyle.text,
+                                                padding: '4px 10px',
+                                                borderRadius: 12,
+                                                fontSize: 12,
+                                                fontWeight: 600
+                                            }}>
+                                                {student.riskLevel} Risk
+                                            </span>
+                                        )}
                                     </div>
 
                                     <h3 style={{ fontSize: 18, margin: '0 0 4px 0', color: 'var(--color-text-primary)' }}>{student.name}</h3>
                                     <p style={{ fontSize: 14, color: 'var(--color-text-muted)', margin: '0 0 16px 0' }}>Age: {student.age}</p>
 
                                     <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 16, marginTop: 'auto' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
-                                            <span style={{ color: 'var(--color-text-muted)' }}>Engagement</span>
-                                            <span style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>{student.engagementScore}%</span>
-                                        </div>
-                                        <div style={{ width: '100%', height: 6, background: '#f1f5f9', borderRadius: 3, overflow: 'hidden' }}>
-                                            <div style={{ width: `${student.engagementScore}%`, height: '100%', background: '#0ea5e9' }}></div>
-                                        </div>
+                                        {student.engagementScore != null && (
+                                            <>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
+                                                    <span style={{ color: 'var(--color-text-muted)' }}>Engagement</span>
+                                                    <span style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>{student.engagementScore}%</span>
+                                                </div>
+                                                <div style={{ width: '100%', height: 6, background: '#f1f5f9', borderRadius: 3, overflow: 'hidden' }}>
+                                                    <div style={{ width: `${student.engagementScore}%`, height: '100%', background: '#0ea5e9' }}></div>
+                                                </div>
+                                            </>
+                                        )}
                                         <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 12 }}>
                                             Last Session: {student.lastSessionDate || 'None'}
                                             <div style={{ marginTop: 4, display: 'flex', gap: '8px', color: '#475569' }}>

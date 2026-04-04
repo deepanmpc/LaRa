@@ -156,7 +156,10 @@ public class FamilyDashboardService {
         Map<DayOfWeek, Double> byDay = weekMetrics.stream().collect(Collectors.groupingBy(m -> m.getTimestamp().getDayOfWeek(), Collectors.averagingDouble(EmotionalMetric::getMoodScore)));
         for (DayOfWeek day : DayOfWeek.values()) {
             if (byDay.containsKey(day)) {
-                weeklyMoodData.add(Map.of("day", day.getDisplayName(TextStyle.SHORT, Locale.ENGLISH), "score", (int) Math.round(byDay.get(day))));
+                Map<String, Object> map = new HashMap<>();
+                map.put("day", day.getDisplayName(TextStyle.SHORT, Locale.ENGLISH));
+                map.put("score", (int) Math.round(byDay.get(day)));
+                weeklyMoodData.add(map);
             }
         }
 
@@ -200,7 +203,10 @@ public class FamilyDashboardService {
         Map<DayOfWeek, Double> byDay = weekZpd.stream().collect(Collectors.groupingBy(m -> m.getTimestamp().getDayOfWeek(), Collectors.averagingDouble(ZpdMetric::getScore)));
         for (DayOfWeek day : DayOfWeek.values()) {
             if (byDay.containsKey(day)) {
-                weeklyFocusData.add(Map.of("day", day.getDisplayName(TextStyle.SHORT, Locale.ENGLISH), "focus", (int) Math.round(byDay.get(day))));
+                Map<String, Object> map = new HashMap<>();
+                map.put("day", day.getDisplayName(TextStyle.SHORT, Locale.ENGLISH));
+                map.put("focus", (int) Math.round(byDay.get(day)));
+                weeklyFocusData.add(map);
             }
         }
 
@@ -210,9 +216,15 @@ public class FamilyDashboardService {
                 .collect(Collectors.groupingBy(ToolIntervention::getToolId, Collectors.counting()));
 
         List<Map<String, Object>> topActivities = toolCounts.entrySet().stream()
-                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .sorted((e1, e2) -> e2.getValue().compareTo(e1.getValue()))
                 .limit(4)
-                .map(e -> Map.<String, Object>of("name", e.getKey(), "completions", e.getValue().intValue(), "score", focusScore))
+                .map(e -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("name", e.getKey());
+                    map.put("completions", e.getValue().intValue());
+                    map.put("score", focusScore);
+                    return map;
+                })
                 .collect(Collectors.toList());
 
         return EngagementSummaryDTO.builder()

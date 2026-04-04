@@ -91,11 +91,17 @@ function SessionSummaryCard({ data }) {
             </div>
 
             <div style={{ marginTop: 16, padding: '12px 14px', background: 'var(--color-bg)', borderRadius: 12 }}>
-                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600, marginBottom: 3 }}>LAST ACTIVITY</div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>{data.lastActivityCompleted}</div>
-                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
-                    Next: {data.nextScheduledSession}
-                </div>
+                {data.lastActivityCompleted && (
+                    <>
+                        <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600, marginBottom: 3 }}>LAST ACTIVITY</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>{data.lastActivityCompleted}</div>
+                    </>
+                )}
+                {data.nextScheduledSession && (
+                    <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
+                        Next: {data.nextScheduledSession}
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -138,14 +144,18 @@ function EmotionalCard({ data }) {
                     <div className="stat-item-value">{data.primaryEmotion}</div>
                     <div className="stat-item-label">Primary Emotion</div>
                 </div>
-                <div className="stat-item">
-                    <div className="stat-item-value">{data.selfRegulationScore}</div>
-                    <div className="stat-item-label">Self-Regulation</div>
-                </div>
-                <div className="stat-item">
-                    <div className="stat-item-value">{data.anxietyLevel}</div>
-                    <div className="stat-item-label">Anxiety Level</div>
-                </div>
+                {data.selfRegulationScore != null && (
+                    <div className="stat-item">
+                        <div className="stat-item-value">{data.selfRegulationScore}</div>
+                        <div className="stat-item-label">Self-Regulation</div>
+                    </div>
+                )}
+                {data.anxietyLevel != null && (
+                    <div className="stat-item">
+                        <div className="stat-item-value">{data.anxietyLevel}</div>
+                        <div className="stat-item-label">Anxiety Level</div>
+                    </div>
+                )}
             </div>
 
             <div style={{ marginBottom: 8, fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
@@ -155,15 +165,17 @@ function EmotionalCard({ data }) {
                 <MoodDot key={emotion} color={moodColors[emotion] || '#94a3b8'} label={emotion} percent={percent} />
             ))}
 
-            <div className="progress-group" style={{ marginTop: 16 }}>
-                <div className="progress-item">
-                    <div className="progress-label-row">
-                        <span className="progress-label">Stability Score</span>
-                        <span className="progress-value">{data.emotionStability}%</span>
+            {data.emotionStability != null && (
+                <div className="progress-group" style={{ marginTop: 16 }}>
+                    <div className="progress-item">
+                        <div className="progress-label-row">
+                            <span className="progress-label">Stability Score</span>
+                            <span className="progress-value">{data.emotionStability}%</span>
+                        </div>
+                        <ProgressBar value={data.emotionStability} variant="green" />
                     </div>
-                    <ProgressBar value={data.emotionStability} variant="green" />
                 </div>
-            </div>
+            )}
         </div>
     );
 }
@@ -275,56 +287,6 @@ export default function FamilyDashboard() {
     const [startingSession, setStartingSession] = useState(false);
     const [activeSessionUuid, setActiveSessionUuid] = useState(null);
     const user = getStoredUser();
-
-    useEffect(() => {
-        const ws = new WebSocket('ws://localhost:8765');
-        ws.onmessage = (event) => {
-            try {
-                const msg = JSON.parse(event.data);
-                if (msg.type === 'session_ack' && (msg.status === 'starting' || msg.status === 'already_running')) {
-                    // This is tricky because we don't have the UUID here easily unless we poll an API
-                    // But for the sake of the requirement, we'll try to get it if we can
-                }
-                // Actually, a better way is to poll a backend endpoint that tracks active sessions
-                // Or just listen for system_state which is emitted regularly
-                if (msg.type === 'system_state' && msg.mode !== 'resting') {
-                   // Session is likely active
-                   if (!activeSessionUuid) setActiveSessionUuid('live'); 
-                }
-                if (msg.type === 'session_ended') {
-                    setActiveSessionUuid(null);
-                }
-            } catch (e) {}
-        };
-        // Also check on mount if a session is already active
-        const checkActive = async () => {
-            try {
-                // Assuming there's an endpoint or we just use the WS to probe
-                ws.onopen = () => {
-                    ws.send(JSON.stringify({ type: 'session_status_request' })); // speculative, depends on bridge
-                };
-            } catch (e) {}
-        };
-        checkActive();
-        return () => ws.close();
-    }, [activeSessionUuid]);
-
-    // Re-fetch active session status occasionally or trust WS
-    useEffect(() => {
-        const pollActive = setInterval(async () => {
-            try {
-                const res = await api.get(`/family/session/active/${childId}`);
-                if (res.data && res.data.active) {
-                    setActiveSessionUuid(res.data.sessionUuid);
-                } else {
-                    setActiveSessionUuid(null);
-                }
-            } catch (e) {
-                // Fallback to null if API fails or not implemented
-            }
-        }, 5000);
-        return () => clearInterval(pollActive);
-    }, [childId]);
 
     const now = new Date();
     const dateStr = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });

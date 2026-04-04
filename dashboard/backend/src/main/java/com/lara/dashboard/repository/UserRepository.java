@@ -1,3 +1,5 @@
+package com.lara.dashboard.repository;
+
 import com.lara.dashboard.enums.Role;
 import com.lara.dashboard.enums.UserStatus;
 import com.lara.dashboard.entity.User;
@@ -10,5 +12,6 @@ import java.util.Optional;
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmail(String email);
+    boolean existsByEmail(String email);
     List<User> findByRoleAndStatus(Role role, UserStatus status);
 }
