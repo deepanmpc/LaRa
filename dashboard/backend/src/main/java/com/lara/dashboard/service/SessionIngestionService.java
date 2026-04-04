@@ -48,15 +48,16 @@ public class SessionIngestionService {
         Child child = childRepo.findById(req.getChildId())
                 .orElseThrow(() -> new RuntimeException("Child not found: " + req.getChildId()));
 
-        // 2. Check for duplicate session UUID
-        Optional<Session> existing = sessionRepository.findBySessionUuid(req.getSessionUuid());
-        if (existing.isPresent()) {
-            log.warn("[SessionIngestion] Duplicate session UUID: {}", req.getSessionUuid());
-            throw new RuntimeException("Duplicate session UUID: " + req.getSessionUuid());
-        }
+        // 2. Find or Create session record
+        Session session = sessionRepository.findBySessionUuid(req.getSessionUuid())
+                .orElse(new Session());
+        
+        updateSessionFields(session, req, child);
+        session = sessionRepository.save(session);
 
-        // 3. Create session record
-        Session session = createSession(req, child);
+        // 3. Cleanup existing detail metrics (if updating)
+        turnMetricRepo.deleteBySessionId(session.getId());
+        analyticsRepo.deleteBySessionId(session.getId());
 
         // 4. Insert turn metrics
         if (req.getTurns() != null) {
@@ -120,25 +121,24 @@ public class SessionIngestionService {
 
     // ──────────────────────────────────────────────────────────────────
 
-    private Session createSession(SessionCompleteRequest req, Child child) {
-        Session session = Session.builder()
-                .sessionUuid(req.getSessionUuid())
-                .child(child)
-                .childIdHashed(child.getId() != null ? child.getId().toString() : null)
-                .startTime(parseTimestamp(req.getStartTime()))
-                .endTime(parseTimestamp(req.getEndTime()))
-                .durationSeconds(req.getDurationSeconds())
-                .totalTurns(req.getTotalTurns() != null ? req.getTotalTurns() : 0)
-                .peakDifficulty(req.getPeakDifficulty() != null ? req.getPeakDifficulty() : 1)
-                .avgEngagementScore(req.getAvgEngagementScore() != null ? req.getAvgEngagementScore() : BigDecimal.ZERO)
-                .avgMoodConfidenceNew(req.getAvgMoodConfidence() != null ? req.getAvgMoodConfidence() : BigDecimal.ZERO)
-                .dominantMood(req.getDominantMood() != null ? req.getDominantMood() : "neutral")
-                .totalInterventions(req.getTotalInterventions() != null ? req.getTotalInterventions() : 0)
-                .completionStatus(SessionStatus.COMPLETED)
-                .wakeWordTriggers(req.getWakeWordTriggers() != null ? req.getWakeWordTriggers() : 0)
-                .bargeInCount(req.getBargeInCount() != null ? req.getBargeInCount() : 0)
-                .build();
-        return sessionRepository.save(session);
+    private void updateSessionFields(Session session, SessionCompleteRequest req, Child child) {
+        session.setSessionUuid(req.getSessionUuid());
+        session.setSessionId(req.getSessionUuid()); // Sync legacy sessionId
+        session.setChild(child);
+        session.setChildIdHashed(req.getChildIdHashed() != null ? req.getChildIdHashed() : (child.getId() != null ? child.getId().toString() : null));
+        session.setStartTime(parseTimestamp(req.getStartTime()));
+        session.setEndTime(parseTimestamp(req.getEndTime()));
+        session.setDurationSeconds(req.getDurationSeconds());
+        session.setTotalTurns(req.getTotalTurns() != null ? req.getTotalTurns() : 0);
+        session.setPeakDifficulty(req.getPeakDifficulty() != null ? req.getPeakDifficulty() : 1);
+        session.setAvgEngagementScore(req.getAvgEngagementScore() != null ? req.getAvgEngagementScore() : BigDecimal.ZERO);
+        session.setAvgMoodConfidenceNew(req.getAvgMoodConfidence() != null ? req.getAvgMoodConfidence() : BigDecimal.ZERO);
+        session.setAvgMoodConfidence(req.getAvgMoodConfidence() != null ? req.getAvgMoodConfidence().doubleValue() : 0.0);
+        session.setDominantMood(req.getDominantMood() != null ? req.getDominantMood() : "neutral");
+        session.setTotalInterventions(req.getTotalInterventions() != null ? req.getTotalInterventions() : 0);
+        session.setCompletionStatus(SessionStatus.COMPLETED);
+        session.setWakeWordTriggers(req.getWakeWordTriggers() != null ? req.getWakeWordTriggers() : 0);
+        session.setBargeInCount(req.getBargeInCount() != null ? req.getBargeInCount() : 0);
     }
 
     private void insertTurnMetrics(List<SessionCompleteRequest.TurnItem> turns, Session session) {

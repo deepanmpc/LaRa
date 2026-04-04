@@ -80,61 +80,107 @@ def build_session_payload(
 ) -> dict:
     """
     Build the full SessionCompleteRequest JSON payload from pipeline state objects.
-    
-    Args:
-        session: SessionState object
-        mood_detector: MoodDetector instance (for emotion breakdown)
-        learning_manager: LearningManager instance (for concept mastery)
-        reinforcement_manager: ReinforcementManager instance (for style metrics)
-        vision_aggregates: Pre-aggregated vision metrics dict
-        performance_history: List of performance snapshots
-        
-    Returns:
-        Dict matching the SessionCompleteRequest schema
+    Uses SessionState.get_final_stats() as the primary source of truth.
     """
     import uuid
     from datetime import datetime
     
+    # Generate final aggregates from session
+    stats = session.get_final_stats() if hasattr(session, 'get_final_stats') else {}
+    
     # Generate session UUID if not present
     session_uuid = getattr(session, 'session_uuid', None) or str(uuid.uuid4())
     
+    summary = stats.get("session_summary", {})
+    
     payload = {
         "sessionUuid": session_uuid,
-        "startTime": _format_timestamp(getattr(session, 'start_time', None)),
+        "childIdHashed": stats.get("session_identity", {}).get("child_id_hashed") or getattr(session, 'child_id_hashed', None),
+        "startTime": _format_timestamp(getattr(session, 'created_at', None)),
         "endTime": _format_timestamp(datetime.now()),
-        "durationSeconds": getattr(session, 'duration_seconds', 0) or 0,
-        "totalTurns": getattr(session, 'turn_count', 0) or 0,
-        "peakDifficulty": getattr(session, 'peak_difficulty', 1) or 1,
-        "dominantMood": getattr(session, 'dominant_mood', 'neutral') or 'neutral',
-        "avgMoodConfidence": getattr(session, 'avg_mood_confidence', 0.0) or 0.0,
-        "avgEngagementScore": getattr(session, 'avg_engagement', 0.0) or 0.0,
-        "totalInterventions": getattr(session, 'intervention_count', 0) or 0,
-        "wakeWordTriggers": getattr(session, 'wake_word_count', 0) or 0,
-        "bargeInCount": getattr(session, 'barge_in_count', 0) or 0,
+        "durationSeconds": summary.get("duration_seconds", 0),
+        "totalTurns": summary.get("total_turns", 0),
+        "peakDifficulty": summary.get("peak_difficulty", 1),
+        "dominantMood": summary.get("dominant_mood", "neutral"),
+        "avgMoodConfidence": stats.get("emotional", {}).get("mood_confidence", 0.0),
+        "avgEngagementScore": summary.get("avg_engagement_score", 0.0),
+        "totalInterventions": 0, # To be added to SessionState if needed
+        "wakeWordTriggers": 0,
+        "bargeInCount": 0,
     }
     
-    # Emotional data
-    payload["emotionalData"] = _build_emotional_data(session, mood_detector)
+    # Emotional Data (Mapping Python stats to Java DTO)
+    e = stats.get("emotional", {})
+    payload["emotionalData"] = {
+        "overallMoodScore": int(e.get("mood_score", 50)),
+        "moodTrend": "Stable", # Placeholder or derive from history
+        "primaryEmotion": e.get("primary_emotion", "neutral"),
+        "emotionStabilityScore": int(e.get("emotional_trend_score", 50)),
+        "anxietyLevel": "Low",
+        "selfRegulationScore": 50,
+        "positiveInteractions": e.get("stability_index", 0),
+        "challengingMoments": e.get("frustration_streak", 0),
+        "pctHappy": stats.get("voice", {}).get("pct_vocal_neutral", 0.0), # Simplified for now
+        "pctCalm": 0.0,
+        "pctFocused": 0.0,
+        "pctAnxious": 0.0,
+        "pctFrustrated": stats.get("voice", {}).get("pct_vocal_arousal", 0.0),
+        "pctSad": stats.get("voice", {}).get("pct_vocal_withdrawal", 0.0),
+        "pctNeutral": stats.get("voice", {}).get("pct_vocal_neutral", 0.0)
+    }
     
-    # Engagement data
-    payload["engagementData"] = _build_engagement_data(session, vision_aggregates)
+    # Engagement Data
+    a = stats.get("analytics", {})
+    payload["engagementData"] = {
+        "focusScore": int(a.get("focus_score", 50)),
+        "attentionSpanMinutes": a.get("attention_span_minutes", 0.0),
+        "taskCompletionRate": int(a.get("task_completion_rate", 100)),
+        "participationLevel": a.get("participation_level", "MEDIUM"),
+        "distractionFrequency": a.get("distraction_frequency", "LOW"),
+        "responsivenessScore": 75,
+        "initiativeTakingScore": int(a.get("initiative_taking_score", 50)),
+        "collaborationScore": 50,
+        "weeklyGoalProgress": 0
+    }
     
-    # Vision data
-    if vision_aggregates:
-        payload["visionData"] = vision_aggregates
+    # Vision Data
+    v = stats.get("vision", {})
+    payload["visionData"] = {
+        "avgEngagementScore": v.get("avg_engagement_score", 0.0),
+        "avgEngagementUiScore": v.get("avg_engagement_ui_score", 0.0),
+        "avgGazeScore": v.get("avg_gaze_score", 0.0),
+        "systemConfidence": v.get("system_confidence", 0.9),
+        "faceConfidence": v.get("face_confidence", 0.9),
+        "gestureConfidence": v.get("gesture_confidence", 0.8),
+        "poseConfidence": v.get("pose_confidence", 0.8),
+        "objectConfidence": v.get("object_confidence", 0.7),
+        "totalDistractionFrames": v.get("distraction_frames", 0),
+        "focusedDurationMinutes": v.get("focused_duration_minutes", 0.0),
+        "attentionFocusedPct": v.get("attention_state_focused_pct", 0.0),
+        "attentionDistractedPct": v.get("attention_state_distracted_pct", 0.0),
+        "attentionAbsentPct": v.get("attention_state_absent_pct", 0.0)
+    }
     
-    # Voice data
-    payload["voiceData"] = _build_voice_data(session)
+    # Voice Data
+    vo = stats.get("voice", {})
+    payload["voiceData"] = {
+        "speakingRateWpm": int(vo.get("avg_speaking_rate_wpm", 0)),
+        "avgVolume": vo.get("avg_volume", 0.0),
+        "speechStabilityScore": vo.get("speech_stability_score", 0.0),
+        "utteranceCount": vo.get("utterance_count", 0),
+        "pctVocalNeutral": vo.get("pct_vocal_neutral", 100.0),
+        "pctVocalArousal": vo.get("pct_vocal_arousal", 0.0),
+        "pctVocalWithdrawal": vo.get("pct_vocal_withdrawal", 0.0)
+    }
     
-    # Learning progress
-    if learning_manager:
-        payload["learningProgress"] = _build_learning_progress(learning_manager)
+    # Learning Progress (Using objects if passed, else stats)
+    # The stats "learning" and "reinforcement" are already built by Managers if linked
+    payload["learningProgress"] = _build_learning_progress_from_stats(stats.get("learning", []))
     
     # Reinforcement data
-    if reinforcement_manager:
-        payload["reinforcementData"] = _build_reinforcement_data(reinforcement_manager)
+    payload["reinforcementData"] = _build_reinforcement_data_from_stats(stats.get("reinforcement", []))
     
-    # Top activities
+    # Top activities (derived from turn history concepts)
     payload["topActivities"] = _build_top_activities(session)
     
     # Difficulty trajectory
@@ -144,6 +190,55 @@ def build_session_payload(
     payload["turns"] = _build_turns(session)
     
     return payload
+
+def _build_learning_progress_from_stats(learning_stats: list) -> list:
+    items = []
+    for s in learning_stats:
+        items.append({
+            "conceptName": s.get("concept_name"),
+            "curriculumArea": "General",
+            "masteryLevel": int(s.get("mastery_percentage", 0) / 20), # scale 0-5
+            "masteryPercentage": s.get("mastery_percentage", 0.0),
+            "successRate": (s.get("success_count", 0) / s.get("attempt_count", 1)) * 100.0 if s.get("attempt_count", 0) > 0 else 0.0,
+            "attemptCount": s.get("attempt_count", 0),
+            "successCount": s.get("success_count", 0),
+            "currentDifficulty": s.get("current_difficulty", 1)
+        })
+    return items
+
+def _build_reinforcement_data_from_stats(reinforcement_stats: list) -> dict:
+    if not reinforcement_stats:
+        return {
+            "praiseSuccessRate": 0.0, "achievementSuccessRate": 0.0,
+            "validationSuccessRate": 0.0, "encouragementSuccessRate": 0.0,
+            "bestReinforcementStyle": "CALM_VALIDATION"
+        }
+    
+    best = "CALM_VALIDATION"
+    best_rate = -1.0
+    
+    data = {
+        "praiseSuccessRate": 0.0,
+        "achievementSuccessRate": 0.0,
+        "validationSuccessRate": 0.0,
+        "encouragementSuccessRate": 0.0,
+    }
+    
+    for s in reinforcement_stats:
+        style = s.get("style_name", "")
+        rate = s.get("success_rate", 0.0)
+        
+        if "praise" in style: data["praiseSuccessRate"] = rate
+        elif "achievement" in style: data["achievementSuccessRate"] = rate
+        elif "validation" in style: data["validationSuccessRate"] = rate
+        elif "encouragement" in style: data["encouragementSuccessRate"] = rate
+        
+        if rate > best_rate:
+            best_rate = rate
+            best = style
+            
+    data["bestReinforcementStyle"] = best.upper()
+    return data
 
 
 def _format_timestamp(dt) -> str:

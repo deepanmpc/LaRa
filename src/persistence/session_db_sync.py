@@ -79,14 +79,21 @@ class SessionDBSync:
 
     def session_start(self, session_uuid, child_id, parent_id=None):
         """Step 3 — Insert into Sessions Table"""
+        import hashlib
+        # Generate a stable hash for the child_id to satisfy schema
+        child_id_val = str(child_id or 1)
+        child_id_hashed = hashlib.md5(child_id_val.encode()).hexdigest()[:16]
+        
         query = """
-            INSERT INTO sessions (session_uuid, child_id, parent_id, start_time, status)
-            VALUES (%s, %s, %s, %s, 'IN_PROGRESS')
+            INSERT INTO sessions (
+                session_uuid, session_id, child_id, child_id_hashed, parent_id, start_time, status
+            ) VALUES (%s, %s, %s, %s, %s, %s, 'IN_PROGRESS')
         """
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        last_id = self._execute(query, (session_uuid, child_id, parent_id, now))
-        logging.info(f"[SessionDBSync] Session started in DB: {session_uuid} (ID: {last_id})")
-        return last_id
+        
+        last_id = self._execute(query, (session_uuid, session_uuid, child_id, child_id_hashed, parent_id, now))
+        logging.info(f"[SessionDBSync] Session started in DB: {session_uuid} (ID: {last_id}, HashedID: {child_id_hashed})")
+        return last_id, child_id_hashed
 
     def session_turn_metrics(self, session_id, turn_data):
         """Step 4 — Write Turn-Level Metrics"""

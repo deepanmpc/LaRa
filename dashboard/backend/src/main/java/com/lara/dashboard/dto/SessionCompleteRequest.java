@@ -15,6 +15,7 @@ import java.util.List;
 public class SessionCompleteRequest {
 
     private String sessionUuid;
+    private String childIdHashed;
     private Long childId;
     private String startTime;
     private String endTime;

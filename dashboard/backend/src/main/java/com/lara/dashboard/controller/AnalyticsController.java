@@ -94,7 +94,7 @@ public class AnalyticsController {
         // This is a simplified aggregate for the purpose of the sync task
         return ResponseEntity.ok(ClinicianDashboardResponse.builder()
                 .clinicianId(clinicianId)
-                .children(new ArrayList<>()) # Would map children here
+                .children(new ArrayList<>()) // Would map children here
                 .riskMetrics(Map.of("critical_alerts", 0))
                 .build());
     }

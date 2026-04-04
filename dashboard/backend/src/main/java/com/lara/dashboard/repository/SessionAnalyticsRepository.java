@@ -17,4 +17,8 @@ public interface SessionAnalyticsRepository extends JpaRepository<SessionAnalyti
     List<SessionAnalytics> findTop7ByChildIdOrderByCreatedAtDesc(Long childId);
 
     Optional<SessionAnalytics> findTopByChildIdOrderByCreatedAtDesc(Long childId);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("DELETE FROM SessionAnalytics s WHERE s.session.id = :sessionId")
+    void deleteBySessionId(@org.springframework.data.repository.query.Param("sessionId") Long sessionId);
 }

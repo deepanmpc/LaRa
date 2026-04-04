@@ -71,12 +71,22 @@ def _start_pipeline(child_id=None, session_uuid=None):
         # Step 3 — SQL Session Start
         try:
             from src.persistence.session_db_sync import SessionDBSync
+            from src.core.config_loader import CONFIG
+            
+            # Use child_id from config if not provided
+            if not getattr(session_obj, 'child_id', None):
+                session_obj.child_id = CONFIG.get("dashboard", {}).get("child_id", 1)
+            
             db_sync = SessionDBSync.get()
-            db_id = db_sync.session_start(
+            db_id, child_id_hashed = db_sync.session_start(
                 session_uuid=session_obj.session_uuid,
                 child_id=session_obj.child_id
             )
             session_obj.session_db_id = db_id
+            session_obj.child_id_hashed = child_id_hashed
+            logging.info(f"[Main] SQL Session Start successful: DB ID={db_id}, HashedID={child_id_hashed}")
+        except ImportError:
+            logging.error("[Main] SQL Session Start failed: mysql-connector-python not installed.")
         except Exception as e:
             logging.error(f"[Main] SQL Session Start failed: {e}")
 
@@ -130,6 +140,7 @@ def _start_pipeline(child_id=None, session_uuid=None):
                     child_id=session_obj.child_id,
                     final_stats=final_stats
                 )
+                logging.info(f"[Main] SQL Session End successful for DB ID={session_obj.session_db_id}")
             except Exception as e:
                 logging.error(f"[Main] SQL Session End failed: {e}")
 

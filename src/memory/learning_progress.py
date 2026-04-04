@@ -89,6 +89,34 @@ class LearningProgressManager:
         else:
             return 4
     
+    def get_session_metrics(self) -> list:
+        """
+        Get learning progress metrics for the current session.
+        
+        Returns:
+            List of dicts compatible with SessionDBSync._persist_learning_progress
+        """
+        if not self._memory or not self._user_id:
+            return []
+            
+        summary = self._memory.get_session_summary(self._user_id)
+        learning_data = summary.get("learning", [])
+        
+        metrics_list = []
+        for item in learning_data:
+            # Note: total_time_spent_seconds is not currently tracked per concept
+            metrics_list.append({
+                "concept_name": item.get("concept"),
+                "attempt_count": item.get("attempts", 0),
+                "success_count": item.get("mastery", 0), # Simplified mapping
+                "failure_count": max(0, item.get("attempts", 0) - item.get("mastery", 0)),
+                "mastery_percentage": (item.get("mastery", 0) / 5.0) * 100.0,
+                "current_difficulty": self.get_baseline_difficulty(item.get("concept")),
+                "peak_difficulty_reached": self.get_baseline_difficulty(item.get("concept")),
+                "total_time_spent_seconds": 0
+            })
+        return metrics_list
+
     def update_mastery(self, concept: str):
         """
         Recalculate mastery based on recent success pattern.

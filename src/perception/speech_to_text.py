@@ -312,6 +312,11 @@ def run_conversation_loop(bridge=None, skip_wake_word=False, session=None):
         reinforcement_manager = ReinforcementAdaptationManager(memory)
         reinforcement_manager.set_user(USER_ID)
     
+    # Link managers to session for end-of-session aggregation
+    if session:
+        session.learning_manager = learning_manager
+        session.reinforcement_manager = reinforcement_manager
+
     # Initialize Child Preference Manager
     preference_manager = None
     if ChildPreferenceManager and memory:
@@ -476,7 +481,8 @@ def run_conversation_loop(bridge=None, skip_wake_word=False, session=None):
 
     try:
         with sd.InputStream(samplerate=SAMPLE_RATE, channels=CHANNELS, 
-                            callback=callback, blocksize=FRAME_SIZE):
+                            callback=callback, blocksize=FRAME_SIZE,
+                            latency='low'):
             while True:
                 indata = audio_queue.get()
                 if len(indata) != FRAME_SIZE: continue
@@ -846,8 +852,18 @@ def run_conversation_loop(bridge=None, skip_wake_word=False, session=None):
         print("\n\n\033[91m[System Transition]\033[0m Stopping gently...")
         logging.info("[SYSTEM_STATE] Transitioned to SHUTDOWN (KeyboardInterrupt)")
     except Exception as e:
-        logging.critical(f"System Error: {e}")
-        print(f"\n\033[91mError:\033[0m {e}")
+        if "PaErrorCode -9986" in str(e) or "Internal PortAudio error" in str(e):
+            msg = (
+                "\n\033[91mCRITICAL AUDIO ERROR (macOS):\033[0m Microphone access denied or Device conflict.\n"
+                "1. Go to System Settings > Privacy & Security > Microphone.\n"
+                "2. Ensure your Terminal/IDE is toggled ON.\n"
+                "3. Ensure no other apps (Zoom, Teams) are locking the microphone at a different sample rate."
+            )
+            logging.critical(msg)
+            print(msg)
+        else:
+            logging.critical(f"System Error: {e}")
+            print(f"\n\033[91mError:\033[0m {e}")
 
 if __name__ == "__main__":
     run_conversation_loop()
