@@ -365,40 +365,55 @@ function EngagementGauge({ value }) {
 }
 
 export default function ClinicalStudentSections({ record, visionData }) {
+    // Inject safe fallbacks for missing structures to prevent crashes during migration
+    const safeRecord = {
+        emotional_metrics: record?.emotional_metrics || { frustration_count: 0, recovery_count: 0, neutral_stability_count: 0 },
+        reinforcement_metrics: record?.reinforcement_metrics || { total_events: 0, preferred_style: 'none', calm_validation: 0, praise_based: 0, achievement_based: 0, playful: 0 },
+        vision_session_stats: record?.vision_session_stats || { avg_engagement_score: 0.7, avg_gaze_score: 0.7, system_confidence: 0.8 },
+        perception_confidence: record?.perception_confidence || { face_conf: 0.8, gesture_conf: 0.8, object_conf: 0.8 },
+        vocal_mood_distribution: record?.vocal_mood_distribution || { neutral: 0.5, arousal: 0.2, withdrawal: 0.2 },
+        learning_progress: record?.learning_progress || { mastery_level: 0, concept_name: 'Pending', attempt_count: 0, success_rate: 0 },
+        user_profiles: record?.user_profiles || { instruction_depth: 1, preferred_topics: [] },
+        vision_behavior_counts: record?.vision_behavior_counts || { distraction_frames: 0, focused_duration: 0 },
+        total_engagement_summary: record?.total_engagement_summary || { total_engagement_average: 0.7, interaction_continuity_score: 0.7, session_duration: 0 },
+        voice_prosody_metrics: record?.voice_prosody_metrics || { speaking_rate: 100, volume: 0.5, stability_score: 0.5 }
+    };
+
     // 1. Data from 'emotional_metrics' table (Python Core / Dashboard MySQL)
-    const stabilityIndex = getStabilityIndex(record.emotional_metrics);
+    const stabilityIndex = getStabilityIndex(safeRecord.emotional_metrics);
     
     // 2. Data from 'reinforcement_metrics' table
-    const reinforcementRanking = getReinforcementRanking(record.reinforcement_metrics);
-    const bestStrategy = reinforcementRanking[0];
+    const reinforcementRanking = getReinforcementRanking(safeRecord.reinforcement_metrics);
+    const bestStrategy = reinforcementRanking[0] || { label: 'None', score: 0 };
     
     // 3. Data from 'vision_metrics' and 'engagement_timeline' tables
-    // Prioritize real visionData from the API if available, else fallback to mock
     const radarMetrics = [
-        { label: 'Engage', value: visionData ? visionData.avg_engagement_score : record.vision_session_stats.avg_engagement_score },
-        { label: 'Gaze', value: visionData ? visionData.avg_gaze_score : record.vision_session_stats.avg_gaze_score },
-        { label: 'System', value: visionData ? visionData.system_confidence : record.vision_session_stats.system_confidence },
-        { label: 'Face', value: visionData ? visionData.face_conf : record.perception_confidence.face_conf },
-        { label: 'Gesture', value: visionData ? visionData.gesture_conf : record.perception_confidence.gesture_conf },
-        { label: 'Object', value: visionData ? visionData.object_conf : record.perception_confidence.object_conf }
+        { label: 'Engage', value: visionData ? visionData.avg_engagement_score : safeRecord.vision_session_stats.avg_engagement_score },
+        { label: 'Gaze', value: visionData ? visionData.avg_gaze_score : safeRecord.vision_session_stats.avg_gaze_score },
+        { label: 'System', value: visionData ? visionData.system_confidence : safeRecord.vision_session_stats.system_confidence },
+        { label: 'Face', value: visionData ? visionData.face_conf : safeRecord.perception_confidence.face_conf },
+        { label: 'Gesture', value: visionData ? visionData.gesture_conf : safeRecord.perception_confidence.gesture_conf },
+        { label: 'Object', value: visionData ? visionData.object_conf : safeRecord.perception_confidence.object_conf }
     ];
 
     const emotionalTrendChips = [
-        record.emotional_metrics.frustration_count <= 8 ? 'Frustration within monitored range' : 'Escalation threshold elevated',
-        record.emotional_metrics.recovery_count >= record.emotional_metrics.frustration_count ? 'Recovery exceeds disruption events' : 'Recovery below target response',
-        record.emotional_metrics.neutral_stability_count >= 20 ? 'Baseline stability sustained' : 'Baseline variability noted'
+        safeRecord.emotional_metrics.frustration_count <= 8 ? 'Frustration within monitored range' : 'Escalation threshold elevated',
+        safeRecord.emotional_metrics.recovery_count >= safeRecord.emotional_metrics.frustration_count ? 'Recovery exceeds disruption events' : 'Recovery below target response',
+        safeRecord.emotional_metrics.neutral_stability_count >= 20 ? 'Baseline stability sustained' : 'Baseline variability noted'
     ];
 
     const vocalDistribution = [
-        { label: 'Neutral', value: record.vocal_mood_distribution.neutral, tone: 'calm' },
-        { label: 'Arousal', value: record.vocal_mood_distribution.arousal, tone: 'alert' },
-        { label: 'Withdrawal', value: record.vocal_mood_distribution.withdrawal, tone: 'risk' }
+        { label: 'Neutral', value: safeRecord.vocal_mood_distribution.neutral, tone: 'calm' },
+        { label: 'Arousal', value: safeRecord.vocal_mood_distribution.arousal, tone: 'alert' },
+        { label: 'Withdrawal', value: safeRecord.vocal_mood_distribution.withdrawal, tone: 'risk' }
     ];
 
     // 4. Data from 'learning_progress' and 'user_profiles' tables
-    const masteryValue = record.learning_progress.mastery_level;
-    const conceptName = record.learning_progress.concept_name;
-    const instructionLevel = record.user_profiles.instruction_depth;
+    const masteryValue = safeRecord.learning_progress.mastery_level;
+    const conceptName = safeRecord.learning_progress.concept_name;
+    const instructionLevel = safeRecord.user_profiles.instruction_depth;
+
+    record = safeRecord; // reassign for JSX downstream usages
 
     return (
         <>
