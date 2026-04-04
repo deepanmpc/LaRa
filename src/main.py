@@ -106,6 +106,22 @@ def _start_pipeline(child_id=None, session_uuid=None):
             except Exception as e:
                 logging.warning(f"[Main] Session flush failed: {e}")
 
+        # ── Report session to Dashboard API ──
+        if session_obj is not None:
+            try:
+                dashboard_cfg = CONFIG.get("dashboard", {})
+                if dashboard_cfg.get("enabled", False):
+                    from src.bridge.dashboard_reporter import build_session_payload, report_session_to_dashboard
+                    
+                    child_id = dashboard_cfg.get("child_id", 1)
+                    api_url = dashboard_cfg.get("api_url", "http://localhost:8080") + "/api/pipeline/session-complete"
+                    timeout = dashboard_cfg.get("report_timeout", 5.0)
+                    
+                    payload = build_session_payload(session_obj)
+                    report_session_to_dashboard(payload, child_id=child_id, api_url=api_url, timeout=timeout)
+            except Exception as e:
+                logging.warning(f"[Main] Dashboard report failed (non-fatal): {e}")
+
         with _session_lock:
             _session_active = False
             _current_session = None

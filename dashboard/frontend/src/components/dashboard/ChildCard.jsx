@@ -3,6 +3,15 @@ import { useNavigate } from 'react-router-dom';
 export default function ChildCard({ child }) {
     const navigate = useNavigate();
 
+    const avatarColor = child.avatarColor || '#7c3aed';
+
+    const getBadgeStyle = (badge) => {
+        if (!badge) return {};
+        if (badge === 'Doing Well') return { background: '#dcfce7', color: '#16a34a', border: '1px solid #bbf7d0' };
+        if (badge === 'Steady Progress') return { background: '#fef9c3', color: '#ca8a04', border: '1px solid #fde68a' };
+        return { background: '#fecaca', color: '#dc2626', border: '1px solid #fca5a5' };
+    };
+
     return (
         <div
             className="card child-selector-card"
@@ -20,14 +29,26 @@ export default function ChildCard({ child }) {
             }}
         >
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, flex: 1, position: 'relative' }}>
-                <div className="child-avatar" style={{ width: 48, height: 48, fontSize: 20 }}>
+                <div className="child-avatar" style={{ width: 48, height: 48, fontSize: 20, background: avatarColor }}>
                     {child.name.charAt(0)}
                 </div>
                 <div style={{ flex: 1 }}>
-                    <h3 style={{ margin: 0, fontSize: 18, color: 'var(--color-text-primary)' }}>{child.name}</h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <h3 style={{ margin: 0, fontSize: 18, color: 'var(--color-text-primary)' }}>{child.name}</h3>
+                        {child.statusBadge && (
+                            <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 12, fontWeight: 600, ...getBadgeStyle(child.statusBadge) }}>
+                                {child.statusBadge}
+                            </span>
+                        )}
+                    </div>
                     <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginTop: 4 }}>
                         Age {child.age} • {child.gradeLevel || 'Grade ' + child.grade}
                     </div>
+                    {child.diagnosis && (
+                        <div style={{ fontSize: 12, color: 'var(--color-primary)', marginTop: 2 }}>
+                            {child.diagnosis}
+                        </div>
+                    )}
                 </div>
                 {child.onDelete && (
                     <button
@@ -62,13 +83,18 @@ export default function ChildCard({ child }) {
                     </button>
                 )}
             </div>
-            <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--color-border)', fontSize: 12, color: 'var(--color-text-muted)' }}>
+            <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--color-border)', fontSize: 12, color: 'var(--color-text-muted)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
                     </svg>
-                    Last session: {child.lastSessionDate || child.lastSessionTime || 'No sessions yet'}
+                    {child.lastSessionDate || child.lastSessionAt || 'No sessions yet'}
                 </span>
+                {child.currentFocusArea && (
+                    <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 6, background: 'var(--color-bg)', color: 'var(--color-text-muted)' }}>
+                        Focus: {child.currentFocusArea}
+                    </span>
+                )}
             </div>
         </div>
     );

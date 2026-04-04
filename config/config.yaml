@@ -175,3 +175,11 @@ cognitive_pipeline:
   attention_rag_memory_budget: 120
   perf_rolling_window: 100
 
+# ───────────────────────────────────────────────
+# DASHBOARD BRIDGE (Spring Boot API)
+# ───────────────────────────────────────────────
+dashboard:
+  api_url: "http://localhost:8080"
+  child_id: 1              # Default child ID for single-child mode
+  enabled: true
+  report_timeout: 5.0      # Seconds before timing out the POST
