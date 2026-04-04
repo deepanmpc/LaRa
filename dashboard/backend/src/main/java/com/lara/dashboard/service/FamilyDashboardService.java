@@ -6,16 +6,27 @@ import com.lara.dashboard.dto.EngagementSummaryDTO;
 import com.lara.dashboard.dto.FamilyDashboardResponse;
 import com.lara.dashboard.dto.SessionSummaryDTO;
 import com.lara.dashboard.entity.Child;
+import com.lara.dashboard.entity.EmotionalMetric;
 import com.lara.dashboard.entity.Session;
+import com.lara.dashboard.entity.ToolIntervention;
+import com.lara.dashboard.entity.ZpdMetric;
 import com.lara.dashboard.repository.ChildRepository;
 import com.lara.dashboard.repository.SessionRepository;
+import com.lara.dashboard.repository.EmotionalMetricRepository;
+import com.lara.dashboard.repository.ZpdMetricRepository;
+import com.lara.dashboard.repository.ToolInterventionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.time.DayOfWeek;
+import java.time.format.TextStyle;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -23,120 +34,192 @@ public class FamilyDashboardService {
 
     private final ChildRepository childRepository;
     private final SessionRepository sessionRepository;
+    private final EmotionalMetricRepository emotionalMetricRepository;
+    private final ZpdMetricRepository zpdMetricRepository;
+    private final ToolInterventionRepository toolInterventionRepository;
+
+    private String getChildIdHashed(Long childId) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] hash = md.digest(String.valueOf(childId).getBytes(StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-256 not found", e);
+        }
+    }
 
     public FamilyDashboardResponse getDashboardData(String userEmail, Long childId) {
-        Child child = null;
-        if (childId != null) {
-             child = childRepository.findById(childId).orElse(null);
-        }
-
-        List<Session> allSessions = childId != null ? sessionRepository.findAllByChild_Id(childId) : List.of();
+        Child child = childRepository.findById(childId).orElse(null);
+        String childIdHashed = getChildIdHashed(childId);
 
         return FamilyDashboardResponse.builder()
                 .childProfile(buildChildProfile(child))
-                .sessionSummary(buildSessionSummary(allSessions))
-                .emotionalMetrics(buildEmotionalMetrics(allSessions))
-                .engagementMetrics(buildEngagementMetrics(allSessions))
+                .sessionSummary(buildSessionSummary(childId, childIdHashed))
+                .emotionalMetrics(buildEmotionalMetrics(childIdHashed))
+                .engagementMetrics(buildEngagementMetrics(childIdHashed))
                 .build();
     }
 
     private ChildProfileDTO buildChildProfile(Child child) {
-        String name = "Unknown Child";
-        Integer age = 0;
-        String gradeLevel = "N/A";
-        String therapistAssigned = "None Assigned";
-        
-        if (child != null) {
-            name = child.getName();
-            age = child.getAge();
-            gradeLevel = child.getGradeLevel();
-            therapistAssigned = child.getClinician() != null ? child.getClinician().getUser().getName() : "None Assigned";
+        if (child == null) {
+            return new ChildProfileDTO();
         }
         
+        String lastSessionTime = sessionRepository.findTopByChild_IdOrderByEndTimeDesc(child.getId())
+                .map(s -> s.getEndTime().toString())
+                .orElse("No sessions yet");
+
         return ChildProfileDTO.builder()
-            .name(name)
-            .age(age)
-            .gradeLevel(gradeLevel)
-            .therapistAssigned(therapistAssigned)
-            .currentFocus("Social Scenarios")
-            .lastSessionTime("Recently")
-            .statusBadge("Doing Well")
-            .build();
+                .name(child.getName())
+                .age(child.getAge())
+                .gradeLevel(child.getGradeLevel())
+                .therapistAssigned(child.getClinician() != null && child.getClinician().getUser() != null ? child.getClinician().getUser().getName() : null)
+                .lastSessionTime(lastSessionTime)
+                .currentFocus(null)
+                .statusBadge(null)
+                .build();
     }
 
-    private SessionSummaryDTO buildSessionSummary(List<Session> sessions) {
-        long recentSessionsCount = sessions.stream()
-                .filter(s -> s.getStartTime() != null && s.getStartTime().isAfter(LocalDateTime.now().minusDays(7)))
-                .count();
+    private SessionSummaryDTO buildSessionSummary(Long childId, String childIdHashed) {
+        LocalDateTime startOfWeek = LocalDate.now().with(java.time.temporal.TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).atStartOfDay();
+        LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
 
-        int totalMins = sessions.stream()
-                .mapToInt(s -> s.getDurationSeconds() != null ? s.getDurationSeconds() : 0)
-                .sum() / 60;
+        Long totalSessionsThisWeek = sessionRepository.countByChild_IdAndStartTimeAfter(childId, startOfWeek);
+        if (totalSessionsThisWeek == null) totalSessionsThisWeek = 0L;
+        
+        Long totalSessionsAllTime = sessionRepository.countByChild_Id(childId);
+        if (totalSessionsAllTime == null) totalSessionsAllTime = 0L;
 
-        int avgMins = sessions.isEmpty() ? 0 : totalMins / sessions.size();
+        Long todayDuration = sessionRepository.sumDurationByChildIdAndStartTimeAfter(childId, startOfDay);
+        String todaySessionDuration = (todayDuration != null ? (todayDuration / 60) : 0) + " minutes";
+
+        Double avgDuration = sessionRepository.avgDurationByChildId(childId);
+        String averageSessionDuration = (avgDuration != null ? (Math.round(avgDuration) / 60) : 0) + " minutes";
+
+        Long activitiesCompletedToday = toolInterventionRepository.countByChildIdHashedAndTimestampAfter(childIdHashed, startOfDay);
+        if (activitiesCompletedToday == null) activitiesCompletedToday = 0L;
+
+        int weeklyGoalProgress = Math.min(100, (int) Math.round((totalSessionsThisWeek / 5.0) * 100));
+
+        String lastActivityCompleted = toolInterventionRepository.findTopByChildIdHashedOrderByTimestampDesc(childIdHashed)
+                .map(ToolIntervention::getToolId)
+                .orElse(null);
 
         return SessionSummaryDTO.builder()
-            .totalSessionsThisWeek(recentSessionsCount)
-            .totalSessionsAllTime(sessions.size())
-            .todaySessionDuration((sessions.isEmpty() ? 0 : sessions.get(sessions.size()-1).getDurationSeconds() != null ? sessions.get(sessions.size()-1).getDurationSeconds() / 60 : 0) + " minutes")
-            .averageSessionDuration(avgMins + " minutes")
-            .lastActivityCompleted(sessions.isEmpty() ? "None" : sessions.get(sessions.size()-1).getInterventionUsed())
-            .nextScheduledSession("Configure via Calendar")
-            .weeklyGoalProgress((int)Math.min(100, recentSessionsCount * 25))
-            .activitiesCompletedToday(1)
-            .recentSessions(new HashMap<>())
-            .build();
+                .totalSessionsThisWeek(totalSessionsThisWeek)
+                .totalSessionsAllTime(totalSessionsAllTime.intValue())
+                .todaySessionDuration(todaySessionDuration)
+                .averageSessionDuration(averageSessionDuration)
+                .activitiesCompletedToday(activitiesCompletedToday.intValue())
+                .weeklyGoalProgress(weeklyGoalProgress)
+                .lastActivityCompleted(lastActivityCompleted)
+                .nextScheduledSession(null)
+                .recentSessions(new HashMap<>())
+                .build();
     }
 
-    private EmotionalSummaryDTO buildEmotionalMetrics(List<Session> sessions) {
-        double avgScore = sessions.stream()
-            .mapToDouble(s -> s.getAvgMoodConfidence() != null ? s.getAvgMoodConfidence() : 80.0)
-            .average().orElse(80.0);
+    private EmotionalSummaryDTO buildEmotionalMetrics(String childIdHashed) {
+        LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
+        List<EmotionalMetric> weekMetrics = emotionalMetricRepository.findByChildIdHashedAndTimestampAfter(childIdHashed, sevenDaysAgo);
 
-        String trend = avgScore > 85 ? "Improving" : avgScore < 70 ? "Needs Support" : "Stable";
+        if (weekMetrics.isEmpty()) {
+            return new EmotionalSummaryDTO();
+        }
+
+        int overallMoodScore = (int) Math.round(weekMetrics.stream().mapToDouble(EmotionalMetric::getMoodScore).average().orElse(0));
+
+        Map<String, Long> primaryCounts = weekMetrics.stream()
+                .filter(m -> m.getPrimaryEmotion() != null)
+                .collect(Collectors.groupingBy(EmotionalMetric::getPrimaryEmotion, Collectors.counting()));
         
+        String primaryEmotion = primaryCounts.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .orElse(null);
+
+        LocalDateTime threeDaysAgo = LocalDateTime.now().minusDays(3);
+        LocalDateTime sixDaysAgo = LocalDateTime.now().minusDays(6);
+        double currentAvg = weekMetrics.stream().filter(m -> m.getTimestamp().isAfter(threeDaysAgo)).mapToDouble(EmotionalMetric::getMoodScore).average().orElse(0);
+        double previousAvg = weekMetrics.stream().filter(m -> m.getTimestamp().isAfter(sixDaysAgo) && m.getTimestamp().isBefore(threeDaysAgo)).mapToDouble(EmotionalMetric::getMoodScore).average().orElse(currentAvg);
+
+        String moodTrend = "Stable";
+        if (currentAvg > previousAvg + 5) moodTrend = "Improving";
+        else if (currentAvg < previousAvg - 5) moodTrend = "Needs Support";
+
+        List<Map<String, Object>> weeklyMoodData = new ArrayList<>();
+        Map<DayOfWeek, Double> byDay = weekMetrics.stream().collect(Collectors.groupingBy(m -> m.getTimestamp().getDayOfWeek(), Collectors.averagingDouble(EmotionalMetric::getMoodScore)));
+        for (DayOfWeek day : DayOfWeek.values()) {
+            if (byDay.containsKey(day)) {
+                weeklyMoodData.add(Map.of("day", day.getDisplayName(TextStyle.SHORT, Locale.ENGLISH), "score", (int) Math.round(byDay.get(day))));
+            }
+        }
+
+        LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
+        List<Object[]> breakdownData = emotionalMetricRepository.findEmotionBreakdown(childIdHashed, thirtyDaysAgo);
+        long total30 = breakdownData.stream().mapToLong(row -> (Long) row[1]).sum();
+        Map<String, Integer> emotionBreakdown = new HashMap<>();
+        for (Object[] row : breakdownData) {
+            String emotion = (String) row[0];
+            long count = (Long) row[1];
+            emotionBreakdown.put(emotion, (int) Math.round((count * 100.0) / total30));
+        }
+
+        long positiveInteractions = weekMetrics.stream().filter(m -> Arrays.asList("Happy", "Calm", "Focused").contains(m.getPrimaryEmotion())).count();
+        long challengingMoments = weekMetrics.stream().filter(m -> Arrays.asList("Anxious", "Frustrated").contains(m.getPrimaryEmotion())).count();
+
         return EmotionalSummaryDTO.builder()
-            .overallMoodScore((int)avgScore)
-            .moodTrend(trend)
-            .primaryEmotion("Calm")
-            .emotionStability((int)avgScore)
-            .anxietyLevel("Low")
-            .selfRegulationScore((int)avgScore - 5)
-            .positiveInteractions(sessions.size() * 2)
-            .challengingMoments(sessions.stream().mapToInt(s -> s.getTotalInterventions() != null ? s.getTotalInterventions() : 0).sum())
-            .weeklyMoodData(List.of(
-                Map.of("day", "Mon", "score", (int)avgScore),
-                Map.of("day", "Tue", "score", (int)avgScore)
-            ))
-            .emotionBreakdown(Map.of(
-                "Happy", 40,
-                "Calm", 40,
-                "Focused", 10,
-                "Anxious", 5,
-                "Frustrated", 5
-            ))
-            .build();
+                .overallMoodScore(overallMoodScore)
+                .primaryEmotion(primaryEmotion)
+                .moodTrend(moodTrend)
+                .weeklyMoodData(weeklyMoodData)
+                .emotionBreakdown(emotionBreakdown)
+                .anxietyLevel(null)
+                .selfRegulationScore(null)
+                .positiveInteractions((int) positiveInteractions)
+                .challengingMoments((int) challengingMoments)
+                .build();
     }
 
-    private EngagementSummaryDTO buildEngagementMetrics(List<Session> sessions) {
-        int focus = sessions.isEmpty() ? 75 : 85;
+    private EngagementSummaryDTO buildEngagementMetrics(String childIdHashed) {
+        LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
+        List<ZpdMetric> weekZpd = zpdMetricRepository.findByChildIdHashedAndTimestampAfterOrderByTimestampAsc(childIdHashed, sevenDaysAgo);
+
+        if (weekZpd.isEmpty()) {
+            return new EngagementSummaryDTO();
+        }
+
+        int focusScore = (int) Math.round(weekZpd.stream().mapToDouble(ZpdMetric::getScore).average().orElse(0));
+
+        List<Map<String, Object>> weeklyFocusData = new ArrayList<>();
+        Map<DayOfWeek, Double> byDay = weekZpd.stream().collect(Collectors.groupingBy(m -> m.getTimestamp().getDayOfWeek(), Collectors.averagingDouble(ZpdMetric::getScore)));
+        for (DayOfWeek day : DayOfWeek.values()) {
+            if (byDay.containsKey(day)) {
+                weeklyFocusData.add(Map.of("day", day.getDisplayName(TextStyle.SHORT, Locale.ENGLISH), "focus", (int) Math.round(byDay.get(day))));
+            }
+        }
+
+        List<ToolIntervention> allTools = toolInterventionRepository.findAll();
+        Map<String, Long> toolCounts = allTools.stream()
+                .filter(t -> childIdHashed.equals(t.getChildIdHashed()) && t.getToolId() != null)
+                .collect(Collectors.groupingBy(ToolIntervention::getToolId, Collectors.counting()));
+
+        List<Map<String, Object>> topActivities = toolCounts.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .limit(4)
+                .map(e -> Map.<String, Object>of("name", e.getKey(), "completions", e.getValue().intValue(), "score", focusScore))
+                .collect(Collectors.toList());
 
         return EngagementSummaryDTO.builder()
-            .focusScore(focus)
-            .attentionSpanMinutes(15)
-            .taskCompletionRate(80)
-            .participationLevel("High")
-            .distractionFrequency("Low")
-            .responsiveness(focus)
-            .initiativeTaking(focus - 10)
-            .collaborationScore(focus - 5)
-            .weeklyFocusData(List.of(
-                Map.of("day", "Mon", "focus", focus, "attention", 15),
-                Map.of("day", "Tue", "focus", focus, "attention", 15)
-            ))
-            .topActivities(List.of(
-                Map.of("name", "Standard Interaction", "score", focus, "completions", sessions.size())
-            ))
-            .build();
+                .focusScore(focusScore)
+                .weeklyFocusData(weeklyFocusData)
+                .topActivities(topActivities)
+                .taskCompletionRate(null)
+                .build();
     }
 }

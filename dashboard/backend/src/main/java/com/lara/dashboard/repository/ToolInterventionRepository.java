@@ -14,4 +14,7 @@ public interface ToolInterventionRepository extends JpaRepository<ToolInterventi
         String childIdHashed,
         LocalDateTime timestamp
     );
+
+    Long countByChildIdHashedAndTimestampAfter(String childIdHashed, LocalDateTime after);
+    java.util.Optional<ToolIntervention> findTopByChildIdHashedOrderByTimestampDesc(String childIdHashed);
 }
