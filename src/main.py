@@ -1,5 +1,6 @@
 """
 LaRa Main Entrypoint — Pipeline is GATED (starts on UI session_start click)
+# Test comment
 """
 
 import sys
@@ -95,6 +96,29 @@ def _start_pipeline(child_id=None, session_uuid=None):
         vision.start_vision_service()
         vision.start_polling(bridge=bridge, session=session_obj, interval_s=0.5)
 
+        # Step 6 — Background Engagement Timeline Sync (Every 60s)
+        def _engagement_sync_loop(stop_event, session):
+            minute_index = 0
+            while not stop_event.wait(60):
+                try:
+                    from src.persistence.session_db_sync import SessionDBSync
+                    db_sync = SessionDBSync.get()
+                    if session and getattr(session, 'session_db_id', None) and session.vision_history:
+                        # Take last minute of history (approx 120 samples at 2Hz)
+                        samples = session.vision_history[-120:]
+                        if samples:
+                            avg_e = sum(s.get('engagement', 0) for s in samples) / len(samples)
+                            att = samples[-1].get('attention', 'UNKNOWN')
+                            db_sync.engagement_minute_sync(session.session_db_id, minute_index, avg_e, att)
+                            logging.info(f"[Main] Engagement Sync Minute {minute_index}: {avg_e:.2f}")
+                            minute_index += 1
+                except Exception as e:
+                    logging.error(f"[Main] Engagement Sync failed: {e}")
+
+        sync_stop_event = threading.Event()
+        sync_thread = threading.Thread(target=_engagement_sync_loop, args=(sync_stop_event, session_obj), daemon=True)
+        sync_thread.start()
+
         run_conversation_loop(
             bridge=bridge,
             skip_wake_word=True,
@@ -106,6 +130,8 @@ def _start_pipeline(child_id=None, session_uuid=None):
         logging.error(f"[Main] Pipeline error: {e}", exc_info=True)
         print(f"[LaRa] Pipeline error: {e}")
     finally:
+        if 'sync_stop_event' in locals():
+            sync_stop_event.set()
         try:
             from src.vision.vision_bridge import VisionBridgeService
             vision = VisionBridgeService.get()
