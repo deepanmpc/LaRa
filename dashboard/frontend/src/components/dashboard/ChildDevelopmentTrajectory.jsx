@@ -23,7 +23,7 @@ export default function ChildDevelopmentTrajectory({ childId }) {
                 setLoading(true);
                 // Implementation note: Backend model not requested yet, using mock data structure
                 // But attempting to fetch from the specified endpoint
-                const res = await api.get(`/api/children/${childId}/trajectory`);
+                const res = await api.get(`/children/${childId}/trajectory`);
                 setData(res.data.timeline);
                 setError(false);
             } catch (err) {

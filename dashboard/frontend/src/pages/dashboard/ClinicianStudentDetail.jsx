@@ -23,8 +23,12 @@ export default function ClinicianStudentDetail() {
                 setStudent(studentRes.data);
 
                 // Fetch comprehensive analytics deep-dive
-                const analyticsRes = await api.get(`/children/${id}/analytics`);
-                setAnalytics(analyticsRes.data);
+                try {
+                    const analyticsRes = await api.get(`/children/${id}/analytics`);
+                    setAnalytics(analyticsRes.data);
+                } catch (error) {
+                    console.error("Analytics not available:", error);
+                }
                 
                 // Fetch clinical risk signals
                 try {
@@ -34,13 +38,16 @@ export default function ClinicianStudentDetail() {
                     console.log("Risk signals not available yet");
                 }
 
-                // Fetch knowledge graph
+                /* 
+                // Fetch knowledge graph - Disabled temporarily as it's causing issues
                 try {
                     const graphRes = await api.get(`/children/${id}/knowledge-graph`);
                     setKnowledgeGraph(graphRes.data);
                 } catch (error) {
                     console.log("Knowledge graph not available yet");
                 }
+                */
+                setKnowledgeGraph(null);
                 
                 setError(false);
             } catch (err) {

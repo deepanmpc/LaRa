@@ -13,6 +13,23 @@ import {
 import { useState, useEffect, useRef, useCallback } from 'react';
 import ForceGraph3D from 'react-force-graph-3d';
 import SpriteText from 'three-spritetext';
+import {
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    ResponsiveContainer,
+    RadarChart as RechartsRadarChart,
+    PolarGrid,
+    PolarAngleAxis,
+    PolarRadiusAxis,
+    Radar,
+    LineChart,
+    Line,
+    Legend
+} from 'recharts';
 import ChildDevelopmentTrajectory from './ChildDevelopmentTrajectory';
 
 export function formatPercent(value) {
@@ -167,69 +184,8 @@ function StabilityMeter({ value }) {
     );
 }
 
-function RadarChart({ metrics }) {
-    const centerX = 130;
-    const centerY = 130;
-    const radius = 82;
-
-    const levels = [0.25, 0.5, 0.75, 1].map((level) => (
-        metrics.map((_, index) => {
-            const angle = (-90 + ((360 / metrics.length) * index));
-            const point = polarToCartesian(centerX, centerY, radius * level, angle);
-            return `${point.x},${point.y}`;
-        }).join(' ')
-    ));
-
-    const metricPoints = metrics.map((metric, index) => {
-        const angle = (-90 + ((360 / metrics.length) * index));
-        const point = polarToCartesian(centerX, centerY, radius * clamp(metric.value, 0, 1), angle);
-        return `${point.x},${point.y}`;
-    }).join(' ');
-
-    return (
-        <div className="clinical-radar">
-            <svg viewBox="0 0 260 260" className="clinical-radar__svg" aria-hidden="true">
-                {levels.map((points, index) => (
-                    <polygon key={index} points={points} className={`clinical-radar__grid clinical-radar__grid--${index}`} />
-                ))}
-
-                {metrics.map((metric, index) => {
-                    const angle = (-90 + ((360 / metrics.length) * index));
-                    const outerPoint = polarToCartesian(centerX, centerY, radius, angle);
-                    const labelPoint = polarToCartesian(centerX, centerY, radius + 24, angle);
-
-                    return (
-                        <g key={metric.label}>
-                            <line
-                                x1={centerX}
-                                y1={centerY}
-                                x2={outerPoint.x}
-                                y2={outerPoint.y}
-                                className="clinical-radar__axis"
-                            />
-                            <text
-                                x={labelPoint.x}
-                                y={labelPoint.y}
-                                textAnchor="middle"
-                                className="clinical-radar__label"
-                            >
-                                {metric.label}
-                            </text>
-                        </g>
-                    );
-                })}
-
-                <polygon points={metricPoints} className="clinical-radar__area" />
-                {metrics.map((metric, index) => {
-                    const angle = (-90 + ((360 / metrics.length) * index));
-                    const point = polarToCartesian(centerX, centerY, radius * clamp(metric.value, 0, 1), angle);
-
-                    return <circle key={metric.label} cx={point.x} cy={point.y} r="4" className="clinical-radar__point" />;
-                })}
-            </svg>
-        </div>
-    );
-}
+    // For legacy support to render the existing ones via the prompt
+    // Wait, the new prompt asks for BarCharts and LineCharts, so I am introducing those separately below.
 
 function ProgressBar({ value, variant = 'primary' }) {
     return (
@@ -247,9 +203,8 @@ function ProgressBar({ value, variant = 'primary' }) {
     );
 }
 
-export default function ClinicalStudentSections({ analytics, riskSignals, knowledgeGraph }) {
-    if (!analytics) return null;
-
+export default function ClinicalStudentSections({ analytics: rawAnalytics, riskSignals, knowledgeGraph }) {
+    const analytics = rawAnalytics || {};
     const { cognitive, emotional, vision, reinforcement, longitudinal } = analytics;
 
     const radarMetrics = [
@@ -401,16 +356,18 @@ export default function ClinicalStudentSections({ analytics, riskSignals, knowle
                         <div className="clinical-panel__header">
                             <h3 className="clinical-panel__title">Concept Distribution</h3>
                         </div>
-                        <div style={{ padding: '10px 0' }}>
-                            {cognitive?.distribution?.map(item => (
-                                <div key={item.concept} style={{ marginBottom: 12 }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-                                        <span>{item.concept}</span>
-                                        <span>{Math.round(item.mastery)}%</span>
-                                    </div>
-                                    <ProgressBar value={item.mastery} variant="primary" />
-                                </div>
-                            ))}
+                        <div style={{ padding: '10px 0', height: 300 }}>
+                            {cognitive?.distribution && (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={cognitive.distribution} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
+                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                                        <XAxis type="number" domain={[0, 100]} />
+                                        <YAxis type="category" dataKey="concept" tick={{fontSize: 12}} width={100} />
+                                        <Tooltip formatter={(value) => `${Math.round(value)}%`} cursor={{fill: 'transparent'}} />
+                                        <Bar dataKey="mastery" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={20} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            )}
                         </div>
                     </article>
                 </div>
@@ -428,7 +385,19 @@ export default function ClinicalStudentSections({ analytics, riskSignals, knowle
                         <div className="clinical-panel__header">
                             <h3 className="clinical-panel__title">Emotion Distribution</h3>
                         </div>
-                        <EmotionStack data={emotional?.emotion_distribution || []} />
+                        <div style={{ padding: '10px 0', height: 300 }}>
+                            {emotional?.emotion_distribution && (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={emotional.emotion_distribution} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                        <XAxis dataKey="emotion" tick={{fontSize: 12}} />
+                                        <YAxis />
+                                        <Tooltip cursor={{fill: 'transparent'}} />
+                                        <Bar dataKey="count" fill="#8b5cf6" radius={[4, 4, 0, 0]} barSize={40} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            )}
+                        </div>
                     </article>
                     <article className="clinical-panel">
                         <div className="clinical-panel__header">
@@ -452,7 +421,17 @@ export default function ClinicalStudentSections({ analytics, riskSignals, knowle
             >
                 <div className="clinical-section-grid clinical-section-grid--two-column">
                     <article className="clinical-panel clinical-panel--wide">
-                        <RadarChart metrics={radarMetrics} />
+                        <div style={{ height: 350, width: '100%', display: 'flex', justifyContent: 'center' }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <RechartsRadarChart cx="50%" cy="50%" outerRadius="70%" data={radarMetrics}>
+                                    <PolarGrid />
+                                    <PolarAngleAxis dataKey="label" tick={{ fontSize: 12 }} />
+                                    <PolarRadiusAxis angle={30} domain={[0, 1]} tick={false} axisLine={false} />
+                                    <Radar name="Vision" dataKey="value" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.6} />
+                                    <Tooltip formatter={(value) => `${Math.round(value * 100)}%`} />
+                                </RechartsRadarChart>
+                            </ResponsiveContainer>
+                        </div>
                     </article>
                     <article className="clinical-panel">
                         <div className="clinical-tiles-grid">
@@ -526,7 +505,7 @@ export default function ClinicalStudentSections({ analytics, riskSignals, knowle
                                 </tr>
                             </thead>
                             <tbody>
-                                {analytics.sessionHistory?.map(s => (
+                                {analytics?.sessionHistory?.map(s => (
                                     <tr key={s.id} style={{ borderBottom: '1px solid #f1f5f9', fontSize: 13 }}>
                                         <td style={{ padding: '12px 8px', fontWeight: 600 }}>{new Date(s.date).toLocaleDateString()}</td>
                                         <td style={{ padding: '12px 8px' }}>{Math.round(s.duration / 60)} min</td>
