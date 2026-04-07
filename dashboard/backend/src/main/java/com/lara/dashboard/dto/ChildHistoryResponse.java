@@ -19,16 +19,3 @@ public class ChildHistoryResponse {
     private List<Map<String, Object>> emotionalHistory;
     private EngagementSummaryDTO engagementOverview;
 }
-
-@Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
-class SessionBriefDTO {
-    private Long id;
-    private String sessionUuid;
-    private String startTime;
-    private Integer durationSeconds;
-    private String dominantMood;
-    private Double avgEngagement;
-}

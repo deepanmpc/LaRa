@@ -4,7 +4,11 @@ import com.lara.dashboard.dto.ClinicianResponse;
 import com.lara.dashboard.dto.ChildResponse;
 import com.lara.dashboard.entity.User;
 import com.lara.dashboard.service.AdminService;
+import com.lara.dashboard.service.DatasetExportService;
+import com.lara.dashboard.service.SystemHealthService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -18,7 +22,18 @@ import java.util.Map;
 public class AdminController {
 
     private final AdminService adminService;
-    private final com.lara.dashboard.service.SystemHealthService systemHealthService;
+    private final SystemHealthService systemHealthService;
+    private final DatasetExportService datasetExportService;
+
+    @GetMapping("/export-dataset")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public ResponseEntity<String> exportDataset() {
+        String csv = datasetExportService.exportToCsv();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=lara_dataset.csv")
+                .contentType(MediaType.parseMediaType("text/csv"))
+                .body(csv);
+    }
 
     @GetMapping("/health")
     public com.lara.dashboard.dto.SystemHealthResponse health() {

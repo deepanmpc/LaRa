@@ -6,11 +6,8 @@ const STATUS_COLORS = {
     Completed: { bg: '#ecfdf5', text: '#059669' },
     Incomplete: { bg: '#fef2f2', text: '#dc2626' },
 };
-
 export default function ClinicalSessions() {
     const [sessions, setSessions] = useState([]);
-    const [loading, setLoading] = useState(true);
-
     const [filterStudent, setFilterStudent] = useState('All Students');
     const [filterDate, setFilterDate] = useState('All Dates');
     const [filterStatus, setFilterStatus] = useState('All Statuses');
@@ -22,8 +19,6 @@ export default function ClinicalSessions() {
                 setSessions(res.data);
             } catch (err) {
                 console.error("Failed to fetch sessions", err);
-            } finally {
-                setLoading(false);
             }
         };
         fetchSessions();

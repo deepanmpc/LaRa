@@ -6,8 +6,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Service
@@ -25,235 +29,273 @@ public class ChildAnalyticsService {
     private final ChildVoiceMetricsRepository voiceMetricsRepository;
     private final ChildVisionMetricsEntityRepository visionMetricsRepository;
     private final ChildClinicianMappingRepository clinicianMappingRepository;
-    private final ChildActivityPerformanceRepository activityPerformanceRepository;
-    private final ChildCurriculumAssignmentRepository curriculumAssignmentRepository;
-    private final ChildPreferenceRepository preferenceRepository;
+    private final EmotionalMetricRepository emotionalMetricRepository;
+    private final EngagementTimelineRepository engagementTimelineRepository;
+    private final ZpdMetricRepository zpdMetricRepository;
+    private final StudentLongitudinalMetricsRepository longitudinalRepository;
+    private final SessionTurnMetricRepository turnMetricRepository;
+
+    // Part 11 — Performance Optimization (In-memory cache)
+    private final Map<Long, CachedAnalytics> analyticsCache = new ConcurrentHashMap<>();
+    private static final long CACHE_DURATION_MS = 60000; // 60 seconds
 
     public Map<String, Object> getFullAnalytics(Long childId) {
+        long now = System.currentTimeMillis();
+        if (analyticsCache.containsKey(childId)) {
+            CachedAnalytics cached = analyticsCache.get(childId);
+            if (now - cached.timestamp < CACHE_DURATION_MS) {
+                log.info("[Analytics] Returning cached data for child {}", childId);
+                return cached.data;
+            }
+        }
+
         Child child = childRepository.findById(childId)
                 .orElseThrow(() -> new RuntimeException("Child not found: " + childId));
 
         Map<String, Object> analytics = new LinkedHashMap<>();
 
+        // Part 2 — Aggregation Queries
         analytics.put("patient", buildPatientInfo(child));
-        analytics.put("learningProgress", buildLearningProgress(childId));
+        analytics.put("cognitive", buildCognitiveSummary(childId));
+        analytics.put("emotional", buildEmotionalSummary(childId, child));
+        analytics.put("vision", buildVisionSummary(childId));
+        analytics.put("reinforcement", buildReinforcementSummary(childId));
+        analytics.put("sessions", buildSessionInsights(childId));
+        analytics.put("longitudinal", buildLongitudinalSummary(childId));
+        
+        // Legacy support
         analytics.put("allConcepts", buildAllConcepts(childId));
-        analytics.put("emotionalMetrics", buildEmotionalMetrics(childId));
-        analytics.put("userProfiles", buildUserProfiles(childId));
-        analytics.put("reinforcementMetrics", buildReinforcementMetrics(childId));
-        analytics.put("visionSessionStats", buildVisionStats(childId));
-        analytics.put("visionBehaviorCounts", buildVisionBehavior(childId));
-        analytics.put("perceptionConfidence", buildPerceptionConfidence(childId));
-        analytics.put("voiceProsodyMetrics", buildVoiceProsody(childId));
-        analytics.put("vocalMoodDistribution", buildVocalMood(childId));
-        analytics.put("totalEngagementSummary", buildEngagementSummary(childId));
-        analytics.put("curriculumAssignments", buildCurriculumAssignments(childId));
         analytics.put("sessionHistory", buildSessionHistory(childId));
 
+        analyticsCache.put(childId, new CachedAnalytics(now, analytics));
         return analytics;
+    }
+
+    public Map<String, Object> getOverview(Long childId) {
+        Map<String, Object> full = getFullAnalytics(childId);
+        Map<String, Object> overview = new LinkedHashMap<>();
+        overview.put("profile", full.get("patient"));
+        overview.put("cognitive_summary", full.get("cognitive"));
+        overview.put("emotional_summary", full.get("emotional"));
+        overview.put("vision_summary", full.get("vision"));
+        overview.put("reinforcement_summary", full.get("reinforcement"));
+        return overview;
+    }
+
+    public List<Map<String, Object>> getEngagementTimeline(Long childId) {
+        // Fetch latest session for this child
+        Optional<Session> latestSession = sessionRepository.findTopByChild_IdOrderByEndTimeDesc(childId);
+        if (latestSession.isEmpty()) return Collections.emptyList();
+
+        List<EngagementTimeline> timeline = engagementTimelineRepository.findBySessionIdOrderByMinuteIndexAsc(latestSession.get().getId());
+        return timeline.stream().map(t -> {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("minute", t.getMinuteIndex());
+            map.put("engagement", t.getAvgEngagement());
+            map.put("state", t.getAttentionState());
+            return map;
+        }).collect(Collectors.toList());
     }
 
     private Map<String, Object> buildPatientInfo(Child child) {
         Map<String, Object> patient = new LinkedHashMap<>();
+        patient.put("id", child.getId());
         patient.put("name", child.getName());
         patient.put("age", child.getAge());
         patient.put("diagnosis", child.getDiagnosis());
         patient.put("gradeLevel", child.getGradeLevel());
-
-        List<ChildClinicianMapping> mappings = clinicianMappingRepository.findByChildId(child.getId());
-        List<Map<String, Object>> clinicians = mappings.stream()
-                .map(m -> {
-                    Map<String, Object> c = new LinkedHashMap<>();
-                    c.put("id", m.getClinician().getId());
-                    c.put("name", m.getClinician().getName());
-                    c.put("isPrimary", m.getIsPrimary());
-                    return c;
-                })
-                .collect(Collectors.toList());
-        patient.put("assignedClinicians", clinicians);
+        patient.put("avatarColor", child.getAvatarColor());
+        patient.put("statusBadge", child.getStatusBadge());
+        patient.put("currentFocusArea", child.getCurrentFocusArea());
         return patient;
     }
 
-    private Map<String, Object> buildLearningProgress(Long childId) {
+    // Part 2 — Cognitive Development
+    private Map<String, Object> buildCognitiveSummary(Long childId) {
         List<ChildLearningProgress> progress = learningProgressRepository.findByChildId(childId);
+        Map<String, Object> cognitive = new LinkedHashMap<>();
+        
         if (progress.isEmpty()) {
-            return Map.of("conceptName", "none", "masteryLevel", 0, "masteryPercentage", 0.0);
+            cognitive.put("active_concept", "None");
+            cognitive.put("mastery_percentage", 0.0);
+            return cognitive;
         }
 
-        // Return the most recent / primary concept
-        ChildLearningProgress primary = progress.get(0);
-        Map<String, Object> lp = new LinkedHashMap<>();
-        lp.put("conceptName", primary.getConceptName());
-        lp.put("masteryLevel", primary.getMasteryLevel());
-        lp.put("masteryPercentage", primary.getMasteryPercentage());
-        lp.put("attemptCount", primary.getAttemptCount());
-        lp.put("successRate", primary.getSuccessRate());
-        lp.put("currentDifficulty", primary.getCurrentDifficulty());
-        lp.put("masteryStatus", primary.getMasteryStatus());
-        return lp;
+        ChildLearningProgress latest = progress.get(0); // Assuming sorted or pick most active
+        cognitive.put("active_concept", latest.getConceptName());
+        cognitive.put("mastery_level", latest.getMasteryLevel());
+        cognitive.put("mastery_percentage", latest.getMasteryPercentage());
+        cognitive.put("attempt_count", progress.stream().mapToInt(p -> p.getAttemptCount() != null ? p.getAttemptCount() : 0).sum());
+        
+        double avgSuccess = progress.stream()
+            .mapToDouble(p -> p.getSuccessRate() != null ? p.getSuccessRate().doubleValue() : 0.0)
+            .average().orElse(0.0);
+        cognitive.put("success_rate", avgSuccess);
+        cognitive.put("reliability", avgSuccess * 100); // task_completion_reliability
+        
+        cognitive.put("distribution", progress.stream().map(p -> {
+            Map<String, Object> m = new HashMap<>();
+            m.put("concept", p.getConceptName());
+            m.put("mastery", p.getMasteryPercentage());
+            return m;
+        }).collect(Collectors.toList()));
+
+        return cognitive;
     }
 
+    // Part 2 — Emotional Stability
+    private Map<String, Object> buildEmotionalSummary(Long childId, Child child) {
+        String hash = java.util.Base64.getEncoder().encodeToString(String.valueOf(childId).getBytes()); // Simulating hash
+        // In reality, SessionDBSync uses md5 hex first 16 chars
+        try {
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("MD5");
+            byte[] array = md.digest(String.valueOf(childId).getBytes());
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < 8; ++i) { sb.append(Integer.toHexString((array[i] & 0xFF) | 0x100).substring(1,3)); }
+            hash = sb.toString();
+        } catch (Exception e) {}
+
+        LocalDateTime monthAgo = LocalDateTime.now().minusDays(30);
+        List<EmotionalMetric> metrics = emotionalMetricRepository.findByChildIdHashedAndTimestampAfterOrderByTimestampAsc(hash, monthAgo);
+        
+        Map<String, Object> emotional = new LinkedHashMap<>();
+        if (metrics.isEmpty()) {
+            emotional.put("regulation_index", 50);
+            emotional.put("stability", "Stable");
+            return emotional;
+        }
+
+        long frustrations = metrics.stream().filter(m -> m.getMoodScore() != null && m.getMoodScore() < 4).count();
+        emotional.put("frustration_frequency", (double) frustrations / metrics.size());
+        
+        // regulation_index calculation
+        double avgMood = metrics.stream().mapToInt(m -> m.getMoodScore() != null ? m.getMoodScore() : 5).average().orElse(5.0);
+        emotional.put("regulation_index", avgMood * 10);
+        emotional.put("baseline_stability", avgMood);
+        
+        List<Object[]> breakdown = emotionalMetricRepository.findEmotionBreakdown(hash, monthAgo);
+        emotional.put("emotion_distribution", breakdown.stream().map(b -> {
+            Map<String, Object> m = new HashMap<>();
+            m.put("emotion", b[0]);
+            m.put("count", b[1]);
+            return m;
+        }).collect(Collectors.toList()));
+
+        return emotional;
+    }
+
+    // Part 2 — Vision & Perception
+    private Map<String, Object> buildVisionSummary(Long childId) {
+        Optional<ChildVisionMetricsEntity> latest = visionMetricsRepository.findTopByChildIdOrderByRecordedAtDesc(childId);
+        Map<String, Object> vision = new LinkedHashMap<>();
+        
+        latest.ifPresent(v -> {
+            vision.put("avg_engagement", v.getAvgEngagementScore());
+            vision.put("focus_duration", v.getFocusedDurationMinutes());
+            vision.put("distraction_rate", v.getDistractionFrames());
+            vision.put("gaze_score", v.getAvgGazeScore());
+            
+            // Radar Chart Metrics
+            Map<String, Object> radar = new LinkedHashMap<>();
+            radar.put("ENGAGE", v.getAvgEngagementScore());
+            radar.put("GAZE", v.getAvgGazeScore());
+            radar.put("OBJECT", v.getObjectConfidence());
+            radar.put("GESTURE", v.getGestureConfidence());
+            radar.put("FACE", v.getFaceConfidence());
+            radar.put("SYSTEM", v.getSystemConfidence());
+            vision.put("radar", radar);
+        });
+        
+        return vision;
+    }
+
+    // Part 2 — Reinforcement Intelligence
+    private Map<String, Object> buildReinforcementSummary(Long childId) {
+        List<ChildReinforcementMetrics> metrics = reinforcementRepository.findByChildId(childId);
+        Map<String, Object> r = new LinkedHashMap<>();
+        
+        if (metrics.isEmpty()) return r;
+
+        ChildReinforcementMetrics preferred = metrics.stream()
+            .max(Comparator.comparing(rm -> rm.getSuccessRate() != null ? rm.getSuccessRate() : BigDecimal.ZERO))
+            .get();
+            
+        r.put("primary_strategy", preferred.getStyleName());
+        r.put("success_rate", preferred.getSuccessRate());
+        r.put("total_events", metrics.stream().mapToInt(rm -> rm.getTotalEvents() != null ? rm.getTotalEvents() : 0).sum());
+        
+        r.put("effectiveness", metrics.stream().map(rm -> {
+            Map<String, Object> m = new HashMap<>();
+            m.put("strategy", rm.getStyleName());
+            m.put("rate", rm.getSuccessRate());
+            return m;
+        }).collect(Collectors.toList()));
+
+        return r;
+    }
+
+    // Part 2 — Session Insights
+    private Map<String, Object> buildSessionInsights(Long childId) {
+        Optional<SessionAnalytics> latest = analyticsRepository.findTopByChildIdOrderByCreatedAtDesc(childId);
+        Map<String, Object> si = new LinkedHashMap<>();
+        
+        latest.ifPresent(sa -> {
+            si.put("continuity", sa.getInteractionContinuityScore());
+            si.put("initiative", sa.getInitiativeTakingScore());
+            si.put("collaboration", sa.getCollaborationScore());
+            si.put("responsiveness", sa.getResponsivenessScore());
+        });
+        
+        return si;
+    }
+
+    // Part 2 — Longitudinal Analytics
+    private Map<String, Object> buildLongitudinalSummary(Long childId) {
+        Optional<StudentLongitudinalMetrics> metrics = longitudinalRepository.findByStudentId(String.valueOf(childId));
+        Map<String, Object> l = new LinkedHashMap<>();
+        
+        metrics.ifPresent(m -> {
+            l.put("mastery_velocity", m.getMasteryVelocity());
+            l.put("frustration_risk", m.getFrustrationRiskScore());
+            l.put("intervention_decay", m.getInterventionDecayIndex());
+            l.put("independence_score", m.getIndependenceScore());
+            l.put("engagement_volatility", m.getRollingVolatility7());
+        });
+        
+        return l;
+    }
+
+    // Legacy helpers
     private List<Map<String, Object>> buildAllConcepts(Long childId) {
         return learningProgressRepository.findByChildId(childId).stream()
                 .map(lp -> {
                     Map<String, Object> concept = new LinkedHashMap<>();
                     concept.put("conceptName", lp.getConceptName());
-                    concept.put("curriculumArea", lp.getCurriculumArea());
-                    concept.put("masteryLevel", lp.getMasteryLevel());
                     concept.put("masteryPercentage", lp.getMasteryPercentage());
-                    concept.put("successRate", lp.getSuccessRate());
-                    concept.put("status", lp.getMasteryStatus() != null ? lp.getMasteryStatus().toLowerCase().replace(" ", "_") : "not_started");
+                    concept.put("status", lp.getMasteryStatus());
                     return concept;
-                })
-                .collect(Collectors.toList());
-    }
-
-    private Map<String, Object> buildEmotionalMetrics(Long childId) {
-        List<ChildEmotionalHistory> history = emotionalHistoryRepository.findTop7ByChildIdOrderByRecordedDateDesc(childId);
-        Map<String, Object> em = new LinkedHashMap<>();
-
-        int totalFrustration = history.stream().mapToInt(h -> h.getFrustrationCount() != null ? h.getFrustrationCount() : 0).sum();
-        int totalRecovery = history.stream().mapToInt(h -> h.getRecoveryCount() != null ? h.getRecoveryCount() : 0).sum();
-        int totalStability = history.stream().mapToInt(h -> h.getStabilityCount() != null ? h.getStabilityCount() : 0).sum();
-        int stabilityIndex = totalStability + totalRecovery > 0
-                ? (totalStability * 100) / (totalStability + totalFrustration + 1)
-                : 50;
-
-        em.put("frustrationCount", totalFrustration);
-        em.put("recoveryCount", totalRecovery);
-        em.put("neutralStabilityCount", totalStability);
-        em.put("stabilityIndex", stabilityIndex);
-        return em;
-    }
-
-    private Map<String, Object> buildUserProfiles(Long childId) {
-        List<ChildPreference> prefs = preferenceRepository.findByChildId(childId);
-        List<String> preferredTopics = prefs.stream()
-                .filter(p -> p.getSentiment() == com.lara.dashboard.enums.TopicSentiment.LIKE)
-                .map(ChildPreference::getTopic)
-                .collect(Collectors.toList());
-
-        Map<String, Object> profile = new LinkedHashMap<>();
-        profile.put("preferredTopics", preferredTopics);
-        profile.put("instructionDepth", 2); // Default
-        return profile;
-    }
-
-    private Map<String, Object> buildReinforcementMetrics(Long childId) {
-        List<ChildReinforcementMetrics> metrics = reinforcementRepository.findByChildId(childId);
-        Map<String, Object> rm = new LinkedHashMap<>();
-
-        for (ChildReinforcementMetrics m : metrics) {
-            String key = m.getStyleName().replace("_", "");
-            rm.put(key.substring(0, 1).toLowerCase() + key.substring(1), m.getSuccessRate());
-        }
-
-        metrics.stream().filter(ChildReinforcementMetrics::getIsPreferred).findFirst()
-                .ifPresent(m -> rm.put("preferredStyle", m.getStyleName()));
-
-        int totalEvents = metrics.stream().mapToInt(m -> m.getTotalEvents() != null ? m.getTotalEvents() : 0).sum();
-        rm.put("totalEvents", totalEvents);
-        return rm;
-    }
-
-    private Map<String, Object> buildVisionStats(Long childId) {
-        Optional<ChildVisionMetricsEntity> latest = visionMetricsRepository.findTopByChildIdOrderByRecordedAtDesc(childId);
-        Map<String, Object> vs = new LinkedHashMap<>();
-        latest.ifPresent(v -> {
-            vs.put("avgEngagementScore", v.getAvgEngagementScore());
-            vs.put("avgGazeScore", v.getAvgGazeScore());
-            vs.put("systemConfidence", v.getSystemConfidence());
-        });
-        return vs;
-    }
-
-    private Map<String, Object> buildVisionBehavior(Long childId) {
-        Optional<ChildVisionMetricsEntity> latest = visionMetricsRepository.findTopByChildIdOrderByRecordedAtDesc(childId);
-        Map<String, Object> vb = new LinkedHashMap<>();
-        latest.ifPresent(v -> {
-            vb.put("distractionFrames", v.getDistractionFrames());
-            vb.put("focusedDuration", v.getFocusedDurationMinutes());
-        });
-        return vb;
-    }
-
-    private Map<String, Object> buildPerceptionConfidence(Long childId) {
-        Optional<ChildVisionMetricsEntity> latest = visionMetricsRepository.findTopByChildIdOrderByRecordedAtDesc(childId);
-        Map<String, Object> pc = new LinkedHashMap<>();
-        latest.ifPresent(v -> {
-            pc.put("faceConf", v.getFaceConfidence());
-            pc.put("gestureConf", v.getGestureConfidence());
-            pc.put("objectConf", v.getObjectConfidence());
-        });
-        return pc;
-    }
-
-    private Map<String, Object> buildVoiceProsody(Long childId) {
-        Optional<ChildVoiceMetrics> latest = voiceMetricsRepository.findTopByChildIdOrderByRecordedAtDesc(childId);
-        Map<String, Object> vp = new LinkedHashMap<>();
-        latest.ifPresent(v -> {
-            vp.put("speakingRate", v.getAvgSpeakingRateWpm());
-            vp.put("volume", v.getAvgVolume());
-            vp.put("stabilityScore", v.getSpeechStabilityScore());
-        });
-        return vp;
-    }
-
-    private Map<String, Object> buildVocalMood(Long childId) {
-        Optional<ChildVoiceMetrics> latest = voiceMetricsRepository.findTopByChildIdOrderByRecordedAtDesc(childId);
-        Map<String, Object> vm = new LinkedHashMap<>();
-        latest.ifPresent(v -> {
-            vm.put("neutral", v.getPctVocalNeutral() != null ? v.getPctVocalNeutral().doubleValue() / 100.0 : 0.0);
-            vm.put("arousal", v.getPctVocalArousal() != null ? v.getPctVocalArousal().doubleValue() / 100.0 : 0.0);
-            vm.put("withdrawal", v.getPctVocalWithdrawal() != null ? v.getPctVocalWithdrawal().doubleValue() / 100.0 : 0.0);
-        });
-        return vm;
-    }
-
-    private Map<String, Object> buildEngagementSummary(Long childId) {
-        Optional<SessionAnalytics> latest = analyticsRepository.findTopByChildIdOrderByCreatedAtDesc(childId);
-        Map<String, Object> es = new LinkedHashMap<>();
-        latest.ifPresent(sa -> {
-            es.put("totalEngagementAverage", sa.getTotalEngagementAverage());
-            es.put("interactionContinuityScore", sa.getInteractionContinuityScore());
-
-            // Get latest session duration
-            sessionRepository.findTopByChild_IdOrderByEndTimeDesc(childId)
-                    .ifPresent(s -> es.put("sessionDuration", s.getDurationSeconds() != null ? s.getDurationSeconds() / 60.0 : 0.0));
-        });
-        return es;
-    }
-
-    private List<Map<String, Object>> buildCurriculumAssignments(Long childId) {
-        return curriculumAssignmentRepository.findByChildId(childId).stream()
-                .map(ca -> {
-                    Map<String, Object> assignment = new LinkedHashMap<>();
-                    assignment.put("topicName", ca.getTopic().getName());
-                    assignment.put("area", ca.getTopic().getArea());
-                    assignment.put("status", ca.getStatus().name().toLowerCase());
-                    assignment.put("assignedAt", ca.getAssignedAt() != null
-                            ? ca.getAssignedAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) : null);
-                    return assignment;
-                })
-                .collect(Collectors.toList());
+                }).collect(Collectors.toList());
     }
 
     private List<Map<String, Object>> buildSessionHistory(Long childId) {
-        List<Session> sessions = sessionRepository.findAllByChild_Id(childId);
-        return sessions.stream()
-                .sorted(Comparator.comparing(Session::getStartTime, Comparator.nullsLast(Comparator.reverseOrder())))
+        return sessionRepository.findAllByChild_Id(childId).stream()
+                .sorted(Comparator.comparing(Session::getStartTime).reversed())
                 .limit(10)
                 .map(s -> {
-                    Map<String, Object> sh = new LinkedHashMap<>();
-                    sh.put("sessionUuid", s.getSessionUuid());
-                    sh.put("date", s.getStartTime() != null ? s.getStartTime().format(DateTimeFormatter.ofPattern("MMM dd, yyyy")) : null);
-                    sh.put("duration", s.getDurationSeconds() != null ? (s.getDurationSeconds() / 60) + " min" : "0 min");
-                    sh.put("peakDifficulty", s.getPeakDifficulty());
-                    sh.put("dominantMood", s.getDominantMood());
-                    sh.put("avgEngagement", s.getAvgEngagementScore());
-                    sh.put("totalTurns", s.getTotalTurns());
-                    return sh;
-                })
-                .collect(Collectors.toList());
+                    Map<String, Object> map = new LinkedHashMap<>();
+                    map.put("id", s.getId());
+                    map.put("date", s.getStartTime().toString());
+                    map.put("duration", s.getDurationSeconds());
+                    map.put("engagement", s.getAvgEngagementScore());
+                    map.put("mood", s.getDominantMood());
+                    map.put("difficulty", s.getPeakDifficulty());
+                    return map;
+                }).collect(Collectors.toList());
+    }
+
+    @RequiredArgsConstructor
+    private static class CachedAnalytics {
+        private final long timestamp;
+        private final Map<String, Object> data;
     }
 }

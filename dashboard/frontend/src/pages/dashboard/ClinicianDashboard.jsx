@@ -24,7 +24,11 @@ export default function ClinicianDashboard() {
                             engagementScore = Math.round(vRes.data.avg_engagement_score * 100);
                         }
                         focusedDuration = vRes.data?.focused_duration || 0;
-                    } catch (e) {}
+                    } catch (e) {
+                        if (e.response?.status !== 404) {
+                            console.warn(`Could not fetch vision metrics for student ${student.id}`, e);
+                        }
+                    }
 
                     return {
                         ...student,

@@ -63,33 +63,45 @@ def _start_pipeline(child_id=None, session_uuid=None):
         from src.perception.speech_to_text import run_conversation_loop
         from src.bridge.ws_server import LaRaBridge
         from src.vision.vision_bridge import VisionBridgeService
+        from src.events.event_bus import EventBus, EventType
+        from src.persistence.session_db_sync import SessionDBSync
 
         session_obj = SessionState()
         if child_id: session_obj.child_id = child_id
         if session_uuid: session_obj.session_uuid = session_uuid
         _current_session = session_obj
 
-        # Step 3 — SQL Session Start
+        # Initialize DB Sync (it will register subscribers)
+        SessionDBSync.get()
+
+        # Step 3 — SQL Session Start (Via Event Bus)
         try:
-            from src.persistence.session_db_sync import SessionDBSync
             from src.core.config_loader import CONFIG
             
             # Use child_id from config if not provided
             if not getattr(session_obj, 'child_id', None):
                 session_obj.child_id = CONFIG.get("dashboard", {}).get("child_id", 1)
             
-            db_sync = SessionDBSync.get()
-            db_id, child_id_hashed = db_sync.session_start(
-                session_uuid=session_obj.session_uuid,
-                child_id=session_obj.child_id
-            )
-            session_obj.session_db_id = db_id
-            session_obj.child_id_hashed = child_id_hashed
-            logging.info(f"[Main] SQL Session Start successful: DB ID={db_id}, HashedID={child_id_hashed}")
-        except ImportError:
-            logging.error("[Main] SQL Session Start failed: mysql-connector-python not installed.")
+            # Publish SESSION_STARTED event
+            EventBus.get().publish(EventType.SESSION_STARTED, {
+                'session_uuid': session_obj.session_uuid,
+                'child_id': session_obj.child_id
+            })
+            
+            # Note: We still need the db_id for turns. 
+            # In a fully decoupled system, the DB id might be the UUID or mapped inside the listener.
+            # For now, SessionDBSync still returns it, or we fetch it.
+            # To maintain compatibility, we'll fetch it from the singleton state if needed,
+            # or rely on the UUID mapping in the listener.
+            # Since SessionDBSync stores it, we'll keep it there.
+            
+            # Let's verify the ID was created (compatibility)
+            db_row = SessionDBSync.get().db.fetch_one("SELECT id FROM sessions WHERE session_uuid = %s", (session_obj.session_uuid,))
+            if db_row:
+                session_obj.session_db_id = db_row['id']
+                logging.info(f"[Main] SQL Session started with DB ID={session_obj.session_db_id}")
         except Exception as e:
-            logging.error(f"[Main] SQL Session Start failed: {e}")
+            logging.error(f"[Main] SQL Session Start via Bus failed: {e}")
 
         bridge = LaRaBridge.get()
         vision = VisionBridgeService.get()
@@ -101,19 +113,23 @@ def _start_pipeline(child_id=None, session_uuid=None):
             minute_index = 0
             while not stop_event.wait(60):
                 try:
-                    from src.persistence.session_db_sync import SessionDBSync
-                    db_sync = SessionDBSync.get()
+                    from src.events.event_bus import EventBus, EventType
                     if session and getattr(session, 'session_db_id', None) and session.vision_history:
                         # Take last minute of history (approx 120 samples at 2Hz)
                         samples = session.vision_history[-120:]
                         if samples:
                             avg_e = sum(s.get('engagement', 0) for s in samples) / len(samples)
                             att = samples[-1].get('attention', 'UNKNOWN')
-                            db_sync.engagement_minute_sync(session.session_db_id, minute_index, avg_e, att)
-                            logging.info(f"[Main] Engagement Sync Minute {minute_index}: {avg_e:.2f}")
+                            EventBus.get().publish(EventType.ENGAGEMENT_MINUTE_SYNC, {
+                                'db_id': session.session_db_id,
+                                'minute_index': minute_index,
+                                'avg_engagement': avg_e,
+                                'attention_state': att
+                            })
+                            logging.info(f"[Main] Published Engagement Sync Minute {minute_index}: {avg_e:.2f}")
                             minute_index += 1
                 except Exception as e:
-                    logging.error(f"[Main] Engagement Sync failed: {e}")
+                    logging.error(f"[Main] Engagement Sync publishing failed: {e}")
 
         sync_stop_event = threading.Event()
         sync_thread = threading.Thread(target=_engagement_sync_loop, args=(sync_stop_event, session_obj), daemon=True)
@@ -154,21 +170,20 @@ def _start_pipeline(child_id=None, session_uuid=None):
             except Exception as e:
                 logging.warning(f"[Main] Session flush failed: {e}")
 
-        # Step 5 to 12 — SQL Session End & Aggregates
+        # Step 5 to 12 — SQL Session End & Aggregates (Via Event Bus)
         if session_obj is not None and getattr(session_obj, 'session_db_id', None):
             try:
-                from src.persistence.session_db_sync import SessionDBSync
-                db_sync = SessionDBSync.get()
+                from src.events.event_bus import EventBus, EventType
                 final_stats = session_obj.get_final_stats()
-                db_sync.session_end(
-                    session_id=session_obj.session_db_id,
-                    session_uuid=session_obj.session_uuid,
-                    child_id=session_obj.child_id,
-                    final_stats=final_stats
-                )
-                logging.info(f"[Main] SQL Session End successful for DB ID={session_obj.session_db_id}")
+                EventBus.get().publish(EventType.SESSION_COMPLETED, {
+                    'db_id': session_obj.session_db_id,
+                    'session_uuid': session_obj.session_uuid,
+                    'child_id': session_obj.child_id,
+                    'final_stats': final_stats
+                })
+                logging.info(f"[Main] Published SESSION_COMPLETED for DB ID={session_obj.session_db_id}")
             except Exception as e:
-                logging.error(f"[Main] SQL Session End failed: {e}")
+                logging.error(f"[Main] SQL Session End via Bus failed: {e}")
 
         # ── Report session to Dashboard API ──
         if session_obj is not None:

@@ -26,7 +26,7 @@ export default function Login() {
                     navigate('/clinician/pending');
                 }
             } else if (data.role === 'ROLE_ADMIN') {
-                navigate('/dashboard/admin');
+                navigate('/admin');
             } else {
                 navigate('/dashboard/children');
             }

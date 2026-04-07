@@ -13,4 +13,5 @@ public interface ChildVoiceMetricsRepository extends JpaRepository<ChildVoiceMet
     List<ChildVoiceMetrics> findByChildIdOrderByRecordedAtDesc(Long childId);
 
     Optional<ChildVoiceMetrics> findTopByChildIdOrderByRecordedAtDesc(Long childId);
+    Optional<ChildVoiceMetrics> findBySessionId(Long sessionId);
 }

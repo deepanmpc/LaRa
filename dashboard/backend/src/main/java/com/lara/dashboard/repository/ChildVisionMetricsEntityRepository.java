@@ -13,4 +13,5 @@ public interface ChildVisionMetricsEntityRepository extends JpaRepository<ChildV
     List<ChildVisionMetricsEntity> findByChildIdOrderByRecordedAtDesc(Long childId);
 
     Optional<ChildVisionMetricsEntity> findTopByChildIdOrderByRecordedAtDesc(Long childId);
+    Optional<ChildVisionMetricsEntity> findBySessionId(Long sessionId);
 }

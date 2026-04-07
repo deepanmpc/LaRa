@@ -42,7 +42,7 @@ public class AnalyticsController {
                 .collect(Collectors.toList());
 
         // Fetch metrics from secondary tables
-        Optional<ChildVisionMetrics> vision = visionMetricsRepository.findBySessionId(sessionId);
+        Optional<ChildVisionMetricsEntity> vision = visionMetricsRepository.findBySessionId(sessionId);
         Optional<ChildVoiceMetrics> voice = voiceMetricsRepository.findBySessionId(sessionId);
 
         return ResponseEntity.ok(SessionSummaryResponse.builder()
