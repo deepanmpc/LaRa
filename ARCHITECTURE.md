@@ -128,7 +128,7 @@ graph TD
     end
     
     L1 -->|"Debounce Flush (2s)"| L2
-    L2 <--|"Metadata Extract"| L3
+    L3 -->|"Metadata Extract"| L2
 ```
 
 ## Figure 6: Latency Breakdown Chart 
