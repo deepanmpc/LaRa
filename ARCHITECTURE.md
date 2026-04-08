@@ -1,119 +1,100 @@
-# LaRa Architecture Diagrams (Detailed View)
+# LaRa Architecture Diagrams (2-Column Paper Optimized)
 
-Below are the detailed architectural and data-flow diagrams for the LaRa system. These extend the high-level overviews to include specific technical protocols, backend services, ports, memory persistence layers, and internal configuration details.
+*Note: These diagrams have been strictly optimized for IEEE/ACM 2-column research paper formats. They exclusively use `TD` (Top-Down) layouts and stacked text labels to ensure they remain readable when scaled down to a ~3.5 inch column width.*
 
-## Figure 1: LaRa System Overview (Full Data-Flow Diagram)
+## Figure 1: LaRa System Overview
 ```mermaid
 graph TD
-    User["Child/Clinician User"] --> UI["React / Vite Dashboard (Port 5173)"]
+    User["Child / Clinician"] --> UI["React UI<br>(Port 5173)"]
     
-    UI <-->|REST / JSON| SpringAPI["Spring Boot Backend (Port 8080)
-    DashboardAPIController / ClinicianController"]
+    UI <-->|REST| SpringAPI["Spring API<br>(Port 8080)"]
+    UI <-->|WebSockets| WSBridge[\"WS Bridge<br>(Port 8765)"/]
     
-    UI <-->|WebSocket: Session Control| WSBridge[\"WS Bridge (Port 8765)
-    src/bridge/ws_server.py"/]
+    SpringAPI <--> Postgres[("SQL Data")]
     
-    SpringAPI <-->|SQL Sync| Postgres[("User/Clinical Data
-    PostgreSQL / SQLite")]
+    WSBridge <--> Main["Python Pipeline"]
     
-    WSBridge <--> MainDaemon["Main Python Pipeline (run.sh)
-    src/main.py"]
-    
-    subgraph CoreAI ["Python AI Engine (Gated EventBus Loop)"]
-        MainDaemon --> EventBus["EventBus (Pub/Sub)
-        SESSION_STARTED / COMPLETED"]
-        MainDaemon --> SessionMGR["Session & State Manager
-        FSM, Counters"]
-        MainDaemon --> LLM["Agentric LLM Controller
-        Ollama/AgentricAI_TLM"]
-        MainDaemon --> AudioPipe["Audio Pipeline
-        Whisper (ASR) / TTS"]
-        MainDaemon --> VisionBridge["VisionBridgeService"]
+    subgraph CoreAI ["AI Engine"]
+        Main --> EventBus["EventBus"]
+        Main --> Session["State FSM"]
+        Main --> LLM["LLM Controller"]
+        Main --> Audio["Audio Pipeline"]
+        Main --> VisB["VisionBridge"]
     end
     
-    VisionBridge <-->|REST Polling 2Hz| VisionAPI["Vision Perception API
-    FastAPI / Uvicorn (Port 8001)"]
-    
-    SessionMGR <--> DB_Sync["SessionDBSync Layer"]
+    VisB <-->|Polling| VisionAPI["Vision API<br>(Port 8001)"]
+    Session <--> DB_Sync["DB Sync"]
     DB_Sync <--> Postgres
-    LLM <--> FAISS[("FAISS Vector DB
-    Semantic Memory")]
+    LLM <--> FAISS[("FAISS Vector DB")]
 ```
 
-## Figure 2: Vision Perception Pipeline (FastAPI to Main Sync)
+## Figure 2: Vision Perception Pipeline
 ```mermaid
 graph TD
-    Cam["Hardware Camera (15-30 FPS)"] --> Uvicorn["FastAPI App (Port 8001)"]
+    Cam["Camera (15-30 FPS)"] --> Uvicorn["FastAPI App"]
     
-    subgraph VisionService ["FastAPI Vision Worker"]
-        Uvicorn --> MediaPipe["MediaPipe FaceMesh/Pose"]
-        MediaPipe --> |"Landmarks"| Tracker["Spatial Tracker"]
+    subgraph VisionService ["Vision Worker"]
+        Uvicorn --> MediaPipe["MediaPipe<br>FaceMesh"]
+        MediaPipe --> Tracker["Spatial Tracker"]
         
-        Tracker --> Gaze{"Gaze Vector
-        Intersection"}
+        Tracker --> Gaze{"Gaze Vector"}
         Gaze -->|Screen| FOC["FOCUSED"]
         Gaze -->|Away| DIST["DISTRACTED"]
         Gaze -->|None| ABS["ABSENT"]
         
-        FOC --> BaseS["Score: 80-100"]
+        FOC --> BaseS["Score: 80+"]
         DIST --> BaseS2["Score: 20-40"]
         ABS --> BaseS3["Score: 0"]
-        
-        BaseS --> SyncBuf["Rolling JSON Buffer"]
-        BaseS2 --> SyncBuf
-        BaseS3 --> SyncBuf
     end
     
-    SyncBuf <-->|GET /analytics (0.5s Interval)| VisionBridge[\"Main Pipeline Vision Bridge"/]
+    BaseS --> SyncBuf["Rolling Buffer"]
+    BaseS2 --> SyncBuf
+    BaseS3 --> SyncBuf
     
-    VisionBridge --> Aggregator["60-second Sliding Window
-    Calculate Avg Engagement (120 samples)"]
-    Aggregator -->|Publish: ENGAGEMENT_MINUTE_SYNC| EventBus["Core Event Bus"]
+    SyncBuf <-->|GET /analytics| VisionBridge[\"Main Pipeline"/]
+    VisionBridge --> Aggregator["1-Min Sliding Window<br>(120 samples)"]
+    Aggregator -->|Publish Event| EventBus["Core Event Bus"]
 ```
 
-## Figure 3: Session State Machine (FSM & Configuration)
+## Figure 3: Session State Machine
 ```mermaid
 stateDiagram-v2
-    [*] --> Neutral : UI Trigger (session_start)
+    [*] --> Neutral : Start
     
-    Neutral --> Frustrated : 2 Consecutive 'Frustrated/Sad'\n[Conf >= 0.6]
-    Neutral --> Stable : 3 Consecutive 'Happy/Neutral'\n[Conf >= 0.6]
+    Neutral --> Frust : 2x Frustrated\n[Conf >= 0.6]
+    Neutral --> Stable : 3x Stable\n[Conf >= 0.6]
     
-    state Frustrated {
-        [*] --> DecreaseDifficulty : Delta -1\nClamp [1, 5]
-        DecreaseDifficulty --> LockDifficulty : locked_turns = 2
+    state "Frustrated State" as Frust {
+        [*] --> DecDiff : Difficulty -1
+        DecDiff --> LockFor2 : Lock 2 Turns
     }
     
-    state Stable {
-        [*] --> IncreaseDifficulty : Delta +1\nClamp [1, 5]
-        IncreaseDifficulty --> LockDifficulty : locked_turns = 2
+    state "Stable State" as Stable {
+        [*] --> IncDiff : Difficulty +1
+        IncDiff --> LockFor2 : Lock 2 Turns
     }
     
-    LockDifficulty --> LockDifficulty : Turn Count++
-    LockDifficulty --> Neutral : Turn Count == 2
+    LockFor2 --> Neutral : Unlock
     
-    Frustrated --> CheckTTL : Idle > TTL Hour
-    Stable --> CheckTTL : Idle > TTL Hour
-    Neutral --> CheckTTL : Idle > TTL Hour
-    
-    CheckTTL --> [*] : Terminate/Flush DB (session_stop)
+    Frust --> Sleep : Idle > TTL Hour
+    Stable --> Sleep : Idle > TTL Hour
+    Neutral --> Sleep : Idle > TTL Hour
+    Sleep --> [*] : Terminate
 ```
 
-## Figure 4: 7-Segment Agentric Prompt Architecture
+## Figure 4: 7-Segment Prompt Architecture
 ```mermaid
 flowchart TD
-    Config["CONFIG.llm
-    Top-p: 0.85, Top-k: 40
-    Num-ctx: 1024, Temp: 0.15"] -.-> OllamaAPI
+    Config["CONFIG.llm<br>p:0.85, k:40"] -.-> OllamaAPI
     
-    subgraph Segments ["Memory Retrieval & Prompt Blocks"]
-        Sys["1. System Prompt (No Sarcasm/Metaphors)"]
-        Strat["2. Recovery Strategy Block"]
+    subgraph Segments ["Context Blocks"]
+        Sys["1. System Prompt"]
+        Strat["2. Recovery Strategy"]
         Style["3. Reinforcement Style"]
-        Mem["4. Learning State (from FAISS)"]
-        Vis["5. Vision Session Summary"]
-        Hist["6. Conversation History (Sliding Compress)"]
-        Live["7. Current Turn Input: 'User says...'"]
+        Mem["4. Learning State"]
+        Vis["5. Vision Summary"]
+        Hist["6. Turn History"]
+        Live["7. Current Input"]
     end
     
     Sys --> Cache["PromptCacheManager"]
@@ -124,145 +105,112 @@ flowchart TD
     Hist --> Cache
     Live --> Cache
     
-    Cache --> |"Full Context String"| OllamaAPI["Local HTTP POST /api/generate
-    Model: AgentricAI_TLM"]
-    OllamaAPI --> |"Iterative Chunks (stream=True)"| Yield["Streaming TTS Yield"]
+    Cache --> OllamaAPI["Local API<br>AgentricAI_TLM"]
 ```
 
-## Figure 5: Memory Architecture (3-Tier Layered Hierarchy)
+## Figure 5: Memory Architecture
 ```mermaid
-graph LR
-    subgraph L3 ["Layer 3: Semantic Memory (Disk/DB)"]
-        FAISS["FAISS Index (Embeddings)"]
-        SqlConfig["SQLite Schema / Policies"]
-        ChildProf["Persistent Child Profiles"]
+graph TD
+    subgraph L3 ["Layer 3: Semantic DB"]
+        FAISS["FAISS Index"]
+        ChildProf["Child Profiles"]
     end
     
-    subgraph L2 ["Layer 2: Episodic Memory (Disk/JSON)"]
-        DBSync["SessionDBSync Manager"]
-        TurnJSON["Turn History JSON (session_id_state)"]
-        Timeline["Timeline Metrics (1 min bins)"]
+    subgraph L2 ["Layer 2: Episodic Memory"]
+        DBSync["SessionDBSync"]
+        TurnJSON["Turn History JSON"]
     end
 
-    subgraph L1 ["Layer 1: Working Memory (RAM)"]
-        SessionObj["SessionState Dataclass"]
-        TurnCnt["Turn Counters & Emotion Streaks"]
-        LockTimers["Difficulty Lock Timers"]
-        
+    subgraph L1 ["Layer 1: Working Memory"]
+        SessionObj["SessionState (RAM)"]
+        TurnCnt["Counters & Streaks"]
         SessionObj --> TurnCnt
-        SessionObj --> LockTimers
     end
     
-    L1 -->|"Debounced Save Trigger (2.0s timeout)"| L2
-    L2 <--|"Metadata & Aggregates Extractions"| L3
+    L1 -->|"Debounce Flush (2s)"| L2
+    L2 <--|"Metadata Extract"| L3
 ```
 
 ## Figure 6: Latency Breakdown Chart 
 ```mermaid
 xychart-beta
-    title "End-to-End Latency Target Breakdown (ms)"
-    x-axis ["VAD Detection", "Whisper Transcribe", "Vision Sync (Async)", "LLM Generation", "TTS Output", "Total Budget"]
-    y-axis "Max Processing Latency Time (ms)" 0 --> 3500
-    bar [150, 600, 50, 1500, 500, 2800]
+    title "End-to-End Latency Target (ms)"
+    x-axis ["VAD", "Whisper", "Vision", "LLM", "TTS"]
+    y-axis "Max Latency (ms)" 0 --> 3500
+    bar [150, 600, 50, 1500, 500]
 ```
 
 ## Figure 7: Emotion Detection Stack
 ```mermaid
 graph TD
-    Mic["Microphone Audio Stream"] --> VAD["WebRTC VAD (Mode 3)"]
-    VAD --> Whisper["Whisper small.en Transcriber"]
+    Mic["Microphone"] --> Whisper["Whisper ASR"]
+    Whisper --> NLP["Text Logic"]
+    Mic --> RMS["Audio Energy"]
     
-    Whisper --> |"Text Transcript"| NLP["Sentiment Logic (Optional)"]
-    Mic --> |"Raw Frames"| RMS["RMS Audio Energy"]
+    Cam["Vision API"] --> FACS["Face Analysis"]
+    Cam --> Pose["Pose Check"]
     
-    Cam["Vision API Port 8001"] --> FACS["Face Action Unit Analysis"]
-    Cam --> Pose["Pose & Restlessness"]
-    
-    NLP --> Fusion{"Multi-Modal Fusion Controller"}
+    NLP --> Fusion{"Modality Fusion"}
     RMS --> Fusion
     FACS --> Fusion
     Pose --> Fusion
     
-    Fusion --> Bayesian{"Bayesian Conf Check
-    Score >= 0.60?"}
-    Bayesian --> |"Yes"| MoodEmit["Emit: Detected_Mood (e.g., 'frustrated')"]
-    Bayesian --> |"No"| Reg["Emit: 'unknown' (Trigger Recovery Block)"]
+    Fusion --> Bayesian{"Conf >= 0.60?"}
+    Bayesian --> |"Yes"| Emit["Explicit Mood"]
+    Bayesian --> |"No"| Reg["Fallback: 'unknown'"]
 ```
 
-## Figure 8: Dashboard Architecture (Clinical + Family Interfaces)
+## Figure 8: Dashboard Architecture
 ```mermaid
 mindmap
-  root((React Vite UI))
-    Clinical View (ClinicianDashboard.jsx)
-      Data Fetching Layer
-        DashboardAPIController (Spring Boot Endpoint)
-      Components
-        ClinicianStudentDetail Component
-        ClinicalStudentSections Component
-      Metrics Displayed
-        Database Aggregated Empathy Stats
-        Recharts Longitudinal Vision Analytics
-    Family View (Parent Dashboard)
-      Components
-        Gamified Session Highlights
-        Learning Progress Widgets
-      Metrics Displayed
-        Daily Difficulty Trajectories
-        Daily Session Count / Total Duration
+  root((React UI))
+    Clinical View
+      Longitudinal Charts
+      Aggregated Empathy
+      Behavioral Milestones
+    Family View
+      Recent Sessions
+      Learning Progress
+      Engagement Bins
 ```
 
-## Figure 9: Deployment Architecture (Hardware & Network Mapping)
+## Figure 9: Deployment Architecture
 ```mermaid
 graph TD
-    subgraph Client ["Browser / Edge Device"]
-        Vite["React Frontend SPA"] "--> HttpPort[Port: 5173]"
-    end
+    Client["Browser"] --> Proxy["API Gateway"]
+    Proxy --> React["React UI<br>Port 5173"]
+    Proxy --> Boot["Spring Backend<br>Port 8080"]
     
-    subgraph Spring ["Java Runtime"]
-        Boot["Spring Boot Backend"] "--> ApiPort[Port: 8080]"
-        Boot <--> |"JDBC / Hibernate"| DB
-    end
+    Boot <--> DB[("Postgres DB")]
     
-    subgraph PyEnv ["Python Virtual Environment (.venv)"]
-        Pipe["src/main.py Gated Pipeline"] "--> Ws[Port: 8765]"
-        Pipe <--> EventBus["EventBus Manager"]
-        Vis["src/vision_perception/app.py"] "--> Uvic[Port: 8001]"
-    end
+    Proxy --> Pipe["Python Pipeline<br>Port 8765"]
+    Pipe <--> Vis["Vision API<br>Port 8001"]
     
-    subgraph DataStore ["Persistence Layer"]
-        DB[("Postgres / SQLite
-        port: 5432")]
-        Vector[("FAISS Store")]
-    end
-    
-    Client == "REST API" ==> Boot
-    Client == "WebSocket" ==> Pipe
-    Pipe == "REST API Polling" ==> Vis
+    Pipe <--> Vector[("FAISS Store")]
 ```
 
-## Figure 10: Engagement Scoring & Sync Flowchart
+## Figure 10: Engagement Scoring Algorithm
 ```mermaid
 flowchart TD
-    API["FastAPI captures Frame"] --> Haar{"Face MediaPipe / Haar?"}
+    API["FastAPI Frame"] --> Haar{"Face MediaPipe?"}
     
-    Haar -->|"No"| NullState["Attention = ABSENT\nScore = 0"]
-    Haar -->|"Yes"| Gaze{"Eye Landmarks to Screen Intersect?"}
+    Haar -->|"No"| NullState["ABSENT: 0"]
+    Haar -->|"Yes"| Gaze{"Look at Screen?"}
     
-    Gaze -->|"Offset > Threshold"| Dist["Attention = DISTRACTED\nScore = 40"]
-    Gaze -->|"Offset <= Threshold"| Foc["Attention = FOCUSED\nScore = 80"]
+    Gaze -->|"Offset > Threshold"| Dist["DISTRACTED: 40"]
+    Gaze -->|"Offset <= Threshold"| Foc["FOCUSED: 80"]
     
-    NullState --> Emit["Store in Rolling Array"]
-    Dist --> Gest{"Add Positive Gesture?"}
+    Dist --> Gest{"Positive Gesture?"}
     Foc --> Gest
     
-    Gest --> |"Yes (+20 limit)"| ModScore["Max Score 100"]
-    Gest --> |"No"| BaseScore["Base Score"]
+    Gest --> |"Yes"| ModScore["Add +20"]
+    Gest --> |"No"| BaseScore["Base"]
     
+    NullState --> Emit["Add buffer"]
     ModScore --> Emit
     BaseScore --> Emit
     
-    Emit -.-> |"Main Pipeline requests /analytics"| MainBuf["SessionState._vision_history"]
-    MainBuf --> Time["_engagement_sync_loop (run every 60s)"]
-    Time --> Calc["Calculate 1-Min Moving Average"]
-    Calc --> DBPub["Publish to SQL/Stats Engine"]
+    Emit -.-> |"Async Request"| main["SessionState"]
+    main --> Time["Sync (60s loop)"]
+    Time --> DBPub["Publish Average"]
 ```
