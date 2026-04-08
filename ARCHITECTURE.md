@@ -111,24 +111,30 @@ flowchart TD
 ## Figure 5: Memory Architecture
 ```mermaid
 graph TD
-    subgraph L3 ["Layer 3: Semantic DB"]
-        FAISS["FAISS Index"]
-        ChildProf["Child Profiles"]
+    subgraph L123 ["Short-Term Working Memory"]
+        L1["L1: Immediate Turn Buffer<br>Ephemeral, cleared per turn"]
+        L2["L2: Rolling Session Buffer<br>Last 5 turns, 24h expiry"]
+        L3["L3: Session Summary<br>Structured state sync<br>(Concept: counting | Diff: 2/5)"]
     end
     
-    subgraph L2 ["Layer 2: Episodic Memory"]
-        DBSync["SessionDBSync"]
-        TurnJSON["Turn History JSON"]
-    end
-
-    subgraph L1 ["Layer 1: Working Memory"]
-        SessionObj["SessionState (RAM)"]
-        TurnCnt["Counters & Streaks"]
-        SessionObj --> TurnCnt
+    L1 --> L2 --> L3
+    
+    subgraph L4 ["Layer 4: Structured Session State"]
+        L4Mem["RAM Only FSM<br>Expires Session End"]
     end
     
-    L1 -->|"Debounce Flush (2s)"| L2
-    L3 -->|"Metadata Extract"| L2
+    L3 --> L4Mem
+    
+    subgraph L5 ["Layer 5: Long-Term Memory (SQLite)"]
+        SQL["1. users (ID, Depth, TTS)<br>2. learning_progress (Mastery 0-5)<br>3. emotional_metrics (Weekly 0.95x decay)<br>4. child_preferences (Max 20, JSON)<br>5. reinforcement_metrics (Style success)"]
+    end
+    
+    subgraph L6 ["Layer 6: Vector Memory"]
+        Vec["ChromaDB<br>Optional, 90-day expiry"]
+    end
+    
+    L4Mem -->|"Aggregated SQL Sync"| SQL
+    L4Mem -.->|"Embeddings"| Vec
 ```
 
 ## Figure 6: Latency Breakdown Chart 
