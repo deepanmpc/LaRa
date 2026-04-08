@@ -5,49 +5,40 @@ Below are the architectural diagrams for the current version of the LaRa (Low-Co
 ## Figure 1: LaRa System Overview (Full Block Diagram)
 ```mermaid
 graph TD
-    classDef frontend fill:#3b82f6,stroke:#1d4ed8,color:#fff,rx:8px,ry:8px;
-    classDef backend fill:#10b981,stroke:#047857,color:#fff,rx:8px,ry:8px;
-    classDef ai fill:#6366f1,stroke:#4338ca,color:#fff,rx:8px,ry:8px;
-    classDef db fill:#f59e0b,stroke:#b45309,color:#fff,rx:8px,ry:8px;
-
-    User[Child/Clinician] --> Dash[LaRa Dashboard Frontend<br>React / Recharts]:::frontend
-    Dash <-- REST / WebSockets --> Spring[Spring Boot API<br>Clinical Backend]:::backend
+    User[Child/Clinician] --> Dash[LaRa Dashboard Frontend - React/Recharts]
+    Dash <-- REST / WebSockets --> Spring[Spring Boot API - Clinical Backend]
     
-    Spring <--> core[Python AI Core<br>src/core]:::ai
+    Spring <--> core[Python AI Core - src/core]
     
-    subgraph Python AI Engine
-        core --> vision[Vision Perception<br>Face / Gaze / Pose]:::ai
-        core --> voice[Audio Pipeline<br>Whisper / TTS]:::ai
-        core --> llm[Agentric LLM<br>Ollama / AgentricAI_TLM]:::ai
-        core --> session[Session & State<br>FSM / Streaks]:::ai
-        core --> memory[Memory Subsystem<br>User / Vector]:::ai
+    subgraph Python_AI_Engine [Python AI Engine]
+        core --> vision[Vision Perception - Face/Gaze/Pose]
+        core --> voice[Audio Pipeline - Whisper/TTS]
+        core --> llm[Agentric LLM - Ollama / AgentricAI_TLM]
+        core --> session[Session & State - FSM/Streaks]
+        core --> memory[Memory Subsystem - User/Vector]
     end
     
-    memory <--> pg[PostgreSQL / SQLite<br>User Data]:::db
-    memory <--> faiss[FAISS Vector Store<br>Semantic Memory]:::db
+    memory <--> pg[PostgreSQL / SQLite - User Data]
+    memory <--> faiss[FAISS Vector Store - Semantic Memory]
     Spring <--> pg
 ```
 
 ## Figure 2: Vision Perception Pipeline
 ```mermaid
 graph TD
-    classDef input fill:#ef4444,color:#fff;
-    classDef process fill:#8b5cf6,color:#fff;
-    classDef state fill:#14b8a6,color:#fff;
-
-    Cam[Camera Module]:::input --> Det[Detection Engine<br>MediaPipe / Haar]:::process
-    Det --> |Face/Pose Data| Track[Tracking & Feature Extraction]:::process
+    Cam[Camera Module] --> Det[Detection Engine - MediaPipe/Haar]
+    Det --> |Face/Pose Data| Track[Tracking & Feature Extraction]
     
-    Track --> Gaze{Gaze Direction?}:::process
-    Gaze -->|Looking at Screen| Foc(FOCUSED):::state
-    Gaze -->|Looking Away| Dist(DISTRACTED):::state
-    Gaze -->|No Face| Abs(ABSENT):::state
+    Track --> Gaze{"Gaze Direction?"}
+    Gaze -->|Looking at Screen| Foc(FOCUSED)
+    Gaze -->|Looking Away| Dist(DISTRACTED)
+    Gaze -->|No Face| Abs(ABSENT)
     
-    Foc --> Calc[Engagement Score Calculation]:::process
+    Foc --> Calc[Engagement Score Calculation]
     Dist --> Calc
     Abs --> Calc
     
-    Calc --> |Avg Score, Duration| Ses[Session State Update]:::state
+    Calc --> |Avg Score, Duration| Ses[Session State Update]
 ```
 
 ## Figure 3: Session State Machine (FSM)
@@ -55,8 +46,8 @@ graph TD
 stateDiagram-v2
     [*] --> Neutral : Start Session
     
-    Neutral --> Frustrated : 2 Consecutive Frustrated Moods (Conf >= 0.6)
-    Neutral --> Stable : 3 Consecutive Stable Moods (Conf >= 0.6)
+    Neutral --> Frustrated : 2 Consecutive Frustrated Moods
+    Neutral --> Stable : 3 Consecutive Stable Moods
     
     state Frustrated {
         [*] --> DecreaseDifficulty
@@ -80,17 +71,15 @@ stateDiagram-v2
 ## Figure 4: 7-Segment Prompt Architecture
 ```mermaid
 flowchart TD
-    classDef segment fill:#374151,stroke:#9ca3af,color:#fff,rx:5px,ry:5px;
+    P1["1. System Rules (Self)"]
+    P2["2. Recovery Strategy"]
+    P3["3. Reinforcement Style"]
+    P4["4. Learning State (Memory/Pref)"]
+    P5["5. Session Summary (Vision)"]
+    P6["6. History Block (Last N Turns)"]
+    P7["7. Live Input Block (User Text)"]
     
-    P1["1. System Rules (Self)"]:::segment
-    P2["2. Recovery Strategy"]:::segment
-    P3["3. Reinforcement Style"]:::segment
-    P4["4. Learning State (Memory/Pref)"]:::segment
-    P5["5. Session Summary (Vision)"]:::segment
-    P6["6. History Block (Last N Turns)"]:::segment
-    P7["7. Live Input Block (User Text)"]:::segment
-    
-    subgraph Prompt Cache Manager
+    subgraph PromptManager [Prompt Cache Manager]
         P1 --> Cache[Assemble 7-Segment Prompt]
         P2 --> Cache
         P3 --> Cache
@@ -106,28 +95,25 @@ flowchart TD
 ## Figure 5: Memory Architecture (3 Layers)
 ```mermaid
 graph LR
-    classDef layer fill:#ec4899,color:#fff;
-    classDef comp fill:#475569,color:#fff;
-    
-    subgraph Layer 3: Semantic Memory (Persisted Semantic)
-        VectorDB[FAISS Vector Store]:::layer
-        ChildPref[Child Preferences]:::layer
+    subgraph Layer3 ["Layer 3: Semantic Memory (Persisted Semantic)"]
+        VectorDB[FAISS Vector Store]
+        ChildPref[Child Preferences]
     end
     
-    subgraph Layer 2: Episodic Memory (Persisted Context)
-        TurnHist[Turn History Database]:::layer
-        VisionHist[Vision/Timeline Database]:::layer
+    subgraph Layer2 ["Layer 2: Episodic Memory (Persisted Context)"]
+        TurnHist[Turn History Database]
+        VisionHist[Vision/Timeline Database]
     end
 
-    subgraph Layer 1: Working Memory (In-Memory Session)
-        Ses[SessionState (RAM)]:::layer
-        Streaks[Frustration/Stability Counters]:::comp
-        Mood[Current Mood/Confidence]:::comp
+    subgraph Layer1 ["Layer 1: Working Memory (In-Memory Session)"]
+        Ses["SessionState (RAM)"]
+        Streaks["Frustration/Stability Counters"]
+        Mood["Current Mood/Confidence"]
         Ses --> Streaks
         Ses --> Mood
     end
     
-    Layer1 --> |Timer Flush (2.0s)| Layer2
+    Layer1 --> |Timer Flush 2.0s| Layer2
     Layer2 --> |Metadata Extract| Layer3
 ```
 
@@ -143,24 +129,20 @@ xychart-beta
 ## Figure 7: Emotion Detection Pipeline
 ```mermaid
 graph TD
-    classDef audio fill:#f97316,color:#fff;
-    classDef visual fill:#8b5cf6,color:#fff;
-    classDef fuse fill:#0ea5e9,color:#fff;
-
-    A[Audio Input]:::audio --> Pitch[Pitch/Tempo Extraction]:::audio
-    A --> Voc[Vocal Energy (RMS)]:::audio
+    A[Audio Input] --> Pitch["Pitch/Tempo Extraction"]
+    A --> Voc["Vocal Energy (RMS)"]
     
-    V[Video Input]:::visual --> FA[Face Expression Analysis]:::visual
-    V --> Act[Activity/Gesture]:::visual
+    V[Video Input] --> FA["Face Expression Analysis"]
+    V --> Act["Activity/Gesture"]
     
-    Pitch --> Fuse{Multi-Modal Fusion}:::fuse
+    Pitch --> Fuse{"Multi-Modal Fusion"}
     Voc --> Fuse
     FA --> Fuse
     Act --> Fuse
     
-    Fuse --> Conf{Confidence >= 0.6?}:::fuse
-    Conf --> |Yes| Mood[Detected Mood: Happy/Sad/Frust/Neutral]
-    Conf --> |No| Un[Unknown / Default Neutral]
+    Fuse --> Conf{"Confidence >= 0.6?"}
+    Conf --> |Yes| Mood["Detected Mood: Happy/Sad/Frust/Neutral"]
+    Conf --> |No| Un["Unknown / Default Neutral"]
 ```
 
 ## Figure 8: Dashboard Wireframe (Clinical + Family)
@@ -182,37 +164,36 @@ mindmap
 ## Figure 9: Deployment Architecture (4 Services)
 ```mermaid
 graph TD
-    classDef ext fill:#1f2937,color:#fff;
-    classDef svc fill:#2563eb,color:#fff;
+    Client[Browser / Tablet] --> |HTTPS/WSS| Proxy[Nginx / API Gateway]
     
-    Client[Browser / Tablet]:::ext --> |HTTPS/WSS| Proxy[Nginx / API Gateway]:::svc
+    Proxy --> React[Service 1: React Dashboard UI]
+    Proxy --> Spring[Service 2: Spring Boot Backend]
     
-    Proxy --> React[Service 1: React Dashboard UI]:::svc
-    Proxy --> Spring[Service 2: Spring Boot Backend]:::svc
+    Spring --> Python[Service 3: Python AI Core]
+    Python --> |WebRTC/gRPC| LocalAI[Local Inference Models]
     
-    Spring --> Python[Service 3: Python AI Core]:::svc
-    Python --> |WebRTC/gRPC| LocalAI[Local Inference Models]:::ext
-    
-    Spring --> DB[(Service 4: PostgreSQL + Redis + FAISS)]:::svc
+    Spring --> DB[(Service 4: PostgreSQL + Redis + FAISS)]
     Python --> DB
 ```
 
 ## Figure 10: Engagement Scoring Algorithm Flowchart
 ```mermaid
 flowchart TD
-    Start[Capture Frame] --> Face{Face Detected?}
-    Face -->|No| Sub[Score = 0, State = ABSENT]
-    Face -->|Yes| Gaze{Gaze Vector toward Screen?}
+    Start[Capture Frame] --> Face{"Face Detected?"}
+    Face -->|No| Sub["Score = 0, State = ABSENT"]
+    Face -->|Yes| Gaze{"Gaze Vector toward Screen?"}
     
     Gaze -->|Yes| Foc[State = FOCUSED]
     Gaze -->|No| Dist[State = DISTRACTED]
     
-    Foc --> Base[Base Score = 80]
-    Dist --> Base[Base Score = 40]
+    Foc --> Base80["Base Score = 80"]
+    Dist --> Base40["Base Score = 40"]
     
-    Base --> Gesture{Positive Gesture Detected?}
-    Gesture -->|Yes| Add[Add +20]
-    Gesture -->|No| Keep[Keep Score]
+    Base80 --> Gesture{"Positive Gesture Detected?"}
+    Base40 --> Gesture
+    
+    Gesture -->|Yes| Add["Add +20"]
+    Gesture -->|No| Keep["Keep Score"]
     
     Add --> Final[Final Score for Frame]
     Keep --> Final
