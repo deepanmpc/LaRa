@@ -61,16 +61,7 @@ public class AdminDashboardController {
         return ResponseEntity.ok(modelEvaluationService.getModelEvaluation());
     }
 
-    // PART 4 — Dataset Export
-    @GetMapping("/export-dataset")
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-    public ResponseEntity<String> exportDataset() {
-        String csv = datasetExportService.exportToCsv();
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=lara_dataset.csv")
-                .contentType(MediaType.parseMediaType("text/csv"))
-                .body(csv);
-    }
+
 
     // PART 5 — Population Analytics
     @GetMapping("/population/analytics")
@@ -111,11 +102,7 @@ public class AdminDashboardController {
     }
 
     // PART 8 — User Management
-    @GetMapping("/users")
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-    public ResponseEntity<List<User>> getAllUsers() {
-        return ResponseEntity.ok(userRepository.findAll());
-    }
+
 
     @PostMapping("/users/{id}/approve")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
