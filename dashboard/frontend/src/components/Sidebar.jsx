@@ -4,7 +4,7 @@ import { logout, getStoredUser } from '../services/authService';
 const NAV_ITEMS = [
     {
         id: 'summary',
-        label: "Today's Summary",
+        label: "Summary",
         icon: (
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="3" width="7" height="7" rx="1" />

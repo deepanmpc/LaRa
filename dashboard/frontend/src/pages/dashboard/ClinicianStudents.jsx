@@ -24,7 +24,9 @@ export default function ClinicianStudents() {
                         focusedDuration = vRes.data?.focused_duration || 0;
                         distractionFrames = vRes.data?.distraction_frames || 0;
                     } catch (e) {
-                        // ignore if no vision data
+                        if (e.response?.status !== 404) {
+                            console.warn(`Could not fetch vision metrics for student ${student.id}`, e);
+                        }
                     }
 
                     return {

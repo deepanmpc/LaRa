@@ -5,9 +5,35 @@ import {
     Eye,
     ShieldCheck,
     Sparkles,
-    Tags
+    History,
+    TrendingUp,
+    AlertTriangle,
+    Network
 } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import ForceGraph3D from 'react-force-graph-3d';
+import SpriteText from 'three-spritetext';
+import {
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    ResponsiveContainer,
+    RadarChart as RechartsRadarChart,
+    PolarGrid,
+    PolarAngleAxis,
+    PolarRadiusAxis,
+    Radar,
+    LineChart,
+    Line,
+    Legend
+} from 'recharts';
+import ChildDevelopmentTrajectory from './ChildDevelopmentTrajectory';
+
 export function formatPercent(value) {
+    if (value === null || value === undefined) return '0%';
     return `${Math.round(value * 100)}%`;
 }
 
@@ -17,25 +43,6 @@ export function formatStyleLabel(style) {
         .split('_')
         .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
         .join(' ');
-}
-
-export function getStabilityIndex(data) {
-    // Map from new DTO: overallMoodScore or stability. Safely falling back if undefined.
-    if (!data) return 0;
-    return data.emotionStability || data.overallMoodScore || 0;
-}
-
-export function getReinforcementRanking(data) {
-    if (!data) return [{ key: 'none', label: 'None Available', score: 0 }];
-    return [
-        { key: 'primary', score: data.focusScore || 0 },
-        { key: 'secondary', score: data.collaborationScore || 0 },
-    ]
-        .map((item) => ({
-            ...item,
-            label: formatStyleLabel(item.key)
-        }))
-        .sort((left, right) => right.score - left.score);
 }
 
 function clamp(value, min, max) {
@@ -95,6 +102,7 @@ function HorizontalBar({ label, value, percent, tone = 'blue' }) {
 }
 
 function RadialMasteryChart({ value }) {
+    // Value is 0-5
     const normalized = clamp((value / 5) * 100, 0, 100);
     const radius = 58;
     const circumference = 2 * Math.PI * radius;
@@ -123,43 +131,34 @@ function RadialMasteryChart({ value }) {
 }
 
 function EmotionStack({ data }) {
-    const total = data.frustration_count + data.recovery_count + data.neutral_stability_count;
-    const items = [
-        {
-            label: 'Frustration Frequency',
-            value: data.frustration_count,
-            tone: 'risk'
-        },
-        {
-            label: 'Recovery Efficiency',
-            value: data.recovery_count,
-            tone: 'positive'
-        },
-        {
-            label: 'Baseline Stability',
-            value: data.neutral_stability_count,
-            tone: 'calm'
-        }
-    ];
+    // Expected emotion_distribution: [{emotion: 'Happy', count: 10}, ...]
+    const total = data.reduce((acc, curr) => acc + curr.count, 0) || 1;
+    
+    const getTone = (emotion) => {
+        const e = emotion.toLowerCase();
+        if (e.includes('happy') || e.includes('calm') || e.includes('focus')) return 'positive';
+        if (e.includes('frust') || e.includes('anx') || e.includes('sad')) return 'risk';
+        return 'calm';
+    };
 
     return (
         <div className="emotion-stack">
             <div className="emotion-stack__bar">
-                {items.map((item) => (
+                {data.map((item) => (
                     <div
-                        key={item.label}
-                        className={`emotion-stack__segment emotion-stack__segment--${item.tone}`}
-                        style={{ width: `${(item.value / total) * 100}%` }}
+                        key={item.emotion}
+                        className={`emotion-stack__segment emotion-stack__segment--${getTone(item.emotion)}`}
+                        style={{ width: `${(item.count / total) * 100}%` }}
                     />
                 ))}
             </div>
 
             <div className="emotion-stack__legend">
-                {items.map((item) => (
-                    <div key={item.label} className="emotion-stack__legend-item">
-                        <span className={`emotion-stack__dot emotion-stack__dot--${item.tone}`} />
-                        <span className="emotion-stack__legend-label">{item.label}</span>
-                        <span className="emotion-stack__legend-value">{item.value}</span>
+                {data.map((item) => (
+                    <div key={item.emotion} className="emotion-stack__legend-item">
+                        <span className={`emotion-stack__dot emotion-stack__dot--${getTone(item.emotion)}`} />
+                        <span className="emotion-stack__legend-label">{item.emotion}</span>
+                        <span className="emotion-stack__legend-value">{item.count}</span>
                     </div>
                 ))}
             </div>
@@ -172,7 +171,7 @@ function StabilityMeter({ value }) {
         <div className="stability-meter">
             <div className="stability-meter__header">
                 <span className="stability-meter__label">Stability Index</span>
-                <span className="stability-meter__value">{value}%</span>
+                <span className="stability-meter__value">{Math.round(value)}%</span>
             </div>
             <div className="stability-meter__track">
                 <div className="stability-meter__fill" style={{ width: `${value}%` }} />
@@ -185,450 +184,468 @@ function StabilityMeter({ value }) {
     );
 }
 
-function RadarChart({ metrics }) {
-    const centerX = 130;
-    const centerY = 130;
-    const radius = 82;
+    // For legacy support to render the existing ones via the prompt
+    // Wait, the new prompt asks for BarCharts and LineCharts, so I am introducing those separately below.
 
-    const levels = [0.25, 0.5, 0.75, 1].map((level) => (
-        metrics.map((_, index) => {
-            const angle = (-90 + ((360 / metrics.length) * index));
-            const point = polarToCartesian(centerX, centerY, radius * level, angle);
-            return `${point.x},${point.y}`;
-        }).join(' ')
-    ));
-
-    const metricPoints = metrics.map((metric, index) => {
-        const angle = (-90 + ((360 / metrics.length) * index));
-        const point = polarToCartesian(centerX, centerY, radius * metric.value, angle);
-        return `${point.x},${point.y}`;
-    }).join(' ');
-
+function ProgressBar({ value, variant = 'primary' }) {
     return (
-        <div className="clinical-radar">
-            <svg viewBox="0 0 260 260" className="clinical-radar__svg" aria-hidden="true">
-                {levels.map((points, index) => (
-                    <polygon key={points} points={points} className={`clinical-radar__grid clinical-radar__grid--${index}`} />
-                ))}
-
-                {metrics.map((metric, index) => {
-                    const angle = (-90 + ((360 / metrics.length) * index));
-                    const outerPoint = polarToCartesian(centerX, centerY, radius, angle);
-                    const labelPoint = polarToCartesian(centerX, centerY, radius + 24, angle);
-
-                    return (
-                        <g key={metric.label}>
-                            <line
-                                x1={centerX}
-                                y1={centerY}
-                                x2={outerPoint.x}
-                                y2={outerPoint.y}
-                                className="clinical-radar__axis"
-                            />
-                            <text
-                                x={labelPoint.x}
-                                y={labelPoint.y}
-                                textAnchor="middle"
-                                className="clinical-radar__label"
-                            >
-                                {metric.label}
-                            </text>
-                        </g>
-                    );
-                })}
-
-                <polygon points={metricPoints} className="clinical-radar__area" />
-                {metrics.map((metric, index) => {
-                    const angle = (-90 + ((360 / metrics.length) * index));
-                    const point = polarToCartesian(centerX, centerY, radius * metric.value, angle);
-
-                    return <circle key={metric.label} cx={point.x} cy={point.y} r="4" className="clinical-radar__point" />;
-                })}
-            </svg>
+        <div className="progress-bar" style={{ height: 8, background: '#e2e8f0', borderRadius: 4, overflow: 'hidden' }}>
+            <div 
+                className={`progress-fill ${variant}`} 
+                style={{ 
+                    width: `${value}%`, 
+                    height: '100%', 
+                    background: variant === 'risk' ? '#ef4444' : variant === 'green' ? '#10b981' : '#3b82f6',
+                    transition: 'width 0.5s ease'
+                }} 
+            />
         </div>
     );
 }
 
-function AttentionTimeline({ focusedDuration, sessionDuration, distractionFrames }) {
-    const distractionSlots = Math.max(1, Math.min(4, Math.round(distractionFrames / 6)));
-    const distractionIndices = [2, 6, 9, 11].slice(0, distractionSlots);
-    const segmentCount = 12;
-    const focusRatio = clamp(focusedDuration / sessionDuration, 0, 1);
-    const minimumFocused = Math.max(1, Math.round(segmentCount * focusRatio));
-    const segments = Array.from({ length: segmentCount }, (_, index) => {
-        if (distractionIndices.includes(index)) {
-            return 'risk';
-        }
+export default function ClinicalStudentSections({ analytics: rawAnalytics, riskSignals, knowledgeGraph }) {
+    const analytics = rawAnalytics || {};
+    const { cognitive, emotional, vision, reinforcement, longitudinal } = analytics;
 
-        return index < minimumFocused ? 'focused' : 'neutral';
-    });
-
-    return (
-        <div className="attention-timeline">
-            <div className="attention-timeline__segments">
-                {segments.map((segment, index) => (
-                    <span key={`${segment}-${index}`} className={`attention-timeline__segment attention-timeline__segment--${segment}`} />
-                ))}
-            </div>
-            <div className="attention-timeline__meta">
-                <span>Focus Retention {focusedDuration} min</span>
-                <span>{distractionFrames} distraction frames</span>
-            </div>
-        </div>
-    );
-}
-
-function VoiceLineChart({ speakingRate, volume, stabilityScore }) {
-    const values = [
-        { label: 'Speaking Rate', value: clamp(speakingRate / 140, 0, 1) },
-        { label: 'Volume', value: clamp(volume, 0, 1) },
-        { label: 'Speech Stability', value: clamp(stabilityScore, 0, 1) }
-    ];
-    const width = 320;
-    const height = 150;
-    const points = values.map((item, index) => {
-        const x = 24 + ((width - 48) / (values.length - 1)) * index;
-        const y = 18 + ((height - 36) * (1 - item.value));
-        return `${x},${y}`;
-    }).join(' ');
-
-    return (
-        <div className="voice-line-chart">
-            <svg viewBox={`0 0 ${width} ${height}`} className="voice-line-chart__svg" aria-hidden="true">
-                <line x1="24" y1="132" x2="296" y2="132" className="voice-line-chart__axis" />
-                <polyline points={points} className="voice-line-chart__line" />
-                {values.map((item, index) => {
-                    const x = 24 + ((width - 48) / (values.length - 1)) * index;
-                    const y = 18 + ((height - 36) * (1 - item.value));
-
-                    return (
-                        <g key={item.label}>
-                            <circle cx={x} cy={y} r="5" className="voice-line-chart__point" />
-                            <text x={x} y="146" textAnchor="middle" className="voice-line-chart__label">
-                                {item.label}
-                            </text>
-                        </g>
-                    );
-                })}
-            </svg>
-        </div>
-    );
-}
-
-function EngagementGauge({ value }) {
-    const normalized = clamp(value, 0, 100);
-    const startAngle = 180;
-    const endAngle = 360;
-    const radius = 74;
-    const cx = 100;
-    const cy = 115;
-    const startPoint = polarToCartesian(cx, cy, radius, startAngle);
-    const endPoint = polarToCartesian(cx, cy, radius, endAngle);
-    const gaugePath = `M ${startPoint.x} ${startPoint.y} A ${radius} ${radius} 0 0 1 ${endPoint.x} ${endPoint.y}`;
-    const angle = 180 + ((normalized / 100) * 180);
-    const needlePoint = polarToCartesian(cx, cy, 60, angle);
-    const valuePoint = polarToCartesian(cx, cy, radius + 20, angle);
-
-    return (
-        <div className="engagement-gauge">
-            <svg viewBox="0 0 200 170" className="engagement-gauge__svg" aria-hidden="true">
-                <path className="engagement-gauge__track" d={gaugePath} pathLength="100" />
-                <path
-                    className="engagement-gauge__fill"
-                    d={gaugePath}
-                    pathLength="100"
-                    strokeDasharray={`${normalized} 100`}
-                />
-                <line
-                    className="engagement-gauge__needle"
-                    x1={cx}
-                    y1={cy}
-                    x2={needlePoint.x}
-                    y2={needlePoint.y}
-                />
-                <circle cx={cx} cy={cy} r="8" className="engagement-gauge__hub" />
-                <text 
-                    x={valuePoint.x} 
-                    y={valuePoint.y} 
-                    textAnchor="middle" 
-                    className="engagement-gauge__value"
-                    style={{ fontSize: '20px' }}
-                >
-                    {normalized}%
-                </text>
-                <text x={cx} y={cy + 38} textAnchor="middle" className="engagement-gauge__label">
-                    Overall Engagement Index
-                </text>
-            </svg>
-        </div>
-    );
-}
-
-export default function ClinicalStudentSections({ record, visionData }) {
-    // Inject safe fallbacks for missing structures to prevent crashes during migration
-    const safeRecord = {
-        emotional_metrics: record?.emotional_metrics || { frustration_count: 0, recovery_count: 0, neutral_stability_count: 0 },
-        reinforcement_metrics: record?.reinforcement_metrics || { total_events: 0, preferred_style: 'none', calm_validation: 0, praise_based: 0, achievement_based: 0, playful: 0 },
-        vision_session_stats: record?.vision_session_stats || { avg_engagement_score: 0.7, avg_gaze_score: 0.7, system_confidence: 0.8 },
-        perception_confidence: record?.perception_confidence || { face_conf: 0.8, gesture_conf: 0.8, object_conf: 0.8 },
-        vocal_mood_distribution: record?.vocal_mood_distribution || { neutral: 0.5, arousal: 0.2, withdrawal: 0.2 },
-        learning_progress: record?.learning_progress || { mastery_level: 0, concept_name: 'Pending', attempt_count: 0, success_rate: 0 },
-        user_profiles: record?.user_profiles || { instruction_depth: 1, preferred_topics: [] },
-        vision_behavior_counts: record?.vision_behavior_counts || { distraction_frames: 0, focused_duration: 0 },
-        total_engagement_summary: record?.total_engagement_summary || { total_engagement_average: 0.7, interaction_continuity_score: 0.7, session_duration: 0 },
-        voice_prosody_metrics: record?.voice_prosody_metrics || { speaking_rate: 100, volume: 0.5, stability_score: 0.5 }
-    };
-
-    // 1. Data from 'emotional_metrics' table (Python Core / Dashboard MySQL)
-    const stabilityIndex = getStabilityIndex(safeRecord.emotional_metrics);
-    
-    // 2. Data from 'reinforcement_metrics' table
-    const reinforcementRanking = getReinforcementRanking(safeRecord.reinforcement_metrics);
-    const bestStrategy = reinforcementRanking[0] || { label: 'None', score: 0 };
-    
-    // 3. Data from 'vision_metrics' and 'engagement_timeline' tables
     const radarMetrics = [
-        { label: 'Engage', value: visionData ? visionData.avg_engagement_score : safeRecord.vision_session_stats.avg_engagement_score },
-        { label: 'Gaze', value: visionData ? visionData.avg_gaze_score : safeRecord.vision_session_stats.avg_gaze_score },
-        { label: 'System', value: visionData ? visionData.system_confidence : safeRecord.vision_session_stats.system_confidence },
-        { label: 'Face', value: visionData ? visionData.face_conf : safeRecord.perception_confidence.face_conf },
-        { label: 'Gesture', value: visionData ? visionData.gesture_conf : safeRecord.perception_confidence.gesture_conf },
-        { label: 'Object', value: visionData ? visionData.object_conf : safeRecord.perception_confidence.object_conf }
+        { label: 'ENGAGE', value: vision?.radar?.ENGAGE || 0 },
+        { label: 'GAZE', value: vision?.radar?.GAZE || 0 },
+        { label: 'OBJECT', value: vision?.radar?.OBJECT || 0 },
+        { label: 'GESTURE', value: vision?.radar?.GESTURE || 0 },
+        { label: 'FACE', value: vision?.radar?.FACE || 0 },
+        { label: 'SYSTEM', value: vision?.radar?.SYSTEM || 0 }
     ];
 
-    const emotionalTrendChips = [
-        safeRecord.emotional_metrics.frustration_count <= 8 ? 'Frustration within monitored range' : 'Escalation threshold elevated',
-        safeRecord.emotional_metrics.recovery_count >= safeRecord.emotional_metrics.frustration_count ? 'Recovery exceeds disruption events' : 'Recovery below target response',
-        safeRecord.emotional_metrics.neutral_stability_count >= 20 ? 'Baseline stability sustained' : 'Baseline variability noted'
-    ];
-
-    const vocalDistribution = [
-        { label: 'Neutral', value: safeRecord.vocal_mood_distribution.neutral, tone: 'calm' },
-        { label: 'Arousal', value: safeRecord.vocal_mood_distribution.arousal, tone: 'alert' },
-        { label: 'Withdrawal', value: safeRecord.vocal_mood_distribution.withdrawal, tone: 'risk' }
-    ];
-
-    // 4. Data from 'learning_progress' and 'user_profiles' tables
-    const masteryValue = safeRecord.learning_progress.mastery_level;
-    const conceptName = safeRecord.learning_progress.concept_name;
-    const instructionLevel = safeRecord.user_profiles.instruction_depth;
-
-    record = safeRecord; // reassign for JSX downstream usages
+    const getNodeColor = (mastery) => {
+        if (mastery < 0.3) return '#ef4444'; // Red
+        if (mastery < 0.7) return '#f59e0b'; // Yellow
+        return '#10b981'; // Green
+    };
 
     return (
         <>
+            {/* 0. Clinical Intelligence */}
+            {riskSignals && (
+                <SectionBlock
+                    icon={<BrainCircuit size={18} strokeWidth={2.2} />}
+                    label="Intelligence"
+                    title="Clinical Intelligence Engine"
+                    subtitle="Automated analysis of developmental risks and interaction effectiveness."
+                >
+                    <div className="clinical-section-grid clinical-section-grid--two-column">
+                        <article className="clinical-panel">
+                            <h3 className="clinical-panel__title">Behavioral Risk Signals</h3>
+                            <div className="clinical-tiles-grid" style={{ marginTop: 16 }}>
+                                <MetricTile 
+                                    label="Frustration Risk" 
+                                    value={riskSignals.frustrationRisk} 
+                                    tone={riskSignals.frustrationRisk === 'HIGH' ? 'risk' : riskSignals.frustrationRisk === 'MEDIUM' ? 'amber' : 'green'} 
+                                />
+                                <MetricTile 
+                                    label="Engagement Trend" 
+                                    value={riskSignals.engagementTrend} 
+                                    tone={riskSignals.engagementTrend === 'DECAYING' ? 'risk' : 'green'} 
+                                />
+                                <MetricTile 
+                                    label="Mastery Velocity" 
+                                    value={riskSignals.masteryVelocity} 
+                                    tone={riskSignals.masteryVelocity === 'SLOW' ? 'amber' : 'green'} 
+                                />
+                                <MetricTile 
+                                    label="ZPD Status" 
+                                    value={riskSignals.zpdStatus?.replace('_', ' ')} 
+                                    tone={riskSignals.zpdStatus?.startsWith('OPTIMAL') ? 'green' : 'amber'} 
+                                />
+                            </div>
+                            
+                            <div style={{ marginTop: 24 }}>
+                                <h4 style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 12 }}>SYSTEM ALERTS</h4>
+                                {riskSignals.alerts && riskSignals.alerts.length > 0 ? (
+                                    riskSignals.alerts.map((alert, idx) => (
+                                        <div key={idx} className={`alert-box alert-box--${alert.severity.toLowerCase()}`} style={{
+                                            padding: '10px 14px',
+                                            borderRadius: 8,
+                                            marginBottom: 10,
+                                            background: alert.severity === 'CRITICAL' ? '#fef2f2' : alert.severity === 'WARNING' ? '#fffbeb' : '#f0f9ff',
+                                            border: `1px solid ${alert.severity === 'CRITICAL' ? '#fecaca' : alert.severity === 'WARNING' ? '#fde68a' : '#bae6fd'}`,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 12
+                                        }}>
+                                            <AlertTriangle size={16} color={alert.severity === 'CRITICAL' ? '#ef4444' : alert.severity === 'WARNING' ? '#f59e0b' : '#3b82f6'} />
+                                            <div>
+                                                <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{alert.alertType}</div>
+                                                <div style={{ fontSize: 12, color: '#64748b' }}>{alert.message}</div>
+                                            </div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>No active alerts for this period.</p>
+                                )}
+                            </div>
+                        </article>
+
+                        <article className="clinical-panel">
+                            <h3 className="clinical-panel__title">Intervention Effectiveness</h3>
+                            <p className="clinical-panel__subtitle">Success rate of specific therapeutic tools.</p>
+                            <div style={{ marginTop: 16 }}>
+                                {Object.entries(riskSignals.interventionEffectiveness || {}).map(([tool, rate]) => (
+                                    <div key={tool} style={{ marginBottom: 16 }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
+                                            <span style={{ fontWeight: 600 }}>{tool}</span>
+                                            <span>{Math.round(rate * 100)}% Success</span>
+                                        </div>
+                                        <ProgressBar value={rate * 100} variant={rate > 0.7 ? 'green' : rate > 0.4 ? 'primary' : 'risk'} />
+                                    </div>
+                                ))}
+                                {Object.keys(riskSignals.interventionEffectiveness || {}).length === 0 && (
+                                    <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Insufficient intervention data.</p>
+                                )}
+                            </div>
+                        </article>
+                    </div>
+                </SectionBlock>
+            )}
+
+            {/* 1. Child Overview */}
+            <SectionBlock
+                icon={<Activity size={18} strokeWidth={2.2} />}
+                label="Overview"
+                title="Clinical Snapshot"
+                subtitle="High-level performance summary across all dimensions."
+            >
+                <div className="clinical-tiles-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+                    <MetricTile label="Cognitive Mastery" value={`${Math.round(cognitive?.mastery_percentage || 0)}%`} tone="blue" />
+                    <MetricTile label="Emotional Stability" value={`${Math.round(emotional?.regulation_index || 0)}%`} tone="green" />
+                    <MetricTile label="Visual Engagement" value={formatPercent(vision?.avg_engagement)} tone="blue" />
+                    <MetricTile label="Risk Indicator" value={longitudinal?.frustration_risk > 0.5 ? 'ELEVATED' : 'STABLE'} tone={longitudinal?.frustration_risk > 0.5 ? 'risk' : 'neutral'} />
+                </div>
+            </SectionBlock>
+
+            {/* 2. Cognitive Development */}
             <SectionBlock
                 icon={<BrainCircuit size={18} strokeWidth={2.2} />}
                 label="Section 1"
                 title="Cognitive Development"
-                subtitle="Progress from 'learning_progress' and 'user_profiles' tables."
+                subtitle="Mastery tracking and concept acquisition metrics."
             >
                 <div className="clinical-section-grid clinical-section-grid--two-column">
                     <article className="clinical-panel clinical-panel--wide">
                         <div className="clinical-panel__header">
                             <div>
-                                <h3 className="clinical-panel__title">Cognitive Mastery</h3>
-                                <p className="clinical-panel__subtitle">Current acquisition profile for {conceptName}</p>
+                                <h3 className="clinical-panel__title">Mastery Gauge</h3>
+                                <p className="clinical-panel__subtitle">Current concept: {cognitive?.active_concept}</p>
                             </div>
                         </div>
-
-                        <div className="cognitive-panel">
-                            <div className="cognitive-panel__chart-container">
-                                <RadialMasteryChart value={masteryValue} />
-                                <span className="cognitive-panel__chart-label">Mastery Level</span>
-                            </div>
-
-                            <div className="cognitive-panel__details">
-                                <HorizontalBar
-                                    label="Task Completion Reliability"
-                                    value={formatPercent(record.learning_progress.success_rate)}
-                                    percent={Math.round(record.learning_progress.success_rate * 100)}
-                                    tone="blue"
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 40, padding: '20px 0' }}>
+                            <RadialMasteryChart value={cognitive?.mastery_level || 0} />
+                            <div style={{ flex: 1 }}>
+                                <HorizontalBar 
+                                    label="Task Completion Reliability" 
+                                    value={formatPercent(cognitive?.success_rate)} 
+                                    percent={Math.round((cognitive?.success_rate || 0) * 100)} 
                                 />
-                                <div className="clinical-tiles-grid">
-                                    <MetricTile label="Total Attempts" value={record.learning_progress.attempt_count} />
-                                    <MetricTile label="Active Concept" value={conceptName} tone="green" />
+                                <div className="clinical-tiles-grid" style={{ marginTop: 20 }}>
+                                    <MetricTile label="Total Attempts" value={cognitive?.attempt_count} />
+                                    <MetricTile label="Active Concept" value={cognitive?.active_concept} tone="green" />
                                 </div>
                             </div>
                         </div>
                     </article>
-
                     <article className="clinical-panel">
                         <div className="clinical-panel__header">
-                            <div>
-                                <h3 className="clinical-panel__title">Instructional Profile</h3>
-                                <p className="clinical-panel__subtitle">Derived from user profiles.</p>
-                            </div>
+                            <h3 className="clinical-panel__title">Concept Distribution</h3>
                         </div>
-
-                        <div className="profile-panel">
-                            <div className="profile-panel__group">
-                                <span className="profile-panel__label">Instruction Complexity</span>
-                                <div className="profile-panel__complexity-card">
-                                    <span className="profile-panel__complexity-value">Level {instructionLevel}</span>
-                                    <span className="profile-panel__complexity-caption">Based on user_profiles.instruction_depth</span>
-                                </div>
-                            </div>
-                            <div className="profile-panel__group">
-                                <span className="profile-panel__label">Preferred Topics</span>
-                                <div className="profile-panel__chips">
-                                    {record.user_profiles.preferred_topics.map((topic) => (
-                                        <span key={topic} className="profile-panel__chip">{topic}</span>
-                                    ))}
-                                </div>
-                            </div>
+                        <div style={{ padding: '10px 0', height: 300 }}>
+                            {cognitive?.distribution && (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={cognitive.distribution} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
+                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                                        <XAxis type="number" domain={[0, 100]} />
+                                        <YAxis type="category" dataKey="concept" tick={{fontSize: 12}} width={100} />
+                                        <Tooltip formatter={(value) => `${Math.round(value)}%`} cursor={{fill: 'transparent'}} />
+                                        <Bar dataKey="mastery" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={20} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            )}
                         </div>
                     </article>
                 </div>
             </SectionBlock>
 
+            {/* 3. Emotional Regulation */}
             <SectionBlock
                 icon={<ShieldCheck size={18} strokeWidth={2.2} />}
                 label="Section 2"
-                title="Emotional & Behavioral Stability"
-                subtitle="Real-time analytics from 'emotional_metrics' and 'zpd_metrics' tables."
+                title="Emotional Regulation"
+                subtitle="Mood trends and self-regulation efficiency."
             >
                 <div className="clinical-section-grid clinical-section-grid--two-column">
                     <article className="clinical-panel clinical-panel--wide">
                         <div className="clinical-panel__header">
-                            <div>
-                                <h3 className="clinical-panel__title">Emotional Regulation</h3>
-                                <p className="clinical-panel__subtitle">Distribution from the emotional_metrics table.</p>
-                            </div>
+                            <h3 className="clinical-panel__title">Emotion Distribution</h3>
                         </div>
-
-                        <EmotionStack data={record.emotional_metrics} />
-
-                        <div className="clinical-trend-chips">
-                            {emotionalTrendChips.map((chip) => (
-                                <span key={chip} className="clinical-trend-chip">{chip}</span>
-                            ))}
+                        <div style={{ padding: '10px 0', height: 300 }}>
+                            {emotional?.emotion_distribution && (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={emotional.emotion_distribution} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                        <XAxis dataKey="emotion" tick={{fontSize: 12}} />
+                                        <YAxis />
+                                        <Tooltip cursor={{fill: 'transparent'}} />
+                                        <Bar dataKey="count" fill="#8b5cf6" radius={[4, 4, 0, 0]} barSize={40} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            )}
                         </div>
                     </article>
-
                     <article className="clinical-panel">
                         <div className="clinical-panel__header">
-                            <div>
-                                <h3 className="clinical-panel__title">Regulation Index</h3>
-                                <p className="clinical-panel__subtitle">Calculated Stability Index.</p>
-                            </div>
+                            <h3 className="clinical-panel__title">Regulation Index</h3>
                         </div>
-
-                        <StabilityMeter value={stabilityIndex} />
-
-                        <div className="clinical-tiles-grid">
-                            <MetricTile label="Frustration" value={record.emotional_metrics.frustration_count} tone="risk" />
-                            <MetricTile label="Recovery" value={record.emotional_metrics.recovery_count} tone="green" />
-                            <MetricTile label="Neutral" value={record.emotional_metrics.neutral_stability_count} tone="blue" />
+                        <StabilityMeter value={emotional?.regulation_index || 50} />
+                        <div className="clinical-tiles-grid" style={{ marginTop: 20 }}>
+                            <MetricTile label="Frustration Freq" value={formatPercent(emotional?.frustration_frequency)} tone="risk" />
+                            <MetricTile label="Baseline Stability" value={emotional?.baseline_stability?.toFixed(1)} tone="blue" />
                         </div>
                     </article>
                 </div>
             </SectionBlock>
 
+            {/* 4. Vision & Perception */}
             <SectionBlock
                 icon={<Eye size={18} strokeWidth={2.2} />}
                 label="Section 3"
-                title="Vision & Perception Analysis"
-                subtitle="Data from 'vision_sessions', 'vision_metrics', and 'engagement_timeline' tables."
+                title="Vision & Perception"
+                subtitle="Visual attention and multimodal confidence scores."
             >
                 <div className="clinical-section-grid clinical-section-grid--two-column">
                     <article className="clinical-panel clinical-panel--wide">
-                        <div className="clinical-panel__header">
-                            <div>
-                                <h3 className="clinical-panel__title">Visual Engagement Radar</h3>
-                                <p className="clinical-panel__subtitle">Multimodal perception summary.</p>
-                            </div>
+                        <div style={{ height: 350, width: '100%', display: 'flex', justifyContent: 'center' }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <RechartsRadarChart cx="50%" cy="50%" outerRadius="70%" data={radarMetrics}>
+                                    <PolarGrid />
+                                    <PolarAngleAxis dataKey="label" tick={{ fontSize: 12 }} />
+                                    <PolarRadiusAxis angle={30} domain={[0, 1]} tick={false} axisLine={false} />
+                                    <Radar name="Vision" dataKey="value" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.6} />
+                                    <Tooltip formatter={(value) => `${Math.round(value * 100)}%`} />
+                                </RechartsRadarChart>
+                            </ResponsiveContainer>
                         </div>
-
-                        <RadarChart metrics={radarMetrics} />
                     </article>
-
                     <article className="clinical-panel">
-                        <div className="clinical-panel__header">
-                            <div>
-                                <h3 className="clinical-panel__title">Behavioral Signals</h3>
-                                <p className="clinical-panel__subtitle">Focus and Distraction counts from vision_metrics.</p>
-                            </div>
-                        </div>
-
-                        <div className="confidence-stack">
-                            <HorizontalBar label="Presence Confidence" value={formatPercent(visionData ? visionData.face_conf : record.perception_confidence.face_conf)} percent={Math.round((visionData ? visionData.face_conf : record.perception_confidence.face_conf) * 100)} tone="green" />
-                            <HorizontalBar label="Gesture Active" value={formatPercent(visionData ? visionData.gesture_conf : record.perception_confidence.gesture_conf)} percent={Math.round((visionData ? visionData.gesture_conf : record.perception_confidence.gesture_conf) * 100)} tone="blue" />
-                        </div>
-
-                        <AttentionTimeline
-                            focusedDuration={visionData ? visionData.focused_duration : record.vision_behavior_counts.focused_duration}
-                            sessionDuration={record.total_engagement_summary.session_duration}
-                            distractionFrames={visionData ? visionData.distraction_frames : record.vision_behavior_counts.distraction_frames}
-                        />
-
                         <div className="clinical-tiles-grid">
-                            <MetricTile label="Avg Engagement" value={formatPercent(visionData ? visionData.avg_engagement_score : record.vision_session_stats.avg_engagement_score)} tone="blue" />
-                            <MetricTile label="Visual Focus" value={formatPercent(visionData ? visionData.avg_gaze_score : record.vision_session_stats.avg_gaze_score)} tone="blue" />
-                            <MetricTile label="Focus (Min)" value={`${visionData ? visionData.focused_duration : record.vision_behavior_counts.focused_duration}m`} tone="green" />
+                            <MetricTile label="Focus Duration" value={`${vision?.focus_duration?.toFixed(1)}m`} tone="green" />
+                            <MetricTile label="Distraction Rate" value={vision?.distraction_rate} tone="risk" />
+                            <MetricTile label="Avg Gaze Score" value={formatPercent(vision?.gaze_score)} tone="blue" />
+                        </div>
+                        <div style={{ marginTop: 24 }}>
+                            <h4 style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 12 }}>PERCEPTION CONFIDENCE</h4>
+                            <HorizontalBar label="Face" value={formatPercent(vision?.radar?.FACE)} percent={(vision?.radar?.FACE || 0) * 100} tone="green" />
+                            <HorizontalBar label="Gesture" value={formatPercent(vision?.radar?.GESTURE)} percent={(vision?.radar?.GESTURE || 0) * 100} tone="blue" />
+                            <HorizontalBar label="Object" value={formatPercent(vision?.radar?.OBJECT)} percent={(vision?.radar?.OBJECT || 0) * 100} tone="amber" />
                         </div>
                     </article>
                 </div>
             </SectionBlock>
 
+            {/* 5. Reinforcement Intelligence */}
             <SectionBlock
                 icon={<Sparkles size={18} strokeWidth={2.2} />}
                 label="Section 4"
-                title="Adaptive Reinforcement Intelligence"
-                subtitle="Performance data from 'reinforcement_metrics' table."
+                title="Reinforcement Intelligence"
+                subtitle="Effectiveness of different adaptive interaction styles."
             >
                 <div className="clinical-section-grid clinical-section-grid--two-column">
                     <article className="clinical-panel clinical-panel--wide">
-                        <div className="clinical-panel__header">
-                            <div>
-                                <h3 className="clinical-panel__title">Strategy Effectiveness</h3>
-                                <p className="clinical-panel__subtitle">Comparative performance from reinforcement_metrics.</p>
-                            </div>
-                        </div>
-
-                        <div className="reinforcement-comparison">
-                            {reinforcementRanking.map((entry) => (
-                                <div key={entry.key} className="reinforcement-comparison__row">
-                                    <div className="reinforcement-comparison__meta">
-                                        <span className="reinforcement-comparison__label">{entry.label}</span>
-                                        <span className="reinforcement-comparison__value">{formatPercent(entry.score)}</span>
+                        <h3 className="clinical-panel__title">Strategy Effectiveness</h3>
+                        <div style={{ padding: '20px 0' }}>
+                            {reinforcement?.effectiveness?.map(eff => (
+                                <div key={eff.strategy} style={{ marginBottom: 16 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
+                                        <span style={{ fontWeight: 600 }}>{formatStyleLabel(eff.strategy)}</span>
+                                        <span>{formatPercent(eff.rate)} Success</span>
                                     </div>
-                                    <div className="reinforcement-comparison__track">
-                                        <div
-                                            className={`reinforcement-comparison__fill ${entry.key === record.reinforcement_metrics.preferred_style ? 'is-preferred' : ''}`}
-                                            style={{ width: `${Math.round(entry.score * 100)}%` }}
-                                        />
-                                    </div>
+                                    <ProgressBar value={(eff.rate || 0) * 100} variant={eff.strategy === reinforcement?.primary_strategy ? 'green' : 'primary'} />
                                 </div>
                             ))}
                         </div>
                     </article>
-
                     <article className="clinical-panel">
-                        <div className="clinical-panel__header">
-                            <div>
-                                <h3 className="clinical-panel__title">Preferred Pathway</h3>
-                                <p className="clinical-panel__subtitle">Top reinforcement style.</p>
-                            </div>
-                        </div>
-
-                        <div className="reinforcement-summary">
-                            <div className="reinforcement-summary__hero">
-                                <span className="reinforcement-summary__label">Optimal Strategy</span>
-                                <span className="reinforcement-summary__value">{bestStrategy.label}</span>
-                                <span className="reinforcement-summary__caption">
-                                    Based on {record.reinforcement_metrics.total_events} recorded events
-                                </span>
-                            </div>
-
-                            <div className="clinical-tiles-grid">
-                                <MetricTile label="Total Events" value={record.reinforcement_metrics.total_events} />
-                                <MetricTile label="Style" value={bestStrategy.label} tone="green" />
+                        <div className="reinforcement-summary__hero">
+                            <span className="reinforcement-summary__label">Optimal Strategy</span>
+                            <span className="reinforcement-summary__value" style={{ fontSize: 24 }}>{formatStyleLabel(reinforcement?.primary_strategy)}</span>
+                            <div className="clinical-tiles-grid" style={{ marginTop: 20 }}>
+                                <MetricTile label="Total Events" value={reinforcement?.total_events} />
+                                <MetricTile label="Avg Success" value={formatPercent(reinforcement?.success_rate)} tone="green" />
                             </div>
                         </div>
                     </article>
                 </div>
             </SectionBlock>
+
+            {/* 6. Session History */}
+            <SectionBlock
+                icon={<History size={18} strokeWidth={2.2} />}
+                label="Section 5"
+                title="Session History"
+                subtitle="Historical log of recent clinical interactions."
+            >
+                <article className="clinical-panel clinical-panel--wide">
+                    <div className="session-table-container" style={{ overflowX: 'auto' }}>
+                        <table className="session-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                                <tr style={{ textAlign: 'left', borderBottom: '1px solid #e2e8f0', color: 'var(--color-text-muted)', fontSize: 12 }}>
+                                    <th style={{ padding: '12px 8px' }}>DATE</th>
+                                    <th style={{ padding: '12px 8px' }}>DURATION</th>
+                                    <th style={{ padding: '12px 8px' }}>ENGAGEMENT</th>
+                                    <th style={{ padding: '12px 8px' }}>MOOD</th>
+                                    <th style={{ padding: '12px 8px' }}>DIFFICULTY</th>
+                                    <th style={{ padding: '12px 8px' }}>TURNS</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {analytics?.sessionHistory?.map(s => (
+                                    <tr key={s.id} style={{ borderBottom: '1px solid #f1f5f9', fontSize: 13 }}>
+                                        <td style={{ padding: '12px 8px', fontWeight: 600 }}>{new Date(s.date).toLocaleDateString()}</td>
+                                        <td style={{ padding: '12px 8px' }}>{Math.round(s.duration / 60)} min</td>
+                                        <td style={{ padding: '12px 8px' }}>{Math.round((s.engagement || 0) * 100)}%</td>
+                                        <td style={{ padding: '12px 8px' }}><span className={`mood-tag mood-tag--${s.mood}`}>{s.mood}</span></td>
+                                        <td style={{ padding: '12px 8px' }}>Lvl {s.difficulty}</td>
+                                        <td style={{ padding: '12px 8px' }}>{s.turns || 0}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </article>
+            </SectionBlock>
+
+            {/* 7. Longitudinal Development */}
+            <SectionBlock
+                icon={<TrendingUp size={18} strokeWidth={2.2} />}
+                label="Section 6"
+                title="Longitudinal Development"
+                subtitle="Cross-session trends and risk assessments."
+            >
+                <div className="clinical-section-grid clinical-section-grid--two-column">
+                    <article className="clinical-panel">
+                        <h3 className="clinical-panel__title">Mastery Velocity</h3>
+                        <div style={{ padding: '20px 0' }}>
+                            <div style={{ fontSize: 32, fontWeight: 800, color: 'var(--color-primary)' }}>
+                                {longitudinal?.mastery_velocity?.toFixed(2)}
+                                <span style={{ fontSize: 14, fontWeight: 600, marginLeft: 8, color: 'var(--color-text-muted)' }}>% / session</span>
+                            </div>
+                            <p style={{ fontSize: 12, marginTop: 8, color: 'var(--color-text-muted)' }}>Rate of concept acquisition over time.</p>
+                        </div>
+                    </article>
+                    <article className="clinical-panel">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                            <AlertTriangle size={20} color={longitudinal?.frustration_risk > 0.5 ? '#ef4444' : '#10b981'} />
+                            <h3 className="clinical-panel__title">Risk Indicators</h3>
+                        </div>
+                        <div className="risk-stack">
+                            <div style={{ marginBottom: 12 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+                                    <span>Frustration Risk</span>
+                                    <span>{Math.round((longitudinal?.frustration_risk || 0) * 100)}%</span>
+                                </div>
+                                <ProgressBar value={(longitudinal?.frustration_risk || 0) * 100} variant={longitudinal?.frustration_risk > 0.5 ? 'risk' : 'green'} />
+                            </div>
+                            <div style={{ marginBottom: 12 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+                                    <span>Engagement Volatility</span>
+                                    <span>{Math.round((longitudinal?.engagement_volatility || 0) * 100)}%</span>
+                                </div>
+                                <ProgressBar value={(longitudinal?.engagement_volatility || 0) * 100} variant="primary" />
+                            </div>
+                        </div>
+                    </article>
+                </div>
+            </SectionBlock>
+
+            <ChildDevelopmentTrajectory childId={analytics?.patient?.id} />
+
+            {/* 8. Learning Concept Graph (Step 6) */}
+            {knowledgeGraph && (
+                <SectionBlock
+                    icon={<Network size={18} strokeWidth={2.2} />}
+                    label="Knowledge"
+                    title="Learning Concept Graph"
+                    subtitle="Interactive mapping of concept dependencies and mastery progress."
+                >
+                    <div className="clinical-section-grid clinical-section-grid--two-column">
+                        <article className="clinical-panel clinical-panel--wide" style={{ height: '500px', padding: 0, overflow: 'hidden', position: 'relative', background: '#000', borderRadius: '12px' }}>
+                            <ForceGraph3D
+                                graphData={{
+                                    nodes: knowledgeGraph.nodes.map(n => ({ ...n, color: n.isBlocked ? '#64748b' : getNodeColor(n.mastery) })),
+                                    links: knowledgeGraph.edges
+                                }}
+                                nodeLabel={node => `${node.label}: ${Math.round(node.mastery * 100)}% ${node.isBlocked ? '(BLOCKED)' : ''}`}
+                                nodeColor={node => node.color}
+                                nodeThreeObject={node => {
+                                    const sprite = new SpriteText(node.label);
+                                    sprite.color = node.color;
+                                    sprite.textHeight = 8;
+                                    return sprite;
+                                }}
+                                linkDirectionalArrowLength={3.5}
+                                linkDirectionalArrowRelPos={1}
+                                linkCurvature={0.25}
+                                backgroundColor="#000"
+                                width={800}
+                                height={500}
+                            />
+                        </article>
+                        <article className="clinical-panel">
+                            <h3 className="clinical-panel__title">Graph Insights</h3>
+                            <div style={{ marginTop: 16 }}>
+                                {knowledgeGraph.insights && knowledgeGraph.insights.length > 0 ? (
+                                    knowledgeGraph.insights.map((insight, idx) => (
+                                        <div key={idx} style={{ 
+                                            padding: '12px', 
+                                            borderRadius: 8, 
+                                            background: '#f8fafc', 
+                                            border: '1px solid #e2e8f0',
+                                            marginBottom: 10,
+                                            fontSize: 13,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 10
+                                        }}>
+                                            <Sparkles size={16} color="#3b82f6" />
+                                            {insight}
+                                        </div>
+                                    ))
+                                ) : (
+                                    <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>No specific bottlenecks detected.</p>
+                                )}
+                            </div>
+                            <div style={{ marginTop: 24 }}>
+                                <h4 style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 12 }}>LEGEND</h4>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <div style={{ width: 12, height: 12, borderRadius: 6, background: '#10b981' }}></div>
+                                        <span>Mastered (&gt;70%)</span>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <div style={{ width: 12, height: 12, borderRadius: 6, background: '#f59e0b' }}></div>
+                                        <span>In Progress (30-70%)</span>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <div style={{ width: 12, height: 12, borderRadius: 6, background: '#ef4444' }}></div>
+                                        <span>Beginning (&lt;30%)</span>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <div style={{ width: 12, height: 12, borderRadius: 6, background: '#64748b' }}></div>
+                                        <span>Blocked by Prerequisite</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </article>
+                    </div>
+                </SectionBlock>
+            )}
         </>
     );
 }

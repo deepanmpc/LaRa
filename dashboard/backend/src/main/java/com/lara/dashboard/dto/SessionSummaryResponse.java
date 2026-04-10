@@ -26,16 +26,3 @@ public class SessionSummaryResponse {
     private Map<String, Object> visionMetrics;
     private Map<String, Object> voiceMetrics;
 }
-
-@Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
-class TurnMetricDTO {
-    private Integer turnNumber;
-    private String childUtterance;
-    private String laraResponse;
-    private String mood;
-    private BigDecimal engagement;
-    private String strategy;
-}

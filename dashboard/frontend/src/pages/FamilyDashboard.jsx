@@ -56,10 +56,10 @@ function SessionSummaryCard({ data }) {
                             <line x1="3" y1="10" x2="21" y2="10" />
                         </svg>
                     </div>
-                    Today's Summary
-                </div>
-                <span className="card-badge green">Week {data.totalSessionsThisWeek || 0}/5</span>
-            </div>
+                    Summary
+                    </div>
+                    <span className="card-badge green">Week {data.totalSessionsThisWeek || 0}/5</span>
+                    </div>
 
             <div className="stat-grid" style={{ marginBottom: 20 }}>
                 <div className="stat-item">

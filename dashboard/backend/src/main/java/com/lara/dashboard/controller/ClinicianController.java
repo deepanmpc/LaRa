@@ -8,6 +8,8 @@ import com.lara.dashboard.repository.ChildRepository;
 import com.lara.dashboard.repository.ClinicianProfileRepository;
 import com.lara.dashboard.repository.SessionRepository;
 import com.lara.dashboard.repository.UserRepository;
+import com.lara.dashboard.repository.ChildClinicianMappingRepository;
+import com.lara.dashboard.enums.MappingStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -28,6 +30,7 @@ public class ClinicianController {
     private final ClinicianProfileRepository clinicianProfileRepository;
     private final ChildRepository childRepository;
     private final SessionRepository sessionRepository;
+    private final ChildClinicianMappingRepository clinicianMappingRepository;
     private final com.lara.dashboard.service.ClinicianService clinicianService;
     private final com.lara.dashboard.service.ChildAnalyticsService childAnalyticsService;
 
@@ -62,9 +65,19 @@ public class ClinicianController {
         ClinicianProfile profile = clinicianProfileRepository.findByUserId(user.getId())
                 .orElseThrow(() -> new RuntimeException("Clinician profile not found"));
 
-        List<Child> children = childRepository.findByClinicianId(profile.getId());
+        // Fetch children from all three possible assignment sources
+        List<Child> legacyLinked = childRepository.findByClinicianId(profile.getId());
+        List<Child> userLinked = childRepository.findByClinicianUserId(user.getId());
+        List<Child> mappingLinked = clinicianMappingRepository.findByClinicianIdAndStatus(user.getId(), MappingStatus.ACTIVE)
+                .stream().map(com.lara.dashboard.entity.ChildClinicianMapping::getChild).collect(Collectors.toList());
+
+        // Merge and de-duplicate
+        java.util.Set<Child> allChildren = new java.util.HashSet<>();
+        allChildren.addAll(legacyLinked);
+        allChildren.addAll(userLinked);
+        allChildren.addAll(mappingLinked);
         
-        List<ChildResponse> responses = children.stream()
+        List<ChildResponse> responses = allChildren.stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
 
@@ -84,8 +97,23 @@ public class ClinicianController {
         Child child = childRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Child not found"));
 
-        // Security check — child must belong to this clinician
-        if (child.getClinician() == null || !child.getClinician().getId().equals(profile.getId())) {
+        // Security check — must be authorized via any of the 3 methods
+        boolean isAuthorized = false;
+        
+        // 1. Direct legacy profile link
+        if (child.getClinician() != null && child.getClinician().getId().equals(profile.getId())) {
+            isAuthorized = true;
+        }
+        // 2. Direct user reference link
+        else if (child.getAssignedClinician() != null && child.getAssignedClinician().getId().equals(user.getId())) {
+            isAuthorized = true;
+        }
+        // 3. Mapping table link
+        else if (clinicianMappingRepository.findByChildIdAndClinicianIdAndStatus(id, user.getId(), MappingStatus.ACTIVE).isPresent()) {
+            isAuthorized = true;
+        }
+
+        if (!isAuthorized) {
             return ResponseEntity.status(org.springframework.http.HttpStatus.FORBIDDEN).build();
         }
 
@@ -156,6 +184,8 @@ public class ClinicianController {
                 .orElse("No sessions yet");
 
         ClinicianProfile cp = child.getClinician();
+        User ac = child.getAssignedClinician();
+        
         return ChildResponse.builder()
                 .id(child.getId())
                 .name(child.getName())
@@ -163,7 +193,7 @@ public class ClinicianController {
                 .gradeLevel(child.getGradeLevel())
                 .lastSessionDate(lastSessionDate)
                 .clinicianId(cp != null ? cp.getId() : null)
-                .clinicianName(cp != null && cp.getUser() != null ? cp.getUser().getName() : null)
+                .clinicianName(cp != null && cp.getUser() != null ? cp.getUser().getName() : (ac != null ? ac.getName() : null))
                 .build();
     }
 }

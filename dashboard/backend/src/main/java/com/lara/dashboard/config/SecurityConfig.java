@@ -47,7 +47,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/clinician/approved").hasAnyAuthority("ROLE_FAMILY", "ROLE_ADMIN", "ROLE_CLINICIAN")
                         .requestMatchers(HttpMethod.DELETE, "/api/children/**").hasAnyAuthority("ROLE_FAMILY", "ROLE_ADMIN")
                         .requestMatchers("/api/clinician/list-clinicians").hasAnyAuthority("ROLE_FAMILY", "ROLE_CLINICIAN")
-                        .requestMatchers("/api/children/**").hasAnyAuthority("ROLE_FAMILY", "ROLE_CLINICIAN")
+                        .requestMatchers("/api/children/**").hasAnyAuthority("ROLE_FAMILY", "ROLE_CLINICIAN", "ROLE_ADMIN")
                         .requestMatchers("/api/family/**").hasAuthority("ROLE_FAMILY")
                         .requestMatchers("/api/clinician/**").hasAuthority("ROLE_CLINICIAN")
                         .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN")

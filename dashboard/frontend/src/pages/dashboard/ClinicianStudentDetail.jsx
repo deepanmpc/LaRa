@@ -8,44 +8,50 @@ export default function ClinicianStudentDetail() {
     const navigate = useNavigate();
     const { id } = useParams();
     const [student, setStudent] = useState(null);
-    const [visionData, setVisionData] = useState(null);
-    const [record, setRecord] = useState(null);
+    const [analytics, setAnalytics] = useState(null);
+    const [riskSignals, setRiskSignals] = useState(null);
+    const [knowledgeGraph, setKnowledgeGraph] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
 
     useEffect(() => {
-        const fetchStudent = async () => {
+        const fetchData = async () => {
             try {
-                const response = await api.get(`/clinician/students/${id}`);
-                setStudent(response.data);
-                setError(false);
-                
+                setLoading(true);
+                // Fetch basic student info
+                const studentRes = await api.get(`/clinician/students/${id}`);
+                setStudent(studentRes.data);
+
+                // Fetch comprehensive analytics deep-dive
                 try {
-                    const visionRes = await api.get(`/clinician/students/${id}/vision-metrics`);
-                    setVisionData(visionRes.data);
-                } catch (vErr) {
-                    console.log('No vision metrics available:', vErr);
+                    const analyticsRes = await api.get(`/children/${id}/analytics`);
+                    setAnalytics(analyticsRes.data);
+                } catch (error) {
+                    console.error("Analytics not available:", error);
+                }
+                
+                // Fetch clinical risk signals
+                try {
+                    const riskRes = await api.get(`/children/${id}/risk`);
+                    setRiskSignals(riskRes.data);
+                } catch (error) {
+                    console.log("Risk signals not available yet");
                 }
 
+                /* 
+                // Fetch knowledge graph - Disabled temporarily as it's causing issues
                 try {
-                    const dashboardRes = await api.get(`/family/dashboard/${id}`);
-                    setRecord(dashboardRes.data);
-                } catch (dErr) {
-                    console.log('No dashboard metrics available:', dErr);
-                    // Fallback empty record structure to prevent crashes
-                    setRecord({
-                        childProfile: {},
-                        sessionSummary: {},
-                        emotionalMetrics: {
-                            frustration_count: 0,
-                            recovery_count: 0,
-                            neutral_stability_count: 0
-                        },
-                        engagementMetrics: {}
-                    });
+                    const graphRes = await api.get(`/children/${id}/knowledge-graph`);
+                    setKnowledgeGraph(graphRes.data);
+                } catch (error) {
+                    console.log("Knowledge graph not available yet");
                 }
+                */
+                setKnowledgeGraph(null);
+                
+                setError(false);
             } catch (err) {
-                console.error('Failed to fetch student:', err);
+                console.error('Failed to fetch clinician student data:', err);
                 setError(true);
             } finally {
                 setLoading(false);
@@ -53,22 +59,25 @@ export default function ClinicianStudentDetail() {
         };
 
         if (id) {
-            fetchStudent();
+            fetchData();
         }
     }, [id]);
 
     if (loading) {
         return (
             <div className="dashboard-layout" style={{ background: 'var(--color-bg)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <p>Loading...</p>
+                <div className="loading-container">
+                    <div className="spinner"></div>
+                    <p style={{ marginTop: 16, color: 'var(--color-text-muted)' }}>Assembling Clinical Intelligence...</p>
+                </div>
             </div>
         );
     }
 
-    if (error || !student || !record) {
+    if (error || !student) {
         return (
             <div className="dashboard-layout" style={{ background: 'var(--color-bg)', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                <p style={{ marginBottom: 16 }}>{(!student || !record) ? "Student or data not found." : "Loading..."}</p>
+                <p style={{ marginBottom: 16 }}>Unable to load student record.</p>
                 <button 
                     className="btn-primary" 
                     style={{ width: 'auto', padding: '10px 20px' }} 
@@ -107,9 +116,19 @@ export default function ClinicianStudentDetail() {
                                 </p>
                             </div>
                         </div>
+                        
+                        {student.statusBadge && (
+                            <div className={`status-badge-pill status-badge--${student.statusBadge.toLowerCase().replace(' ', '-')}`}>
+                                {student.statusBadge}
+                            </div>
+                        )}
                     </header>
 
-                    <ClinicalStudentSections record={record} visionData={visionData} />
+                    <ClinicalStudentSections 
+                        analytics={analytics} 
+                        riskSignals={riskSignals} 
+                        knowledgeGraph={knowledgeGraph} 
+                    />
                 </div>
             </main>
         </div>

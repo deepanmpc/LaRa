@@ -23,7 +23,7 @@ export default function ProtectedRoute({ children, requiredRole, requiredStatus 
                 : <Navigate to="/clinician/pending" replace />;
         }
         if (user.role === 'ROLE_ADMIN') {
-            return <Navigate to="/dashboard/admin" replace />;
+            return <Navigate to="/admin" replace />;
         }
         return <Navigate to="/login" replace />;
     }

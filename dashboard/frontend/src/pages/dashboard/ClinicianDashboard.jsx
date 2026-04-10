@@ -19,12 +19,16 @@ export default function ClinicianDashboard() {
                     let engagementScore = null;
                     let focusedDuration = 0;
                     try {
-                        const vRes = await api.get(`/clinician/students/${student.id}/vision-metrics`);
-                        if (vRes.data && vRes.data.avg_engagement_score) {
-                            engagementScore = Math.round(vRes.data.avg_engagement_score * 100);
+                        const overviewRes = await api.get(`/children/${student.id}/overview`);
+                        if (overviewRes.data && overviewRes.data.vision_summary) {
+                            engagementScore = overviewRes.data.vision_summary.avg_engagement ? Math.round(overviewRes.data.vision_summary.avg_engagement * 100) : null;
+                            focusedDuration = overviewRes.data.vision_summary.focus_duration || 0;
                         }
-                        focusedDuration = vRes.data?.focused_duration || 0;
-                    } catch (e) {}
+                    } catch (e) {
+                        if (e.response?.status !== 404) {
+                            console.warn(`Could not fetch overview metrics for student ${student.id}`, e);
+                        }
+                    }
 
                     return {
                         ...student,

@@ -1,0 +1,16 @@
+# General tool allowance policy
+tools:
+  - name: '*'
+    allow: true
+  allow:
+    - '*'
+policy:
+  tools:
+    - name: '*'
+      allow: true
+    allow:
+      - '*'
+policies:
+  tools:
+    allow:
+      - '*'

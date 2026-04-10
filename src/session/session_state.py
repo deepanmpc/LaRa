@@ -91,6 +91,7 @@ class SessionState:
     
     # Phase 4 extensions
     difficulty_history: list = field(default_factory=list)
+    difficulty_trajectory: list = field(default_factory=list)
     last_3_input_lengths: list = field(default_factory=list)
     
     # Persistence history for DB Sync
@@ -333,6 +334,15 @@ class SessionState:
         )
         
         if self.current_difficulty != old:
+            # Record trajectory for DB
+            self.difficulty_trajectory.append({
+                "turn_number": self.turn_count,
+                "before": old,
+                "after": self.current_difficulty,
+                "direction": "UP" if delta > 0 else "DOWN",
+                "reason": "Mood-based adaptation" if delta < 0 else "Mastery-based adaptation"
+            })
+            
             self.difficulty_locked_turns = DIFFICULTY_LOCK_TURNS
             self.consecutive_frustration = 0
             self.consecutive_stability = 0
@@ -356,6 +366,21 @@ class SessionState:
             "mood_confidence": round(self.mood_confidence, 2),
             "difficulty_locked": self.difficulty_locked_turns > 0,
         }
+
+    def _get_activities_from_learning(self) -> list:
+        """Derive activity-level metrics from learning progress."""
+        if not self.learning_manager:
+            return []
+        
+        learning_metrics = self.learning_manager.get_session_metrics()
+        activities = []
+        for m in learning_metrics:
+            activities.append({
+                "name": m.get("concept_name"),
+                "score": int(m.get("mastery_percentage", 0)),
+                "completions": m.get("success_count", 0)
+            })
+        return activities
 
     def get_final_stats(self) -> dict:
         """
@@ -479,6 +504,8 @@ class SessionState:
             "emotional": emotional_stats,
             "learning": self.learning_manager.get_session_metrics() if self.learning_manager else [],
             "reinforcement": self.reinforcement_manager.get_session_metrics() if self.reinforcement_manager else [],
+            "activities": self._get_activities_from_learning(),
+            "difficulty_trajectory": self.difficulty_trajectory,
             "analytics": analytics,
             "timeline": timeline,
             "session_summary": {

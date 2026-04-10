@@ -192,4 +192,4 @@ python src/main.py
 ```
 
 > **Note**: Models are stored in `runtime/models/` and reused across sessions.
-> Set `LARA_DATA_DIR` to override the runtime path for cluster deployments.
+> Set `LARA_DATA_DIR` to override the runtime path for cluster deployments..

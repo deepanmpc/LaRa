@@ -20,7 +20,7 @@ def test_connection():
         return
 
     sync = SessionDBSync.get()
-    if not sync.pool:
+    if not sync.db.pool:
         print("FAILED: Could not initialize MySQL pool. Check config/config.yaml and MySQL service.")
         return
 
