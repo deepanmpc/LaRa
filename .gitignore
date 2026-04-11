@@ -12,7 +12,7 @@ runtime/
 !runtime/.keep
 data/*.docx
 data/*.pdf
-
+resources/
 
 # OS-specific
 .DS_Store
@@ -87,6 +87,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+.gemini
 
 # Environment secrets – never commit
 .env
