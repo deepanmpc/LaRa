@@ -23,6 +23,8 @@ import AdminDatasetExport from './pages/admin/AdminDatasetExport';
 import AdminPopulationAnalytics from './pages/admin/AdminPopulationAnalytics';
 import AdminAlertMonitoring from './pages/admin/AdminAlertMonitoring';
 import AdminUserManagement from './pages/admin/AdminUserManagement';
+import AdminClinicians from './pages/admin/AdminClinicians';
+import AdminProfile from './pages/admin/AdminProfile';
 
 export default function App() {
     return (
@@ -167,6 +169,22 @@ export default function App() {
                     element={
                         <ProtectedRoute requiredRole="ROLE_ADMIN">
                             <AdminUserManagement />
+                        </ProtectedRoute>
+                    }
+                />
+                <Route
+                    path="/admin/clinicians"
+                    element={
+                        <ProtectedRoute requiredRole="ROLE_ADMIN">
+                            <AdminClinicians />
+                        </ProtectedRoute>
+                    }
+                />
+                <Route
+                    path="/admin/profile"
+                    element={
+                        <ProtectedRoute requiredRole="ROLE_ADMIN">
+                            <AdminProfile />
                         </ProtectedRoute>
                     }
                 />
