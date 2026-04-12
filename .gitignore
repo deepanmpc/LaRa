@@ -54,13 +54,12 @@ dashboard/frontend/node_modules/
 dashboard/frontend/dist/
 dashboard/backend/target/
 
-# Misc
-*.pyc
-.pytest_cache/
-inp.txt
-.env
+# IDE and Tool Specifics
 .idea/
 .vscode/
+.gemini/
+.ipynb_checkpoints/
+~$*
 
 # --- Dashboard Frontend ---
 # Logs
