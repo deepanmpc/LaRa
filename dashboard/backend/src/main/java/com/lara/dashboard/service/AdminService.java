@@ -49,11 +49,10 @@ public class AdminService {
     }
 
     @Transactional(readOnly = true)
-    public List<ClinicianResponse> getPendingClinicians() {
-        return clinicianProfileRepository.findAllByUser_Status(UserStatus.PENDING)
-                .stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+    public List<User> getPendingClinicians() {
+        List<User> list = userRepository.findByRoleAndStatus(com.lara.dashboard.enums.Role.ROLE_CLINICIAN, UserStatus.PENDING);
+        System.out.println("Found: " + list.size());
+        return list;
     }
 
     @Transactional(readOnly = true)

@@ -42,7 +42,8 @@ public class AdminController {
 
     @GetMapping("/clinicians/pending")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-    public ResponseEntity<List<ClinicianResponse>> getPendingClinicians() {
+    public ResponseEntity<List<User>> getPendingClinicians() {
+        System.out.println("Fetching pending clinicians...");
         return ResponseEntity.ok(adminService.getPendingClinicians());
     }
 

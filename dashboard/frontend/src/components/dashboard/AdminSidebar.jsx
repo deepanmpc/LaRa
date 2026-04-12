@@ -8,7 +8,8 @@ import {
     Users, 
     Bell, 
     TrendingUp,
-    UserCircle
+    UserCircle,
+    UserCheck
 } from 'lucide-react';
 
 const ADMIN_NAV_ITEMS = [
@@ -54,6 +55,12 @@ const ADMIN_NAV_ITEMS = [
         label: 'User Management',
         icon: <Users size={18} />,
     },
+    {
+        id: 'clinicians',
+        path: '/admin/clinicians',
+        label: 'Clinician Approvals',
+        icon: <UserCheck size={18} />,
+    },
 ];
 
 export default function AdminSidebar() {
@@ -91,8 +98,8 @@ export default function AdminSidebar() {
 
                 <div className="sidebar-nav-label">Account</div>
                 <button
-                    className={`sidebar-nav-item ${isActive('/dashboard/profile') ? 'active' : ''}`}
-                    onClick={() => navigate('/dashboard/profile')}
+                    className={`sidebar-nav-item ${isActive('/admin/profile') ? 'active' : ''}`}
+                    onClick={() => navigate('/admin/profile')}
                 >
                     <UserCircle size={18} />
                     Profile
